@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="card narrow">
+  <h1>Accés d'administració</h1>
+  {% if error %}
+  <p class="error">{{ error }}</p>
+  {% endif %}
+  <form method="post" action="/admin/login" class="form-grid">
+    <label>
+      Usuari
+      <input type="text" name="username" required />
+    </label>
+    <label>
+      Contrasenya
+      <input type="password" name="password" required />
+    </label>
+    <button type="submit">Entra</button>
+  </form>
+</section>
+{% endblock %}

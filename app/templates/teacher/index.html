@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="card">
+  <h1>Crea la planificació del mòdul</h1>
+  <p>Configura la disponibilitat horària, confirma les dates de planificació i calcula les hores lectives reals a partir del calendari.</p>
+  {% if error %}
+  <p class="error">{{ error }}</p>
+  {% endif %}
+  <form method="post" action="/plan" class="form-grid">
+    <div class="two-column form-span">
+      <label>
+        Codi del mòdul
+        <span class="optional-label">Opcional</span>
+        <input type="text" name="subject_code" value="{{ form.get('subject_code', '') }}" />
+      </label>
+      <label>
+        Nom del mòdul
+        <span class="optional-label">Opcional</span>
+        <input type="text" name="subject_name" value="{{ form.get('subject_name', '') }}" />
+      </label>
+    </div>
+    <div class="two-column form-span">
+      <label>
+        Data d'inici de la planificació
+        <input type="date" name="start_date" value="{{ form.get('start_date', settings.default_start_date.isoformat()) }}" required />
+      </label>
+      <label>
+        Data de fi de la planificació
+        <input type="date" name="end_date" value="{{ form.get('end_date', settings.default_end_date.isoformat()) }}" required />
+      </label>
+    </div>
+    <div class="weekday-grid form-span">
+      <label>Hores dilluns <input type="number" min="0" max="6" name="monday_hours" value="{{ form.get('monday_hours', '0') }}" required /></label>
+      <label>Hores dimarts <input type="number" min="0" max="6" name="tuesday_hours" value="{{ form.get('tuesday_hours', '0') }}" required /></label>
+      <label>Hores dimecres <input type="number" min="0" max="6" name="wednesday_hours" value="{{ form.get('wednesday_hours', '0') }}" required /></label>
+      <label>Hores dijous <input type="number" min="0" max="6" name="thursday_hours" value="{{ form.get('thursday_hours', '0') }}" required /></label>
+      <label>Hores divendres <input type="number" min="0" max="6" name="friday_hours" value="{{ form.get('friday_hours', '0') }}" required /></label>
+    </div>
+    <label>
+      Nombre de RAs
+      <input type="number" min="1" max="12" name="ra_count" value="{{ form.get('ra_count', '6') }}" required />
+    </label>
+    <button type="submit">Calcula les hores disponibles</button>
+  </form>
+</section>
+{% endblock %}

@@ -1,0 +1,15 @@
+services:
+  web:
+    build: .
+    ports:
+      # HOST_PORT lets local machines choose a free host port without editing the app.
+      - "${HOST_PORT:-8000}:8000"
+    environment:
+      APP_NAME: Curriculum Planner
+      SECRET_KEY: change-this-in-production
+      ADMIN_USERNAME: admin
+      ADMIN_PASSWORD: admin123
+      DATABASE_URL: sqlite:///data/app.db
+    volumes:
+      # Keep SQLite data outside the container so restarts do not erase it.
+      - ./data:/app/data

@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="page-header">
+  <div>
+    <h1>Configuració d'administració</h1>
+    <p>Gestiona el curs acadèmic per defecte i els períodes sense classe.</p>
+  </div>
+  <form method="post" action="/admin/logout">
+    <button type="submit" class="secondary">Surt</button>
+  </form>
+</section>
+
+{% if error %}
+<p class="error">{{ error }}</p>
+{% endif %}
+
+<div class="two-column">
+  <section class="card">
+    <h2>Curs acadèmic</h2>
+    <form method="post" action="/admin/settings" class="form-grid">
+      <label>
+        Data d'inici per defecte
+        <input type="date" name="default_start_date" value="{{ settings.default_start_date.isoformat() }}" required />
+      </label>
+      <label>
+        Data de fi per defecte
+        <input type="date" name="default_end_date" value="{{ settings.default_end_date.isoformat() }}" required />
+      </label>
+      <button type="submit">Desa la configuració</button>
+    </form>
+  </section>
+
+  <section class="card">
+    <h2>Afegeix un període sense classe</h2>
+    <form method="post" action="/admin/periods" class="form-grid">
+      <label>
+        Data d'inici
+        <input type="date" name="start_date" required />
+      </label>
+      <label>
+        Data de fi
+        <span class="optional-label">Opcional</span>
+        <input type="date" name="end_date" />
+      </label>
+      <button type="submit">Afegeix el període</button>
+    </form>
+    <!-- Admin can omit the end date for the common "single blocked day" case. -->
+    <p class="hint">Si només indiques la data d'inici, es registrarà automàticament com un únic dia sense classe.</p>
+  </section>
+</div>
+
+<section class="card">
+  <h2>Exclusions existents</h2>
+  {% if periods %}
+  <table>
+    <thead>
+      <tr>
+        <th>Data d'inici</th>
+        <th>Data de fi</th>
+        <th>Tipus</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for period in periods %}
+      <tr>
+        <td>{{ period.start_date.isoformat() }}</td>
+        <td>{{ period.end_date.isoformat() }}</td>
+        <td>{{ "Data única" if period.start_date == period.end_date else "Interval" }}</td>
+        <td>
+          <form method="post" action="/admin/periods/{{ period.id }}/delete">
+            <button type="submit" class="secondary">Suprimeix</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p>No hi ha exclusions configurades.</p>
+  {% endif %}
+</section>
+{% endblock %}

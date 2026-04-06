@@ -1,0 +1,127 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="card">
+  <h1>Distribució de RAs</h1>
+  <div class="summary-grid">
+    <p><strong>Mòdul:</strong> {{ summary.subject_code or "-" }} {{ summary.subject_name or "" }}</p>
+    <p><strong>Interval de dates:</strong> {{ summary.start_date }} a {{ summary.end_date }}</p>
+    <p><strong>Nombre de RAs:</strong> {{ summary.ra_count }}</p>
+    <p><strong>Hores totals disponibles:</strong> <span id="total-available">{{ summary.total_available_hours }}</span></p>
+    <p><strong>Hores per dia:</strong> Dl {{ summary.weekday_hours['0'] }} / Dt {{ summary.weekday_hours['1'] }} / Dc {{ summary.weekday_hours['2'] }} / Dj {{ summary.weekday_hours['3'] }} / Dv {{ summary.weekday_hours['4'] }}</p>
+    <p><strong>Dates excloses utilitzades:</strong> {{ summary.excluded_dates_used }}</p>
+  </div>
+  {% if export_error %}
+  <p class="error">{{ export_error }}</p>
+  {% endif %}
+</section>
+
+<section class="card">
+  <div class="page-header">
+    <div>
+      <h2>Assignació d'hores</h2>
+      <p>Arrossega les files per definir l'ordre de les RAs. L'exportació només s'activa quan no queda cap hora pendent.</p>
+    </div>
+    <div class="remaining-box">
+      Hores pendents: <strong id="remaining-hours">{{ summary.total_available_hours }}</strong>
+    </div>
+  </div>
+
+  <form method="post" action="/export" id="distribution-form">
+    <input type="hidden" name="plan_json" value='{{ plan_json|safe }}' />
+    <input type="hidden" name="ra_order" id="ra-order" />
+    <input type="hidden" name="ra_names" id="ra-names" />
+    <input type="hidden" name="ra_hours" id="ra-hours" />
+
+    <div id="ra-list" class="ra-list" data-total="{{ summary.total_available_hours }}" data-count="{{ summary.ra_count }}"></div>
+
+    <button type="submit" id="export-button" disabled>Exporta l'XLSX</button>
+  </form>
+</section>
+
+<script>
+  // Step 2 is intentionally lightweight: the browser manages ordering and
+  // remaining-hours feedback, while the server still performs final validation.
+  const raList = document.getElementById("ra-list");
+  const totalAvailable = Number(raList.dataset.total);
+  const exportButton = document.getElementById("export-button");
+  const remainingHoursEl = document.getElementById("remaining-hours");
+  const raOrderInput = document.getElementById("ra-order");
+  const raNamesInput = document.getElementById("ra-names");
+  const raHoursInput = document.getElementById("ra-hours");
+  let draggedItem = null;
+
+  function buildItems() {
+    const count = Number(raList.dataset.count);
+    for (let index = 1; index <= count; index += 1) {
+      const key = `RA${index}`;
+      const row = document.createElement("div");
+      row.className = "ra-row";
+      row.draggable = true;
+      row.dataset.key = key;
+      row.innerHTML = `
+        <div class="drag-handle">::</div>
+        <div class="ra-key">${key}</div>
+        <label>Nom visible <span class="optional-label">Opcional</span><input type="text" name="${key}_name" value="${key}" /></label>
+        <label>Hores <input type="number" min="0" step="1" name="${key}_hours" value="0" /></label>
+      `;
+      raList.appendChild(row);
+    }
+  }
+
+  function syncState() {
+    const rows = [...raList.querySelectorAll(".ra-row")];
+    const order = [];
+    const names = {};
+    const hours = {};
+    let assigned = 0;
+
+    rows.forEach((row) => {
+      const key = row.dataset.key;
+      const name = row.querySelector(`input[name="${key}_name"]`).value.trim() || key;
+      const hourValue = Number(row.querySelector(`input[name="${key}_hours"]`).value || 0);
+      order.push(key);
+      names[key] = name;
+      hours[key] = hourValue;
+      assigned += hourValue;
+    });
+
+    const remaining = totalAvailable - assigned;
+    remainingHoursEl.textContent = remaining;
+    remainingHoursEl.className = remaining === 0 ? "ok" : remaining < 0 ? "error-text" : "";
+    // Export stays disabled until the allocation is exact.
+    exportButton.disabled = remaining !== 0;
+    raOrderInput.value = JSON.stringify(order);
+    raNamesInput.value = JSON.stringify(names);
+    raHoursInput.value = JSON.stringify(hours);
+  }
+
+  raList.addEventListener("input", syncState);
+  raList.addEventListener("dragstart", (event) => {
+    const row = event.target.closest(".ra-row");
+    draggedItem = row;
+    row.classList.add("dragging");
+  });
+  raList.addEventListener("dragend", (event) => {
+    const row = event.target.closest(".ra-row");
+    row.classList.remove("dragging");
+    draggedItem = null;
+    syncState();
+  });
+  raList.addEventListener("dragover", (event) => {
+    event.preventDefault();
+    const target = event.target.closest(".ra-row");
+    if (!target || target === draggedItem) return;
+    const bounds = target.getBoundingClientRect();
+    // Drop above or below the hovered row depending on the cursor position.
+    const offset = event.clientY - bounds.top;
+    if (offset > bounds.height / 2) {
+      target.after(draggedItem);
+    } else {
+      target.before(draggedItem);
+    }
+  });
+
+  buildItems();
+  syncState();
+</script>
+{% endblock %}
