@@ -7,8 +7,8 @@
     <p><strong>Interval de dates:</strong> {{ summary.start_date }} a {{ summary.end_date }}</p>
     <p><strong>Nombre de RAs:</strong> {{ summary.ra_count }}</p>
     <p><strong>Hores totals disponibles:</strong> <span id="total-available">{{ summary.total_available_hours }}</span></p>
-    <p><strong>Hores per dia:</strong> Dl {{ summary.weekday_hours['0'] }} / Dt {{ summary.weekday_hours['1'] }} / Dc {{ summary.weekday_hours['2'] }} / Dj {{ summary.weekday_hours['3'] }} / Dv {{ summary.weekday_hours['4'] }}</p>
-    <p><strong>Dates excloses utilitzades:</strong> {{ summary.excluded_dates_used }}</p>
+    <p><strong>Hores per dia:</strong> {{ summary.weekday_hours_display }}</p>
+    <p><strong>Impacte dels períodes sense classe:</strong> {{ summary.excluded_teaching_days }} dies lectius, {{ summary.excluded_teaching_hours }} h</p>
   </div>
   {% if export_error %}
   <p class="error">{{ export_error }}</p>

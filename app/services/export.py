@@ -34,7 +34,7 @@ def build_workbook(
     calendar_sheet = workbook.active
     calendar_sheet.title = "Calendari"
 
-    headers = ["Dia setmana", "Data", "Hores totals"] + [ra.name for ra in ras]
+    headers = ["Dia setmana", "Data", "Hores"] + [f"{ra.name}: {ra.hours} h" for ra in ras]
     calendar_sheet.append(headers)
     for cell in calendar_sheet[1]:
         cell.font = Font(bold=True)

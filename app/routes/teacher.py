@@ -32,6 +32,42 @@ def _parse_weekday_hours(form_data: dict[str, str]) -> dict[int, int]:
     return values
 
 
+def _format_weekday_hours(weekday_hours: dict[int | str, int | str]) -> str:
+    """Return assigned weekday hours using compact Catalan abbreviations."""
+
+    labels = ("dl.", "dt.", "dc.", "dj.", "dv.")
+    parts: list[str] = []
+    for index, label in enumerate(labels):
+        hours = int(weekday_hours.get(index, weekday_hours.get(str(index), 0)))
+        if hours >= 1:
+            parts.append(f"{label}: {hours}")
+    return ", ".join(parts) if parts else "-"
+
+
+def _summarize_exclusion_impact(
+    start_date: date,
+    end_date: date,
+    weekday_hours: dict[int, int],
+    excluded_dates: set[date],
+) -> tuple[int, int]:
+    """Return excluded teaching days and hours within the selected plan window."""
+
+    excluded_teaching_days = 0
+    excluded_teaching_hours = 0
+    for current_date in excluded_dates:
+        if not (start_date <= current_date <= end_date):
+            continue
+        weekday_index = current_date.weekday()
+        if weekday_index > 4:
+            continue
+        hours = weekday_hours.get(weekday_index, 0)
+        if hours <= 0:
+            continue
+        excluded_teaching_days += 1
+        excluded_teaching_hours += hours
+    return excluded_teaching_days, excluded_teaching_hours
+
+
 @router.get("/")
 def index(request: Request, db: Session = Depends(get_db)):
     """Render the first planning step with default academic-year dates."""
@@ -75,6 +111,9 @@ async def prepare_plan(request: Request, db: Session = Depends(get_db)):
     excluded_dates = expand_excluded_periods([(period.start_date, period.end_date) for period in periods])
     schedule = build_schedule(start_date, end_date, weekday_hours, excluded_dates)
     total_hours = total_available_hours(schedule)
+    excluded_teaching_days, excluded_teaching_hours = _summarize_exclusion_impact(
+        start_date, end_date, weekday_hours, excluded_dates
+    )
 
     if total_hours == 0:
         return templates.TemplateResponse(
@@ -97,13 +136,15 @@ async def prepare_plan(request: Request, db: Session = Depends(get_db)):
         "end_date": end_date.isoformat(),
         "weekday_hours": weekday_hours,
         "ra_count": ra_count,
-        "excluded_dates_used": sum(1 for item in excluded_dates if start_date <= item <= end_date and item.weekday() <= 4),
+        "excluded_teaching_days": excluded_teaching_days,
+        "excluded_teaching_hours": excluded_teaching_hours,
         "schedule": [
             {"date": day.date.isoformat(), "weekday_index": day.weekday_index, "weekday_name": day.weekday_name, "hours": day.hours}
             for day in schedule
         ],
         "total_available_hours": total_hours,
     }
+    plan_payload["weekday_hours_display"] = _format_weekday_hours(plan_payload["weekday_hours"])
     return templates.TemplateResponse(
         request,
         "teacher/distribution.html",
@@ -155,16 +196,10 @@ async def export_plan(request: Request):
         "Nombre de RAs": plan_data["ra_count"],
         "Ordre de les RAs": ", ".join(ra_order),
         "Hores per RA": ", ".join(f"{ra.name}: {ra.hours}" for ra in ras),
-        "Hores per dia": ", ".join(
-            [
-                f"Dilluns {plan_data['weekday_hours']['0']}h",
-                f"Dimarts {plan_data['weekday_hours']['1']}h",
-                f"Dimecres {plan_data['weekday_hours']['2']}h",
-                f"Dijous {plan_data['weekday_hours']['3']}h",
-                f"Divendres {plan_data['weekday_hours']['4']}h",
-            ]
+        "Hores per dia": plan_data.get("weekday_hours_display") or _format_weekday_hours(plan_data["weekday_hours"]),
+        "Impacte dels períodes sense classe": (
+            f"{plan_data['excluded_teaching_days']} dies lectius, {plan_data['excluded_teaching_hours']} h"
         ),
-        "Dates excloses utilitzades": plan_data["excluded_dates_used"],
     }
     workbook = build_workbook(rows, ras, summary)
     filename = f"{plan_data['subject_code'] or 'planificacio'}-calendari.xlsx"
