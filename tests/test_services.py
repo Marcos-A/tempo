@@ -9,7 +9,7 @@ from datetime import date
 import pytest
 from openpyxl import load_workbook
 
-from app.services.allocation import RAPlan, allocate_ra_hours, validate_ra_distribution
+from app.services.allocation import BlockPlan, RAPlan, allocate_ra_hours, allocate_ra_hours_by_blocks, validate_ra_distribution
 from app.services.calendar import build_schedule, expand_excluded_periods, total_available_hours
 from app.services.export import build_workbook
 
@@ -53,6 +53,84 @@ def test_distribution_validation_requires_exact_match():
 
     with pytest.raises(ValueError):
         validate_ra_distribution(10, [RAPlan("RA1", "RA1", 7), RAPlan("RA2", "RA2", 2)])
+
+
+def test_parallel_blocks_preserve_their_weekly_split_when_both_need_all_hours():
+    """Parallel blocks should stay in their own lanes when neither finishes early."""
+
+    schedule = build_schedule(
+        date(2026, 9, 7),
+        date(2026, 9, 16),
+        {0: 2, 2: 2},
+        set(),
+    )
+    rows = allocate_ra_hours_by_blocks(
+        schedule,
+        [
+            RAPlan("RA1", "RA1", 2, block_key="block_1"),
+            RAPlan("RA2", "RA2", 6, block_key="block_2"),
+        ],
+        [
+            BlockPlan("block_1", "Bloc 1", {0: 1, 1: 0, 2: 0, 3: 0, 4: 0}),
+            BlockPlan("block_2", "Bloc 2", {0: 1, 1: 0, 2: 2, 3: 0, 4: 0}),
+        ],
+    )
+    assert rows[0]["ra_hours"] == {"RA1": 1, "RA2": 1}
+    assert rows[1]["ra_hours"] == {"RA1": 0, "RA2": 2}
+    assert rows[2]["ra_hours"] == {"RA1": 1, "RA2": 1}
+    assert rows[3]["ra_hours"] == {"RA1": 0, "RA2": 2}
+
+
+def test_parallel_blocks_automatically_transfer_unused_hours():
+    """Unused hours from one block should be absorbed by the other block automatically."""
+
+    schedule = build_schedule(
+        date(2026, 9, 7),
+        date(2026, 9, 16),
+        {0: 2, 2: 2},
+        set(),
+    )
+    rows = allocate_ra_hours_by_blocks(
+        schedule,
+        [
+            RAPlan("RA1", "RA1", 1, block_key="block_1"),
+            RAPlan("RA2", "RA2", 7, block_key="block_2"),
+        ],
+        [
+            BlockPlan("block_1", "Bloc 1", {0: 1, 1: 0, 2: 0, 3: 0, 4: 0}),
+            BlockPlan("block_2", "Bloc 2", {0: 1, 1: 0, 2: 2, 3: 0, 4: 0}),
+        ],
+    )
+    assert rows[0]["ra_hours"] == {"RA1": 1, "RA2": 1}
+    assert rows[1]["ra_hours"] == {"RA1": 0, "RA2": 2}
+    assert rows[2]["ra_hours"] == {"RA1": 0, "RA2": 2}
+    assert rows[3]["ra_hours"] == {"RA1": 0, "RA2": 2}
+
+
+def test_parallel_blocks_can_transfer_unused_hours_in_reverse_direction():
+    """If block 2 finishes early, its spare hours should move to block 1."""
+
+    schedule = build_schedule(
+        date(2026, 9, 7),
+        date(2026, 9, 16),
+        {0: 2, 2: 2},
+        set(),
+    )
+    rows = allocate_ra_hours_by_blocks(
+        schedule,
+        [
+            RAPlan("RA1", "RA1", 7, block_key="block_1"),
+            RAPlan("RA2", "RA2", 1, block_key="block_2"),
+        ],
+        [
+            BlockPlan("block_1", "Bloc 1", {0: 1, 1: 0, 2: 0, 3: 0, 4: 0}),
+            BlockPlan("block_2", "Bloc 2", {0: 1, 1: 0, 2: 2, 3: 0, 4: 0}),
+        ],
+    )
+    assert rows[0]["ra_hours"] == {"RA1": 1, "RA2": 1}
+    assert rows[1]["ra_hours"] == {"RA1": 2, "RA2": 0}
+    assert rows[2]["ra_hours"] == {"RA1": 2, "RA2": 0}
+    assert rows[3]["ra_hours"] == {"RA1": 2, "RA2": 0}
 
 
 def test_export_uses_blank_cells_for_zero_ra_hours():

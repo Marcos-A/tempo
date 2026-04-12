@@ -8,8 +8,23 @@
     <p><strong>Nombre de RAs:</strong> {{ summary.ra_count }}</p>
     <p><strong>Hores totals disponibles:</strong> <span id="total-available">{{ summary.total_available_hours }}</span></p>
     <p><strong>Hores per dia:</strong> {{ summary.weekday_hours_display }}</p>
+    <p><strong>Mode:</strong> {{ summary.planning_mode_label }}</p>
     <p><strong>Impacte dels períodes sense classe:</strong> {{ summary.excluded_teaching_days }} dies lectius, {{ summary.excluded_teaching_hours }} h</p>
+    {% if summary.planning_mode == "parallel" %}
+    <p><strong>Blocs:</strong> {{ summary.blocks|length }}</p>
+    {% endif %}
   </div>
+  {% if summary.planning_mode == "parallel" %}
+  <div class="block-summary-grid">
+    {% for block in summary.blocks %}
+    <article class="block-summary-card">
+      <h3>{{ block.name }}</h3>
+      <p><strong>Setmana:</strong> {{ block.weekday_hours_display }}</p>
+      <p><strong>Hores pròpies:</strong> {{ block.available_hours }} h</p>
+    </article>
+    {% endfor %}
+  </div>
+  {% endif %}
   {% if export_error %}
   <p class="error">{{ export_error }}</p>
   {% endif %}
@@ -19,106 +34,209 @@
   <div class="page-header">
     <div>
       <h2>Assignació d'hores</h2>
+      {% if summary.planning_mode == "parallel" %}
+      <p>Arrossega les RAs dins de cada bloc o mou-les d'un bloc a l'altre. Si un bloc no esgota les seves hores pròpies, la resta passarà automàticament a l'altre bloc.</p>
+      {% else %}
       <p>Arrossega les files per definir l'ordre de les RAs. L'exportació només s'activa quan no queda cap hora pendent.</p>
+      {% endif %}
     </div>
+    {% if summary.planning_mode == "parallel" %}
+    <div class="remaining-box-grid">
+      {% for block in summary.blocks %}
+      <div class="remaining-box">
+        {{ block.name }} pendents: <strong id="remaining-{{ block.key }}">{{ block.available_hours }}</strong>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
     <div class="remaining-box">
       Hores pendents: <strong id="remaining-hours">{{ summary.total_available_hours }}</strong>
     </div>
+    {% endif %}
   </div>
 
-  <form method="post" action="/export" id="distribution-form">
+  <form method="post" action="/export" id="distribution-form" data-planning-mode="{{ summary.planning_mode }}" data-total="{{ summary.total_available_hours }}" data-count="{{ summary.ra_count }}">
     <input type="hidden" name="plan_json" value='{{ plan_json|safe }}' />
     <input type="hidden" name="ra_order" id="ra-order" />
     <input type="hidden" name="ra_names" id="ra-names" />
     <input type="hidden" name="ra_hours" id="ra-hours" />
+    <input type="hidden" name="ra_blocks" id="ra-blocks" />
 
-    <div id="ra-list" class="ra-list" data-total="{{ summary.total_available_hours }}" data-count="{{ summary.ra_count }}"></div>
+    {% if summary.planning_mode == "parallel" %}
+    <div class="block-editor-grid" id="parallel-editor">
+      {% for block in summary.blocks %}
+      <section class="block-card planner-block">
+        <div class="block-card-header">
+          <div>
+            <h3>{{ block.name }}</h3>
+            <p class="hint">{{ block.weekday_hours_display }} · {{ block.available_hours }} h pròpies</p>
+          </div>
+          <span class="pill">{{ block.key|replace("_", " ") }}</span>
+        </div>
+        <div class="ra-list block-dropzone" data-block-key="{{ block.key }}" data-block-name="{{ block.name }}"></div>
+      </section>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div id="ra-list" class="ra-list" data-block-key="sequential"></div>
+    {% endif %}
 
     <button type="submit" id="export-button" disabled>Exporta l'XLSX</button>
   </form>
+  {% if summary.planning_mode == "parallel" %}
+  <p id="block-transfer-warning" class="hint" hidden></p>
+  {% endif %}
 </section>
 
+<script id="ra-initial-state" type="application/json">{{ ra_state_json|safe }}</script>
 <script>
-  // Step 2 is intentionally lightweight: the browser manages ordering and
-  // remaining-hours feedback, while the server still performs final validation.
-  const raList = document.getElementById("ra-list");
-  const totalAvailable = Number(raList.dataset.total);
+  const distributionForm = document.getElementById("distribution-form");
+  const planData = JSON.parse(distributionForm.querySelector('input[name="plan_json"]').value);
+  const initialState = JSON.parse(document.getElementById("ra-initial-state").textContent);
+  const planningMode = distributionForm.dataset.planningMode;
+  const totalAvailable = Number(distributionForm.dataset.total);
   const exportButton = document.getElementById("export-button");
   const remainingHoursEl = document.getElementById("remaining-hours");
+  const remainingByBlock = Object.fromEntries(
+    (planData.blocks || []).map((block) => [block.key, document.getElementById(`remaining-${block.key}`)])
+  );
   const raOrderInput = document.getElementById("ra-order");
   const raNamesInput = document.getElementById("ra-names");
   const raHoursInput = document.getElementById("ra-hours");
+  const raBlocksInput = document.getElementById("ra-blocks");
+  const blockTransferWarning = document.getElementById("block-transfer-warning");
+  const blockLists = planningMode === "parallel"
+    ? [...document.querySelectorAll(".block-dropzone")]
+    : [document.getElementById("ra-list")];
   let draggedItem = null;
 
+  function createRow(key, blockKey) {
+    const row = document.createElement("div");
+    row.className = "ra-row";
+    row.draggable = true;
+    row.dataset.key = key;
+    row.dataset.blockKey = blockKey;
+    const nameValue = initialState.names?.[key] || key;
+    const hoursValue = initialState.hours?.[key] ?? 0;
+    row.innerHTML = `
+      <div class="drag-handle">::</div>
+      <div class="ra-key">${key}</div>
+      <label>Nom visible <span class="optional-label">Opcional</span><input type="text" name="${key}_name" value="${nameValue}" /></label>
+      <label>Hores <input type="number" min="0" step="1" name="${key}_hours" value="${hoursValue}" /></label>
+    `;
+    return row;
+  }
+
   function buildItems() {
-    const count = Number(raList.dataset.count);
-    for (let index = 1; index <= count; index += 1) {
-      const key = `RA${index}`;
-      const row = document.createElement("div");
-      row.className = "ra-row";
-      row.draggable = true;
-      row.dataset.key = key;
-      row.innerHTML = `
-        <div class="drag-handle">::</div>
-        <div class="ra-key">${key}</div>
-        <label>Nom visible <span class="optional-label">Opcional</span><input type="text" name="${key}_name" value="${key}" /></label>
-        <label>Hores <input type="number" min="0" step="1" name="${key}_hours" value="0" /></label>
-      `;
-      raList.appendChild(row);
+    const keys = initialState.order?.length
+      ? initialState.order
+      : Array.from({ length: Number(distributionForm.dataset.count) }, (_, index) => `RA${index + 1}`);
+
+    if (planningMode === "parallel") {
+      const fallbackBlock = planData.blocks?.[1]?.key || planData.blocks?.[0]?.key;
+      keys.forEach((key, index) => {
+        const blockKey = initialState.blocks?.[key] || (index === 0 ? planData.blocks?.[0]?.key : fallbackBlock);
+        const blockList = blockLists.find((list) => list.dataset.blockKey === blockKey) || blockLists[0];
+        blockList.appendChild(createRow(key, blockList.dataset.blockKey));
+      });
+      return;
     }
+
+    keys.forEach((key) => blockLists[0].appendChild(createRow(key, "sequential")));
   }
 
   function syncState() {
-    const rows = [...raList.querySelectorAll(".ra-row")];
     const order = [];
     const names = {};
     const hours = {};
+    const blocks = {};
     let assigned = 0;
+    const assignedByBlock = Object.fromEntries((planData.blocks || []).map((block) => [block.key, 0]));
 
-    rows.forEach((row) => {
-      const key = row.dataset.key;
-      const name = row.querySelector(`input[name="${key}_name"]`).value.trim() || key;
-      const hourValue = Number(row.querySelector(`input[name="${key}_hours"]`).value || 0);
-      order.push(key);
-      names[key] = name;
-      hours[key] = hourValue;
-      assigned += hourValue;
+    blockLists.forEach((list) => {
+      [...list.querySelectorAll(".ra-row")].forEach((row) => {
+        const key = row.dataset.key;
+        const name = row.querySelector(`input[name="${key}_name"]`).value.trim() || key;
+        const hourValue = Number(row.querySelector(`input[name="${key}_hours"]`).value || 0);
+        order.push(key);
+        names[key] = name;
+        hours[key] = hourValue;
+        if (planningMode === "parallel") {
+          blocks[key] = list.dataset.blockKey;
+          assignedByBlock[list.dataset.blockKey] += hourValue;
+        }
+        assigned += hourValue;
+      });
     });
 
     const remaining = totalAvailable - assigned;
-    remainingHoursEl.textContent = remaining;
-    remainingHoursEl.className = remaining === 0 ? "ok" : remaining < 0 ? "error-text" : "";
-    // Export stays disabled until the allocation is exact.
+    if (remainingHoursEl) {
+      remainingHoursEl.textContent = remaining;
+      remainingHoursEl.className = remaining === 0 ? "ok" : remaining < 0 ? "error-text" : "";
+    }
+    Object.entries(remainingByBlock).forEach(([blockKey, element]) => {
+      if (!element) return;
+      const block = planData.blocks.find((item) => item.key === blockKey);
+      const remainingBlockHours = Number(block?.available_hours || 0) - Number(assignedByBlock[blockKey] || 0);
+      element.textContent = remainingBlockHours;
+      element.className = remainingBlockHours === 0 ? "ok" : remainingBlockHours < 0 ? "error-text" : "";
+    });
+    if (blockTransferWarning) {
+      const warningTarget = (planData.blocks || []).find((block) => {
+        const remainingBlockHours = Number(block.available_hours || 0) - Number(assignedByBlock[block.key] || 0);
+        return remainingBlockHours > 0;
+      });
+      const receiverTarget = (planData.blocks || []).find((block) => {
+        const remainingBlockHours = Number(block.available_hours || 0) - Number(assignedByBlock[block.key] || 0);
+        return remainingBlockHours < 0;
+      });
+      if (warningTarget && receiverTarget && remaining === 0) {
+        const transferHours = Number(warningTarget.available_hours || 0) - Number(assignedByBlock[warningTarget.key] || 0);
+        blockTransferWarning.hidden = false;
+        blockTransferWarning.textContent = `${warningTarget.name} no esgota ${transferHours} h pròpies. Aquestes hores s'assignaran automàticament a ${receiverTarget.name}.`;
+      } else {
+        blockTransferWarning.hidden = true;
+        blockTransferWarning.textContent = "";
+      }
+    }
     exportButton.disabled = remaining !== 0;
     raOrderInput.value = JSON.stringify(order);
     raNamesInput.value = JSON.stringify(names);
     raHoursInput.value = JSON.stringify(hours);
+    raBlocksInput.value = JSON.stringify(blocks);
   }
 
-  raList.addEventListener("input", syncState);
-  raList.addEventListener("dragstart", (event) => {
-    const row = event.target.closest(".ra-row");
-    draggedItem = row;
-    row.classList.add("dragging");
-  });
-  raList.addEventListener("dragend", (event) => {
-    const row = event.target.closest(".ra-row");
-    row.classList.remove("dragging");
-    draggedItem = null;
-    syncState();
-  });
-  raList.addEventListener("dragover", (event) => {
-    event.preventDefault();
-    const target = event.target.closest(".ra-row");
-    if (!target || target === draggedItem) return;
-    const bounds = target.getBoundingClientRect();
-    // Drop above or below the hovered row depending on the cursor position.
-    const offset = event.clientY - bounds.top;
-    if (offset > bounds.height / 2) {
-      target.after(draggedItem);
-    } else {
-      target.before(draggedItem);
-    }
+  blockLists.forEach((list) => {
+    list.addEventListener("input", syncState);
+    list.addEventListener("dragstart", (event) => {
+      const row = event.target.closest(".ra-row");
+      if (!row) return;
+      draggedItem = row;
+      row.classList.add("dragging");
+    });
+    list.addEventListener("dragend", (event) => {
+      const row = event.target.closest(".ra-row");
+      if (!row) return;
+      row.classList.remove("dragging");
+      draggedItem = null;
+      syncState();
+    });
+    list.addEventListener("dragover", (event) => {
+      event.preventDefault();
+      if (!draggedItem) return;
+      const target = event.target.closest(".ra-row");
+      if (!target || target === draggedItem) {
+        list.appendChild(draggedItem);
+        return;
+      }
+      const bounds = target.getBoundingClientRect();
+      const offset = event.clientY - bounds.top;
+      if (offset > bounds.height / 2) {
+        target.after(draggedItem);
+      } else {
+        target.before(draggedItem);
+      }
+    });
   });
 
   buildItems();
