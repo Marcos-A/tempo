@@ -17,6 +17,20 @@ and `app/templates/` renders the interface.
 
 ## Run locally with Docker only
 
+This repository is currently configured for development convenience in
+`docker-compose.yml`:
+
+- `./app` is bind-mounted into `/app/app`
+- `./tests` is bind-mounted into `/app/tests`
+- the container runs Uvicorn with `--reload`
+
+That means template, CSS, and Python edits made on the host are reflected in the
+running container without rebuilding the image every time.
+
+Important: this is development-only. Before deploying to production, revert the
+bind mounts and remove `--reload` so the container runs only the code baked into
+the image.
+
 1. Optionally copy `.env.example` values into your own shell or adapt `docker-compose.yml`.
 2. Start the app:
 
@@ -43,6 +57,10 @@ Default admin credentials come from environment variables:
 - Password: `admin123`
 
 The SQLite database is stored in `./data/app.db` and persists through the bind mount in `docker-compose.yml`.
+
+After the first `docker compose up --build`, most code-only changes do not need
+another rebuild because the app source is bind-mounted for development. If you
+change Python dependencies or the Docker image itself, rebuild again.
 
 ## Run tests with Docker
 
@@ -98,6 +116,8 @@ README.md
 ## Production notes
 
 - Replace `SECRET_KEY` and admin credentials with environment variables from the deployment platform.
+- Revert the development-only bind mounts in `docker-compose.yml` (`./app:/app/app`, `./tests:/app/tests`) before production.
+- Revert the development-only Uvicorn `--reload` flag before production.
 - Put the app behind a reverse proxy for a subdomain such as `planner.marcos-a.com`.
 - Set secure cookie settings and HTTPS termination at the proxy.
 - Replace the SQLite bind mount with a managed persistent volume or move to PostgreSQL if concurrent writes grow.

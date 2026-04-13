@@ -5,7 +5,7 @@ from datetime import date
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.auth import hash_password
+from app.auth import hash_password, verify_password
 from app.config import get_settings
 from app.models import AcademicYearSetting, AdminUser
 
@@ -18,6 +18,10 @@ def bootstrap_database(db: Session) -> None:
     admin = db.scalar(select(AdminUser).where(AdminUser.username == settings.admin_username))
     if admin is None:
         db.add(AdminUser(username=settings.admin_username, password_hash=hash_password(settings.admin_password)))
+    elif not verify_password(settings.admin_password, admin.password_hash):
+        # Keep the configured admin credentials usable across container rebuilds
+        # even when an older password hash already exists in the persisted DB.
+        admin.password_hash = hash_password(settings.admin_password)
 
     default_settings = db.get(AcademicYearSetting, 1)
     if default_settings is None:

@@ -14,5 +14,5 @@ COPY . .
 
 EXPOSE 8000
 
-# Uvicorn serves the FastAPI application inside the container.
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Trust the reverse proxy path used on this host so generated URLs keep HTTPS.
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--proxy-headers", "--forwarded-allow-ips=*"]

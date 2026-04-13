@@ -50,6 +50,7 @@ def build_schedule(
 
     Only Monday-Friday dates with positive configured hours are kept.
     Admin exclusions are removed before the final list is returned.
+    The first planning date is treated as a presentation day without classes.
     """
 
     if end_date < start_date:
@@ -57,6 +58,8 @@ def build_schedule(
 
     schedule: list[ScheduleDay] = []
     for current_date in daterange(start_date, end_date):
+        if current_date == start_date:
+            continue
         weekday_index = current_date.weekday()
         if weekday_index > 4:
             # Weekends never count as teaching dates in this MVP.

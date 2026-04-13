@@ -9,24 +9,48 @@
   <form method="post" action="/plan" class="form-grid">
     <div class="two-column form-span">
       <label>
+        Cicle formatiu
+        <span class="optional-label">Opcional</span>
+        <input
+          type="text"
+          name="training_cycle"
+          list="training-cycle-options"
+          value="{{ form.get('training_cycle', '') }}"
+          placeholder="P.ex. Administració i finances"
+        />
+      </label>
+      <label>
+        Grup
+        <span class="optional-label">Opcional</span>
+        <input type="text" name="group_name" value="{{ form.get('group_name', '') }}" placeholder="P.ex. AF1M" />
+      </label>
+    </div>
+    <datalist id="training-cycle-options">
+      <option value="CFGM Gestió administrativa"></option>
+      <option value="CFGM Gestió administrativa d'àmbit jurídic"></option>
+      <option value="CFGS Administració i finances"></option>
+    </datalist>
+    <div class="two-column form-span">
+      <label>
         Codi del mòdul
         <span class="optional-label">Opcional</span>
-        <input type="text" name="subject_code" value="{{ form.get('subject_code', '') }}" />
+        <input type="text" name="subject_code" value="{{ form.get('subject_code', '') }}" placeholder="P.ex. MP0651" />
       </label>
       <label>
         Nom del mòdul
         <span class="optional-label">Opcional</span>
-        <input type="text" name="subject_name" value="{{ form.get('subject_name', '') }}" />
+        <input type="text" name="subject_name" value="{{ form.get('subject_name', '') }}" placeholder="P.ex. Comunicació i atenció al client." />
       </label>
     </div>
     <div class="two-column form-span">
       <label>
         Data d'inici de la planificació
-        <input type="date" name="start_date" value="{{ form.get('start_date', settings.default_start_date.isoformat()) }}" required />
+        <span class="inline-note">Dia de presentació sense classes</span>
+        <input class="date-input" type="text" name="start_date" value="{{ form.get('start_date', settings.default_start_date|date_display) }}" placeholder="DD/MM/AAAA" inputmode="numeric" pattern="\d{1,2}/\d{1,2}/\d{2,4}" required />
       </label>
       <label>
         Data de fi de la planificació
-        <input type="date" name="end_date" value="{{ form.get('end_date', settings.default_end_date.isoformat()) }}" required />
+        <input class="date-input" type="text" name="end_date" value="{{ form.get('end_date', settings.default_end_date|date_display) }}" placeholder="DD/MM/AAAA" inputmode="numeric" pattern="\d{1,2}/\d{1,2}/\d{2,4}" required />
       </label>
     </div>
     <div class="weekday-grid form-span">
@@ -40,7 +64,78 @@
       Nombre de RAs
       <input type="number" min="1" max="12" name="ra_count" value="{{ form.get('ra_count', '6') }}" required />
     </label>
+    <div class="planning-mode card-panel form-span">
+      <div class="section-heading">
+        <div>
+          <h2>Mode de planificació</h2>
+        </div>
+      </div>
+      <div class="planning-mode-grid">
+        <div class="planning-mode-option">
+          <p>Mantingueu el mode seqüencial quan els RA s'imparteixin consecutivament.</p>
+          <label class="choice-card">
+            <input type="radio" name="planning_mode" value="sequential" {% if form.get('planning_mode', 'sequential') == 'sequential' %}checked{% endif %} />
+            <span>Seqüencial</span>
+            <small>Una única cadena de RAs, una darrere l'altra.</small>
+          </label>
+        </div>
+        <div class="planning-mode-option">
+          <p>Activeu els blocs si hi ha RA que s'imparteixen en paral·lel.</p>
+          <label class="choice-card">
+            <input type="radio" name="planning_mode" value="parallel" {% if form.get('planning_mode') == 'parallel' %}checked{% endif %} />
+            <span>Blocs en paral·lel</span>
+            <small>Dos blocs setmanals que poden conviure i, si cal, alliberar hores.</small>
+          </label>
+        </div>
+      </div>
+    </div>
+    <section id="parallel-config" class="card-panel form-span" {% if form.get('planning_mode') != 'parallel' %}hidden{% endif %}>
+      <div class="section-heading">
+        <div>
+          <h2>Configuració dels blocs</h2>
+          <p class="hint">La suma de les hores dels dos blocs ha de coincidir amb les hores del calendari per a cada dia.</p>
+        </div>
+        <span class="pill">MVP: 2 blocs</span>
+      </div>
+      <div class="two-column">
+        <section class="block-card">
+          <h3>Bloc 1</h3>
+          <p class="hint">Ideal per a una RA que conviu amb la resta només en una part de l'horari setmanal.</p>
+          <div class="weekday-grid compact-grid">
+            <label>Dl. <input type="number" min="0" max="6" name="block_1_monday_hours" value="{{ form.get('block_1_monday_hours', '0') }}" /></label>
+            <label>Dt. <input type="number" min="0" max="6" name="block_1_tuesday_hours" value="{{ form.get('block_1_tuesday_hours', '0') }}" /></label>
+            <label>Dc. <input type="number" min="0" max="6" name="block_1_wednesday_hours" value="{{ form.get('block_1_wednesday_hours', '0') }}" /></label>
+            <label>Dj. <input type="number" min="0" max="6" name="block_1_thursday_hours" value="{{ form.get('block_1_thursday_hours', '0') }}" /></label>
+            <label>Dv. <input type="number" min="0" max="6" name="block_1_friday_hours" value="{{ form.get('block_1_friday_hours', '0') }}" /></label>
+          </div>
+          <p class="hint">Si aquest bloc no esgota totes les seves hores pròpies, la resta es redistribuirà automàticament a l'altre bloc.</p>
+        </section>
+        <section class="block-card">
+          <h3>Bloc 2</h3>
+          <p class="hint">Rep la resta de les hores setmanals i continua com una seqüència pròpia de RAs.</p>
+          <div class="weekday-grid compact-grid">
+            <label>Dl. <input type="number" min="0" max="6" name="block_2_monday_hours" value="{{ form.get('block_2_monday_hours', '0') }}" /></label>
+            <label>Dt. <input type="number" min="0" max="6" name="block_2_tuesday_hours" value="{{ form.get('block_2_tuesday_hours', '0') }}" /></label>
+            <label>Dc. <input type="number" min="0" max="6" name="block_2_wednesday_hours" value="{{ form.get('block_2_wednesday_hours', '0') }}" /></label>
+            <label>Dj. <input type="number" min="0" max="6" name="block_2_thursday_hours" value="{{ form.get('block_2_thursday_hours', '0') }}" /></label>
+            <label>Dv. <input type="number" min="0" max="6" name="block_2_friday_hours" value="{{ form.get('block_2_friday_hours', '0') }}" /></label>
+          </div>
+        </section>
+      </div>
+    </section>
     <button type="submit">Calcula les hores disponibles</button>
   </form>
 </section>
+<script>
+  const planningModeInputs = [...document.querySelectorAll('input[name="planning_mode"]')];
+  const parallelConfig = document.getElementById("parallel-config");
+
+  function syncPlanningMode() {
+    const selectedMode = planningModeInputs.find((input) => input.checked)?.value || "sequential";
+    parallelConfig.hidden = selectedMode !== "parallel";
+  }
+
+  planningModeInputs.forEach((input) => input.addEventListener("change", syncPlanningMode));
+  syncPlanningMode();
+</script>
 {% endblock %}

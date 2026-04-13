@@ -20,27 +20,27 @@
     <form method="post" action="/admin/settings" class="form-grid">
       <label>
         Data d'inici per defecte
-        <input type="date" name="default_start_date" value="{{ settings.default_start_date.isoformat() }}" required />
+        <input class="date-input" type="text" name="default_start_date" value="{{ settings.default_start_date|date_display }}" placeholder="DD/MM/AAAA" inputmode="numeric" pattern="\d{1,2}/\d{1,2}/\d{2,4}" required />
       </label>
       <label>
         Data de fi per defecte
-        <input type="date" name="default_end_date" value="{{ settings.default_end_date.isoformat() }}" required />
+        <input class="date-input" type="text" name="default_end_date" value="{{ settings.default_end_date|date_display }}" placeholder="DD/MM/AAAA" inputmode="numeric" pattern="\d{1,2}/\d{1,2}/\d{2,4}" required />
       </label>
       <button type="submit">Desa la configuració</button>
     </form>
   </section>
 
-  <section class="card">
+  <section class="card" id="excluded-periods">
     <h2>Afegeix un període sense classe</h2>
     <form method="post" action="/admin/periods" class="form-grid">
       <label>
         Data d'inici
-        <input type="date" name="start_date" required />
+        <input class="date-input" type="text" name="start_date" placeholder="DD/MM/AAAA" inputmode="numeric" pattern="\d{1,2}/\d{1,2}/\d{2,4}" required />
       </label>
       <label>
         Data de fi
         <span class="optional-label">Opcional</span>
-        <input type="date" name="end_date" />
+        <input class="date-input" type="text" name="end_date" placeholder="DD/MM/AAAA" inputmode="numeric" pattern="\d{1,2}/\d{1,2}/\d{2,4}" />
       </label>
       <button type="submit">Afegeix el període</button>
     </form>
@@ -64,8 +64,8 @@
     <tbody>
       {% for period in periods %}
       <tr>
-        <td>{{ period.start_date.isoformat() }}</td>
-        <td>{{ period.end_date.isoformat() }}</td>
+        <td>{{ period.start_date|date_display }}</td>
+        <td>{{ period.end_date|date_display }}</td>
         <td>{{ "Data única" if period.start_date == period.end_date else "Interval" }}</td>
         <td>
           <form method="post" action="/admin/periods/{{ period.id }}/delete">
@@ -80,4 +80,9 @@
   <p>No hi ha exclusions configurades.</p>
   {% endif %}
 </section>
+{% if focus_section %}
+<script>
+  document.getElementById({{ focus_section|tojson }})?.scrollIntoView({ behavior: "auto", block: "start" });
+</script>
+{% endif %}
 {% endblock %}
