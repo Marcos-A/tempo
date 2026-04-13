@@ -108,6 +108,9 @@ def build_workbook(
     calendar_sheet.column_dimensions["A"].width = _auto_width_for_column_values(weekday_values)
     calendar_sheet.column_dimensions["B"].width = _auto_width_for_column_values(date_values)
     calendar_sheet.column_dimensions["C"].width = _auto_width_for_column_values(hour_values)
+    for row in calendar_sheet.iter_rows(min_row=2, max_row=calendar_sheet.max_row, min_col=1, max_col=2):
+        for cell in row:
+            cell.alignment = Alignment(horizontal="center", vertical="center")
     for row in calendar_sheet.iter_rows(min_row=1, max_row=calendar_sheet.max_row, min_col=3, max_col=3):
         row[0].alignment = Alignment(horizontal="center", vertical="center")
     for index in range(len(ras)):

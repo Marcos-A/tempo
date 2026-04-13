@@ -167,8 +167,10 @@ def test_export_uses_blank_cells_for_zero_ra_hours():
     assert sheet["A1"].value == "Data"
     assert sheet["A1"].alignment.horizontal == "left"
     assert sheet["A2"].value == "dt."
+    assert sheet["A2"].alignment.horizontal == "center"
     assert sheet["B2"].value.date().isoformat() == "2026-09-01"
     assert sheet["B2"].number_format == "DD/MM/YYYY"
+    assert sheet["B2"].alignment.horizontal == "center"
     assert sheet["C1"].value == "Hores"
     assert sheet.column_dimensions["C"].width < 16
     assert sheet["C1"].alignment.horizontal == "center"
