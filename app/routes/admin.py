@@ -1,6 +1,5 @@
 """Routes for the protected admin area."""
 
-from datetime import date
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Form, Request, status
@@ -11,12 +10,15 @@ from sqlalchemy.orm import Session
 
 from app.auth import verify_password
 from app.database import get_db
+from app.date_utils import format_display_date, parse_date_input
 from app.dependencies import require_admin
 from app.models import AcademicYearSetting, AdminUser, ExcludedPeriod
 
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 templates = Jinja2Templates(directory="app/templates")
+templates.env.filters["date_display"] = format_display_date
+EXCLUDED_PERIODS_SECTION_ID = "excluded-periods"
 
 
 @router.get("/login")
@@ -58,28 +60,42 @@ def admin_dashboard(request: Request, db: Session = Depends(get_db), _: AdminUse
     settings = db.get(AcademicYearSetting, 1)
     periods = db.scalars(select(ExcludedPeriod).order_by(ExcludedPeriod.start_date, ExcludedPeriod.end_date)).all()
     error = None
+    focus_section = None
     if request.query_params.get("error") == "invalid-period":
         error = "La data de fi no pot ser anterior a la data d'inici."
+        focus_section = EXCLUDED_PERIODS_SECTION_ID
     return templates.TemplateResponse(
         request,
         "admin/dashboard.html",
-        {"settings": settings, "periods": periods, "error": error},
+        {"settings": settings, "periods": periods, "error": error, "focus_section": focus_section},
     )
 
 
 @router.post("/settings")
 def update_settings(
     request: Request,
-    default_start_date: date = Form(...),
-    default_end_date: date = Form(...),
+    default_start_date_raw: str = Form(..., alias="default_start_date"),
+    default_end_date_raw: str = Form(..., alias="default_end_date"),
     db: Session = Depends(get_db),
     _: AdminUser = Depends(require_admin),
 ):
     """Update the default planning window used by the teacher form."""
 
+    settings = db.get(AcademicYearSetting, 1)
+    periods = db.scalars(select(ExcludedPeriod).order_by(ExcludedPeriod.start_date, ExcludedPeriod.end_date)).all()
+
+    try:
+        default_start_date = parse_date_input(default_start_date_raw)
+        default_end_date = parse_date_input(default_end_date_raw)
+    except ValueError as exc:
+        return templates.TemplateResponse(
+            request,
+            "admin/dashboard.html",
+            {"settings": settings, "periods": periods, "error": str(exc), "focus_section": EXCLUDED_PERIODS_SECTION_ID},
+            status_code=status.HTTP_400_BAD_REQUEST,
+        )
+
     if default_end_date < default_start_date:
-        settings = db.get(AcademicYearSetting, 1)
-        periods = db.scalars(select(ExcludedPeriod).order_by(ExcludedPeriod.start_date, ExcludedPeriod.end_date)).all()
         return templates.TemplateResponse(
             request,
             "admin/dashboard.html",
@@ -87,7 +103,6 @@ def update_settings(
             status_code=status.HTTP_400_BAD_REQUEST,
         )
 
-    settings = db.get(AcademicYearSetting, 1)
     settings.default_start_date = default_start_date
     settings.default_end_date = default_end_date
     db.commit()
@@ -96,8 +111,9 @@ def update_settings(
 
 @router.post("/periods")
 def add_period(
-    start_date: date = Form(...),
-    end_date_raw: Annotated[str | None, Form()] = None,
+    request: Request,
+    start_date_raw: str = Form(..., alias="start_date"),
+    end_date_raw: Annotated[str | None, Form(alias="end_date")] = None,
     db: Session = Depends(get_db),
     _: AdminUser = Depends(require_admin),
 ):
@@ -107,12 +123,45 @@ def add_period(
     the submission as a single excluded day.
     """
 
-    end_date = start_date if not end_date_raw else date.fromisoformat(end_date_raw)
+    settings = db.get(AcademicYearSetting, 1)
+    periods = db.scalars(select(ExcludedPeriod).order_by(ExcludedPeriod.start_date, ExcludedPeriod.end_date)).all()
+
+    try:
+        start_date = parse_date_input(start_date_raw)
+        end_date = start_date if not end_date_raw else parse_date_input(end_date_raw)
+    except ValueError as exc:
+        return templates.TemplateResponse(
+            request,
+            "admin/dashboard.html",
+            {"settings": settings, "periods": periods, "error": str(exc)},
+            status_code=status.HTTP_400_BAD_REQUEST,
+        )
+
     if end_date < start_date:
         return RedirectResponse(url="/admin?error=invalid-period", status_code=status.HTTP_303_SEE_OTHER)
+
+    existing_period = db.scalar(
+        select(ExcludedPeriod).where(
+            ExcludedPeriod.start_date == start_date,
+            ExcludedPeriod.end_date == end_date,
+        )
+    )
+    if existing_period is not None:
+        error_message = (
+            "Aquesta data sense classe ja existeix."
+            if start_date == end_date
+            else "Aquest període sense classe ja existeix."
+        )
+        return templates.TemplateResponse(
+            request,
+            "admin/dashboard.html",
+            {"settings": settings, "periods": periods, "error": error_message, "focus_section": EXCLUDED_PERIODS_SECTION_ID},
+            status_code=status.HTTP_400_BAD_REQUEST,
+        )
+
     db.add(ExcludedPeriod(start_date=start_date, end_date=end_date))
     db.commit()
-    return RedirectResponse(url="/admin", status_code=status.HTTP_303_SEE_OTHER)
+    return RedirectResponse(url=f"/admin#{EXCLUDED_PERIODS_SECTION_ID}", status_code=status.HTTP_303_SEE_OTHER)
 
 
 @router.post("/periods/{period_id}/delete")

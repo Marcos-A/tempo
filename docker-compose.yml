@@ -1,6 +1,11 @@
 services:
   web:
     build: .
+    # Development-only convenience:
+    # - bind mounts let local code/template/CSS changes appear immediately
+    # - --reload restarts the app when Python files change
+    # Revert these settings before production so the container runs the baked image only.
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --proxy-headers --forwarded-allow-ips=* --reload
     ports:
       # HOST_PORT lets local machines choose a free host port without editing the app.
       - "${HOST_PORT:-8000}:8000"
@@ -11,5 +16,9 @@ services:
       ADMIN_PASSWORD: admin123
       DATABASE_URL: sqlite:///data/app.db
     volumes:
+      # Development-only bind mounts. Revert before production.
+      - ./app:/app/app
+      - ./tests:/app/tests
+      - ./README.md:/app/README.md:ro
       # Keep SQLite data outside the container so restarts do not erase it.
       - ./data:/app/data

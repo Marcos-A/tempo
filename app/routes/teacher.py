@@ -10,6 +10,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.database import get_db
+from app.date_utils import format_display_date, parse_date_input
 from app.models import AcademicYearSetting, ExcludedPeriod
 from app.services.allocation import BlockPlan, RAPlan, allocate_ra_hours, allocate_ra_hours_by_blocks, validate_ra_distribution
 from app.services.calendar import ScheduleDay, build_schedule, expand_excluded_periods, total_available_hours
@@ -18,6 +19,7 @@ from app.services.export import build_workbook
 
 router = APIRouter(tags=["teacher"])
 templates = Jinja2Templates(directory="app/templates")
+templates.env.filters["date_display"] = format_display_date
 PLANNING_MODE_CHOICES = {"sequential", "parallel"}
 
 
@@ -183,8 +185,8 @@ async def prepare_plan(request: Request, db: Session = Depends(get_db)):
     settings = db.get(AcademicYearSetting, 1)
 
     try:
-        start_date = date.fromisoformat(form_data["start_date"])
-        end_date = date.fromisoformat(form_data["end_date"])
+        start_date = parse_date_input(form_data["start_date"])
+        end_date = parse_date_input(form_data["end_date"])
         if end_date < start_date:
             raise ValueError("La data de fi no pot ser anterior a la data d'inici.")
         weekday_hours = _parse_weekday_hours(form_data)
@@ -227,10 +229,14 @@ async def prepare_plan(request: Request, db: Session = Depends(get_db)):
     # The second step runs in the browser, so we send a compact JSON payload that
     # contains everything needed to finish the RA distribution and export.
     plan_payload = {
+        "training_cycle": form_data.get("training_cycle", "").strip(),
+        "group_name": form_data.get("group_name", "").strip(),
         "subject_code": form_data.get("subject_code", "").strip(),
         "subject_name": form_data.get("subject_name", "").strip(),
         "start_date": start_date.isoformat(),
         "end_date": end_date.isoformat(),
+        "start_date_display": format_display_date(start_date),
+        "end_date_display": format_display_date(end_date),
         "weekday_hours": weekday_hours,
         "planning_mode": planning_mode,
         "planning_mode_label": "Per blocs en paral·lel" if planning_mode == "parallel" else "Seqüencial",
@@ -324,10 +330,12 @@ async def export_plan(request: Request):
     # Allocation is done server-side again to avoid trusting browser calculations
     # for the final exported file.
     summary = {
+        "Cicle formatiu": plan_data.get("training_cycle") or "-",
+        "Grup": plan_data.get("group_name") or "-",
         "Codi del mòdul": plan_data["subject_code"] or "-",
         "Nom del mòdul": plan_data["subject_name"] or "-",
-        "Data d'inici de la planificació": plan_data["start_date"],
-        "Data de fi de la planificació": plan_data["end_date"],
+        "Data d'inici de la planificació": plan_data.get("start_date_display", plan_data["start_date"]),
+        "Data de fi de la planificació": plan_data.get("end_date_display", plan_data["end_date"]),
         "Hores totals disponibles": plan_data["total_available_hours"],
         "Nombre de RAs": plan_data["ra_count"],
         "Mode de planificació": plan_data.get("planning_mode_label", "Seqüencial"),

@@ -3,8 +3,10 @@
 <section class="card">
   <h1>Distribució de RAs</h1>
   <div class="summary-grid">
+    <p><strong>Cicle formatiu:</strong> {{ summary.training_cycle or "-" }}</p>
+    <p><strong>Grup:</strong> {{ summary.group_name or "-" }}</p>
     <p><strong>Mòdul:</strong> {{ summary.subject_code or "-" }} {{ summary.subject_name or "" }}</p>
-    <p><strong>Interval de dates:</strong> {{ summary.start_date }} a {{ summary.end_date }}</p>
+    <p><strong>Interval de dates:</strong> {{ summary.start_date_display or summary.start_date }} a {{ summary.end_date_display or summary.end_date }}</p>
     <p><strong>Nombre de RAs:</strong> {{ summary.ra_count }}</p>
     <p><strong>Hores totals disponibles:</strong> <span id="total-available">{{ summary.total_available_hours }}</span></p>
     <p><strong>Hores per dia:</strong> {{ summary.weekday_hours_display }}</p>
@@ -56,7 +58,7 @@
   </div>
 
   <form method="post" action="/export" id="distribution-form" data-planning-mode="{{ summary.planning_mode }}" data-total="{{ summary.total_available_hours }}" data-count="{{ summary.ra_count }}">
-    <input type="hidden" name="plan_json" value='{{ plan_json|safe }}' />
+    <input type="hidden" name="plan_json" id="plan-json-input" />
     <input type="hidden" name="ra_order" id="ra-order" />
     <input type="hidden" name="ra_names" id="ra-names" />
     <input type="hidden" name="ra_hours" id="ra-hours" />
@@ -88,14 +90,16 @@
   {% endif %}
 </section>
 
+<script id="plan-data" type="application/json">{{ plan_json|safe }}</script>
 <script id="ra-initial-state" type="application/json">{{ ra_state_json|safe }}</script>
 <script>
   const distributionForm = document.getElementById("distribution-form");
-  const planData = JSON.parse(distributionForm.querySelector('input[name="plan_json"]').value);
+  const planData = JSON.parse(document.getElementById("plan-data").textContent);
   const initialState = JSON.parse(document.getElementById("ra-initial-state").textContent);
   const planningMode = distributionForm.dataset.planningMode;
   const totalAvailable = Number(distributionForm.dataset.total);
   const exportButton = document.getElementById("export-button");
+  const planJsonInput = document.getElementById("plan-json-input");
   const remainingHoursEl = document.getElementById("remaining-hours");
   const remainingByBlock = Object.fromEntries(
     (planData.blocks || []).map((block) => [block.key, document.getElementById(`remaining-${block.key}`)])
@@ -109,6 +113,8 @@
     ? [...document.querySelectorAll(".block-dropzone")]
     : [document.getElementById("ra-list")];
   let draggedItem = null;
+
+  planJsonInput.value = JSON.stringify(planData);
 
   function createRow(key, blockKey) {
     const row = document.createElement("div");

@@ -9,24 +9,48 @@
   <form method="post" action="/plan" class="form-grid">
     <div class="two-column form-span">
       <label>
+        Cicle formatiu
+        <span class="optional-label">Opcional</span>
+        <input
+          type="text"
+          name="training_cycle"
+          list="training-cycle-options"
+          value="{{ form.get('training_cycle', '') }}"
+          placeholder="P.ex. Administració i finances"
+        />
+      </label>
+      <label>
+        Grup
+        <span class="optional-label">Opcional</span>
+        <input type="text" name="group_name" value="{{ form.get('group_name', '') }}" placeholder="P.ex. AF1M" />
+      </label>
+    </div>
+    <datalist id="training-cycle-options">
+      <option value="CFGM Gestió administrativa"></option>
+      <option value="CFGM Gestió administrativa d'àmbit jurídic"></option>
+      <option value="CFGS Administració i finances"></option>
+    </datalist>
+    <div class="two-column form-span">
+      <label>
         Codi del mòdul
         <span class="optional-label">Opcional</span>
-        <input type="text" name="subject_code" value="{{ form.get('subject_code', '') }}" />
+        <input type="text" name="subject_code" value="{{ form.get('subject_code', '') }}" placeholder="P.ex. MP0651" />
       </label>
       <label>
         Nom del mòdul
         <span class="optional-label">Opcional</span>
-        <input type="text" name="subject_name" value="{{ form.get('subject_name', '') }}" />
+        <input type="text" name="subject_name" value="{{ form.get('subject_name', '') }}" placeholder="P.ex. Comunicació i atenció al client." />
       </label>
     </div>
     <div class="two-column form-span">
       <label>
         Data d'inici de la planificació
-        <input type="date" name="start_date" value="{{ form.get('start_date', settings.default_start_date.isoformat()) }}" required />
+        <span class="inline-note">Dia de presentació sense classes</span>
+        <input class="date-input" type="text" name="start_date" value="{{ form.get('start_date', settings.default_start_date|date_display) }}" placeholder="DD/MM/AAAA" inputmode="numeric" pattern="\d{1,2}/\d{1,2}/\d{2,4}" required />
       </label>
       <label>
         Data de fi de la planificació
-        <input type="date" name="end_date" value="{{ form.get('end_date', settings.default_end_date.isoformat()) }}" required />
+        <input class="date-input" type="text" name="end_date" value="{{ form.get('end_date', settings.default_end_date|date_display) }}" placeholder="DD/MM/AAAA" inputmode="numeric" pattern="\d{1,2}/\d{1,2}/\d{2,4}" required />
       </label>
     </div>
     <div class="weekday-grid form-span">
