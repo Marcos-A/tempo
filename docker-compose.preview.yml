@@ -1,0 +1,16 @@
+name: curriculum-planner-preview
+
+services:
+  web:
+    container_name: curriculum-planner-preview-web
+    build: .
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --proxy-headers --forwarded-allow-ips=*
+    env_file:
+      - ${PREVIEW_ENV_FILE:-/srv/config/curriculum-planner/.env.prod}
+    ports:
+      - "127.0.0.1:${HOST_PORT:-8092}:8000"
+    environment:
+      APP_NAME: ${APP_NAME:-Curriculum Planner Preview}
+      DATABASE_URL: sqlite:///data/app.db
+    volumes:
+      - ${PREVIEW_DATA_DIR:-/srv/data/curriculum-planner}:/app/data

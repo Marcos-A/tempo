@@ -31,6 +31,11 @@ Important: this is development-only. Before deploying to production, revert the
 bind mounts and remove `--reload` so the container runs only the code baked into
 the image.
 
+Important for this server: do not use the repo-root `docker-compose.yml` to
+manage the live `planner.marcos-a.com` service. Production is managed by the
+server compose stack at `/srv/compose/curriculum-planner/compose.yml`, which
+mounts the real production database from `/srv/data/curriculum-planner`.
+
 1. Optionally copy `.env.example` values into your own shell or adapt `docker-compose.yml`.
 2. Start the app:
 
@@ -66,6 +71,66 @@ change Python dependencies or the Docker image itself, rebuild again.
 
 ```bash
 docker compose run --rm web pytest
+```
+
+## Remote preview deployment
+
+`planner-preview.marcos-a.com` is the dedicated preview URL for testing
+development branches from another computer without touching production at
+`planner.marcos-a.com`.
+
+Recommended server-side workflow:
+
+1. Create or update a separate checkout for the branch you want to test.
+2. Start the preview stack from that checkout with `scripts/deploy_preview.sh`.
+3. Keep Caddy pointed at the preview port on localhost.
+4. Reuse the same preview subdomain for the next branch by redeploying the
+   preview checkout.
+
+Example commands on the server:
+
+```bash
+git worktree add ../curriculum-planner-preview bugfix/parallel-ra-row-highlighting
+cd ../curriculum-planner-preview
+./scripts/deploy_preview.sh
+```
+
+The preview stack listens on `127.0.0.1:8092` by default and, by design, uses
+the same SQLite bind mount as production (`/srv/data/curriculum-planner`) so
+changes made through the preview site read and write the same database as
+`planner.marcos-a.com`.
+
+Safeguards built into the preview workflow:
+
+- `docker-compose.preview.yml` uses its own Compose project name,
+  `curriculum-planner-preview`, so it does not replace the production service
+  by default.
+- The preview service has a fixed container name,
+  `curriculum-planner-preview-web`, so it is easy to inspect.
+- `scripts/deploy_preview.sh` defaults to the production env file and
+  production data path used on this server.
+- `scripts/show_planner_runtime.sh` prints the image, port mapping, database
+  mount, and `DATABASE_URL` for both production and preview so mount mistakes
+  are visible immediately.
+
+Suggested Caddy site block:
+
+```caddyfile
+planner-preview.marcos-a.com {
+	reverse_proxy 127.0.0.1:8092 {
+		import reverse_proxy_headers
+	}
+}
+```
+
+If the preview checkout should use a different shared data directory somewhere
+else on the server, set `PREVIEW_DATA_DIR=/absolute/path` before starting the
+stack.
+
+To inspect the current runtime wiring at any time:
+
+```bash
+./scripts/show_planner_runtime.sh
 ```
 
 ## App flow

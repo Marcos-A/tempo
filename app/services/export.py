@@ -85,7 +85,7 @@ def build_workbook(
         )
     calendar_sheet.freeze_panes = "A2"
 
-    previous_active_keys: tuple[str, ...] | None = None
+    started_ra_keys: set[str] = set()
     for row in calendar_rows:
         # The weekday is exported as a short label because the sheet is meant to
         # be practical for teachers, not just machine-readable.
@@ -94,10 +94,11 @@ def build_workbook(
         excel_row.extend(ra_hours[ra.key] or None for ra in ras)
         calendar_sheet.append(excel_row)
         active_keys = _active_ra_keys(row, ras)
-        if previous_active_keys is not None and active_keys != previous_active_keys:
+        newly_started_keys = [key for key in active_keys if key not in started_ra_keys]
+        if started_ra_keys and newly_started_keys:
             for cell in calendar_sheet[calendar_sheet.max_row]:
                 cell.fill = ROW_START_FILL
-        previous_active_keys = active_keys
+        started_ra_keys.update(active_keys)
 
     for row in calendar_sheet.iter_rows(min_row=2, min_col=2, max_col=2):
         row[0].number_format = "DD/MM/YYYY"

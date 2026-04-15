@@ -48,14 +48,14 @@ def test_holiday_ranges_are_excluded_without_duplicates():
             (date(2026, 9, 4), date(2026, 9, 5)),
         ]
     )
-    schedule = build_schedule(date(2026, 9, 1), date(2026, 9, 7), {0: 2, 1: 2, 2: 2, 3: 2, 4: 2}, excluded)
+    schedule = build_schedule(date(2026, 8, 31), date(2026, 9, 7), {0: 2, 1: 2, 2: 2, 3: 2, 4: 2}, excluded)
     assert [item.date.isoformat() for item in schedule] == ["2026-09-01", "2026-09-07"]
 
 
 def test_sequential_ra_allocation_can_split_same_day():
     """A day can contain the end of one RA and the start of the next."""
 
-    schedule = build_schedule(date(2026, 9, 1), date(2026, 9, 2), {1: 4, 2: 4}, set())
+    schedule = build_schedule(date(2026, 8, 31), date(2026, 9, 2), {0: 4, 1: 4, 2: 4}, set())
     rows = allocate_ra_hours(schedule, [RAPlan("RA1", "RA1", 5), RAPlan("RA2", "RA2", 3)])
     assert rows[0]["ra_hours"] == {"RA1": 4, "RA2": 0}
     assert rows[1]["ra_hours"] == {"RA1": 1, "RA2": 3}
@@ -73,7 +73,7 @@ def test_parallel_blocks_preserve_their_weekly_split_when_both_need_all_hours():
 
     schedule = build_schedule(
         date(2026, 9, 7),
-        date(2026, 9, 16),
+        date(2026, 9, 21),
         {0: 2, 2: 2},
         set(),
     )
@@ -88,10 +88,10 @@ def test_parallel_blocks_preserve_their_weekly_split_when_both_need_all_hours():
             BlockPlan("block_2", "Bloc 2", {0: 1, 1: 0, 2: 2, 3: 0, 4: 0}),
         ],
     )
-    assert rows[0]["ra_hours"] == {"RA1": 1, "RA2": 1}
-    assert rows[1]["ra_hours"] == {"RA1": 0, "RA2": 2}
-    assert rows[2]["ra_hours"] == {"RA1": 1, "RA2": 1}
-    assert rows[3]["ra_hours"] == {"RA1": 0, "RA2": 2}
+    assert rows[0]["ra_hours"] == {"RA1": 0, "RA2": 2}
+    assert rows[1]["ra_hours"] == {"RA1": 1, "RA2": 1}
+    assert rows[2]["ra_hours"] == {"RA1": 0, "RA2": 2}
+    assert rows[3]["ra_hours"] == {"RA1": 1, "RA2": 1}
 
 
 def test_parallel_blocks_automatically_transfer_unused_hours():
@@ -99,7 +99,7 @@ def test_parallel_blocks_automatically_transfer_unused_hours():
 
     schedule = build_schedule(
         date(2026, 9, 7),
-        date(2026, 9, 16),
+        date(2026, 9, 21),
         {0: 2, 2: 2},
         set(),
     )
@@ -114,8 +114,8 @@ def test_parallel_blocks_automatically_transfer_unused_hours():
             BlockPlan("block_2", "Bloc 2", {0: 1, 1: 0, 2: 2, 3: 0, 4: 0}),
         ],
     )
-    assert rows[0]["ra_hours"] == {"RA1": 1, "RA2": 1}
-    assert rows[1]["ra_hours"] == {"RA1": 0, "RA2": 2}
+    assert rows[0]["ra_hours"] == {"RA1": 0, "RA2": 2}
+    assert rows[1]["ra_hours"] == {"RA1": 1, "RA2": 1}
     assert rows[2]["ra_hours"] == {"RA1": 0, "RA2": 2}
     assert rows[3]["ra_hours"] == {"RA1": 0, "RA2": 2}
 
@@ -125,7 +125,7 @@ def test_parallel_blocks_can_transfer_unused_hours_in_reverse_direction():
 
     schedule = build_schedule(
         date(2026, 9, 7),
-        date(2026, 9, 16),
+        date(2026, 9, 21),
         {0: 2, 2: 2},
         set(),
     )
@@ -208,6 +208,41 @@ def test_export_marks_new_ra_start_rows_with_light_fill():
     sheet = workbook["Calendari"]
     assert sheet["A3"].fill.fgColor.rgb == "00E9E9E9"
     assert sheet["D3"].fill.fgColor.rgb == "00E9E9E9"
+
+
+def test_export_parallel_mode_only_marks_rows_where_a_new_ra_first_appears():
+    """Parallel planning should not mark rows just because the active mix changes."""
+
+    workbook_io = build_workbook(
+        [
+            {
+                "date": date(2026, 9, 1),
+                "weekday": "Dimarts",
+                "total_hours": 3,
+                "ra_hours": {"RA1": 1, "RA2": 2, "RA3": 0},
+            },
+            {
+                "date": date(2026, 9, 2),
+                "weekday": "Dimecres",
+                "total_hours": 2,
+                "ra_hours": {"RA1": 0, "RA2": 2, "RA3": 0},
+            },
+            {
+                "date": date(2026, 9, 9),
+                "weekday": "Dimecres",
+                "total_hours": 2,
+                "ra_hours": {"RA1": 0, "RA2": 1, "RA3": 1},
+            },
+        ],
+        [RAPlan("RA1", "RA1", 1), RAPlan("RA2", "RA2", 5), RAPlan("RA3", "RA3", 1)],
+        {"Camp": "Valor"},
+    )
+    workbook = load_workbook(workbook_io)
+    sheet = workbook["Calendari"]
+    assert sheet["A3"].fill.patternType is None
+    assert sheet["D3"].fill.patternType is None
+    assert sheet["A4"].fill.fgColor.rgb == "00E9E9E9"
+    assert sheet["F4"].fill.fgColor.rgb == "00E9E9E9"
 
 
 def test_parse_date_input_accepts_dd_mm_yyyy():
