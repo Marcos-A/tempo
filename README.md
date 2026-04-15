@@ -79,18 +79,23 @@ docker compose run --rm web pytest
 development branches from another computer without touching production at
 `planner.marcos-a.com`.
 
+Server checkouts:
+
+- Stable main checkout: `/srv/apps/curriculum-planner`
+- Dedicated preview checkout: `/srv/apps/curriculum-planner-preview`
+
 Recommended server-side workflow:
 
-1. Create or update a separate checkout for the branch you want to test.
-2. Start the preview stack from that checkout with `scripts/deploy_preview.sh`.
-3. Keep Caddy pointed at the preview port on localhost.
-4. Reuse the same preview subdomain for the next branch by redeploying the
-   preview checkout.
+1. Keep production work anchored to `/srv/apps/curriculum-planner`.
+2. Do feature work only in `/srv/apps/curriculum-planner-preview`.
+3. Deploy the preview stack from the preview checkout with
+   `scripts/deploy_preview.sh`.
+4. Reuse the same preview subdomain for the next branch by resetting the
+   preview checkout back to `main`, creating a fresh branch, and redeploying.
 
 Example commands on the server:
 
 ```bash
-git worktree add ../curriculum-planner-preview bugfix/parallel-ra-row-highlighting
 cd ../curriculum-planner-preview
 ./scripts/deploy_preview.sh
 ```
@@ -132,6 +137,133 @@ To inspect the current runtime wiring at any time:
 ```bash
 ./scripts/show_planner_runtime.sh
 ```
+
+## Feature Workflow On This Server
+
+Use this exact sequence for each new feature or bugfix.
+
+### 1. Start from the stable main checkout
+
+Do not develop in `/srv/apps/curriculum-planner-preview` until the stable
+checkout has the latest `main`.
+
+```bash
+cd /srv/apps/curriculum-planner
+git checkout main
+git pull --ff-only origin main
+```
+
+### 2. Reset the preview checkout to the latest main
+
+This keeps old branch work from leaking into the next feature.
+
+```bash
+cd /srv/apps/curriculum-planner-preview
+git fetch origin
+git checkout --detach origin/main
+git branch -D feature/old-branch-name 2>/dev/null || true
+```
+
+If the preview checkout is currently on a branch you still need, do not delete
+it until that work has been merged or saved elsewhere.
+
+### 3. Create a fresh branch in the preview checkout
+
+Every new task should get a new branch name. Do not keep reusing an old branch
+like `bugfix/parallel-ra-row-highlighting` for unrelated work.
+
+```bash
+cd /srv/apps/curriculum-planner-preview
+git switch -c feature/short-description
+```
+
+### 4. Develop and test in the preview checkout
+
+Run code edits, local checks, and the service tests from the preview checkout.
+
+```bash
+cd /srv/apps/curriculum-planner-preview
+docker compose run --rm web pytest /app/tests/test_services.py
+```
+
+### 5. Deploy that branch to planner-preview.marcos-a.com
+
+This deploys the current preview checkout branch to the preview URL while
+keeping production untouched.
+
+```bash
+cd /srv/apps/curriculum-planner-preview
+./scripts/deploy_preview.sh
+```
+
+Then verify the runtime wiring:
+
+```bash
+cd /srv/apps/curriculum-planner-preview
+./scripts/show_planner_runtime.sh
+```
+
+Expected result:
+
+- production points to `127.0.0.1:8091`
+- preview points to `127.0.0.1:8092`
+- both mounts show `/srv/data/curriculum-planner`
+
+### 6. Test from another computer
+
+Use:
+
+- Production: `https://planner.marcos-a.com/`
+- Preview: `https://planner-preview.marcos-a.com/`
+
+Important: preview uses the same database as production on this server. Any
+admin edits or planning data changes made through preview are live data changes.
+
+### 7. Merge finished work back into main
+
+After the preview branch is validated:
+
+```bash
+cd /srv/apps/curriculum-planner-preview
+git status
+git add ...
+git commit -m "Describe the change"
+
+cd /srv/apps/curriculum-planner
+git checkout main
+git pull --ff-only origin main
+git merge --ff-only /srv/apps/curriculum-planner-preview
+git push origin main
+```
+
+If you prefer, you can also push the feature branch first and merge through the
+normal branch name rather than the worktree path.
+
+### 8. Prepare preview for the next feature
+
+Once the feature is merged, put the preview checkout back on the new `main`
+baseline before starting the next branch.
+
+```bash
+cd /srv/apps/curriculum-planner-preview
+git fetch origin
+git checkout --detach origin/main
+git branch -D feature/short-description
+./scripts/deploy_preview.sh
+```
+
+This makes `planner-preview.marcos-a.com` show the merged `main` state until
+the next dedicated feature branch is created.
+
+### 9. Never use these shortcuts on this server
+
+- Do not use `/srv/apps/curriculum-planner/docker-compose.yml` to manage the
+  live `planner.marcos-a.com` service.
+- Do not run preview from `/srv/apps/curriculum-planner`; always use the
+  dedicated preview checkout.
+- Do not assume `planner-preview.marcos-a.com` has isolated data; it shares the
+  production database intentionally.
+- Do not keep reusing one long-lived branch for unrelated work.
 
 ## App flow
 
