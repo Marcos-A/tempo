@@ -21,6 +21,24 @@ templates.env.filters["date_display"] = format_display_date
 EXCLUDED_PERIODS_SECTION_ID = "excluded-periods"
 
 
+def _render_dashboard(
+    request: Request,
+    settings: AcademicYearSetting,
+    periods: list[ExcludedPeriod],
+    error: str | None = None,
+    focus_section: str | None = None,
+    status_code: int = status.HTTP_200_OK,
+):
+    """Render the admin dashboard with the provided context."""
+
+    return templates.TemplateResponse(
+        request,
+        "admin/dashboard.html",
+        {"settings": settings, "periods": periods, "error": error, "focus_section": focus_section},
+        status_code=status_code,
+    )
+
+
 @router.get("/login")
 def login_page(request: Request):
     """Render the admin login form."""
@@ -64,11 +82,7 @@ def admin_dashboard(request: Request, db: Session = Depends(get_db), _: AdminUse
     if request.query_params.get("error") == "invalid-period":
         error = "La data de fi no pot ser anterior a la data d'inici."
         focus_section = EXCLUDED_PERIODS_SECTION_ID
-    return templates.TemplateResponse(
-        request,
-        "admin/dashboard.html",
-        {"settings": settings, "periods": periods, "error": error, "focus_section": focus_section},
-    )
+    return _render_dashboard(request, settings, periods, error=error, focus_section=focus_section)
 
 
 @router.post("/settings")
@@ -88,18 +102,21 @@ def update_settings(
         default_start_date = parse_date_input(default_start_date_raw)
         default_end_date = parse_date_input(default_end_date_raw)
     except ValueError as exc:
-        return templates.TemplateResponse(
+        return _render_dashboard(
             request,
-            "admin/dashboard.html",
-            {"settings": settings, "periods": periods, "error": str(exc), "focus_section": EXCLUDED_PERIODS_SECTION_ID},
+            settings,
+            periods,
+            error=str(exc),
+            focus_section=EXCLUDED_PERIODS_SECTION_ID,
             status_code=status.HTTP_400_BAD_REQUEST,
         )
 
     if default_end_date < default_start_date:
-        return templates.TemplateResponse(
+        return _render_dashboard(
             request,
-            "admin/dashboard.html",
-            {"settings": settings, "periods": periods, "error": "La data de fi no pot ser anterior a la data d'inici."},
+            settings,
+            periods,
+            error="La data de fi no pot ser anterior a la data d'inici.",
             status_code=status.HTTP_400_BAD_REQUEST,
         )
 
@@ -114,6 +131,7 @@ def add_period(
     request: Request,
     start_date_raw: str = Form(..., alias="start_date"),
     end_date_raw: Annotated[str | None, Form(alias="end_date")] = None,
+    label: Annotated[str | None, Form()] = None,
     db: Session = Depends(get_db),
     _: AdminUser = Depends(require_admin),
 ):
@@ -130,10 +148,12 @@ def add_period(
         start_date = parse_date_input(start_date_raw)
         end_date = start_date if not end_date_raw else parse_date_input(end_date_raw)
     except ValueError as exc:
-        return templates.TemplateResponse(
+        return _render_dashboard(
             request,
-            "admin/dashboard.html",
-            {"settings": settings, "periods": periods, "error": str(exc)},
+            settings,
+            periods,
+            error=str(exc),
+            focus_section=EXCLUDED_PERIODS_SECTION_ID,
             status_code=status.HTTP_400_BAD_REQUEST,
         )
 
@@ -152,14 +172,80 @@ def add_period(
             if start_date == end_date
             else "Aquest període sense classe ja existeix."
         )
-        return templates.TemplateResponse(
+        return _render_dashboard(
             request,
-            "admin/dashboard.html",
-            {"settings": settings, "periods": periods, "error": error_message, "focus_section": EXCLUDED_PERIODS_SECTION_ID},
+            settings,
+            periods,
+            error=error_message,
+            focus_section=EXCLUDED_PERIODS_SECTION_ID,
             status_code=status.HTTP_400_BAD_REQUEST,
         )
 
-    db.add(ExcludedPeriod(start_date=start_date, end_date=end_date))
+    db.add(ExcludedPeriod(start_date=start_date, end_date=end_date, label=(label or "").strip() or None))
+    db.commit()
+    return RedirectResponse(url=f"/admin#{EXCLUDED_PERIODS_SECTION_ID}", status_code=status.HTTP_303_SEE_OTHER)
+
+
+@router.post("/periods/{period_id}")
+def update_period(
+    request: Request,
+    period_id: int,
+    start_date_raw: str = Form(..., alias="start_date"),
+    end_date_raw: Annotated[str | None, Form(alias="end_date")] = None,
+    label: Annotated[str | None, Form()] = None,
+    db: Session = Depends(get_db),
+    _: AdminUser = Depends(require_admin),
+):
+    """Edit one previously saved excluded period."""
+
+    settings = db.get(AcademicYearSetting, 1)
+    periods = db.scalars(select(ExcludedPeriod).order_by(ExcludedPeriod.start_date, ExcludedPeriod.end_date)).all()
+    period = db.get(ExcludedPeriod, period_id)
+
+    if period is None:
+        return RedirectResponse(url=f"/admin#{EXCLUDED_PERIODS_SECTION_ID}", status_code=status.HTTP_303_SEE_OTHER)
+
+    try:
+        start_date = parse_date_input(start_date_raw)
+        end_date = start_date if not end_date_raw else parse_date_input(end_date_raw)
+    except ValueError as exc:
+        return _render_dashboard(
+            request,
+            settings,
+            periods,
+            error=str(exc),
+            focus_section=EXCLUDED_PERIODS_SECTION_ID,
+            status_code=status.HTTP_400_BAD_REQUEST,
+        )
+
+    if end_date < start_date:
+        return RedirectResponse(url="/admin?error=invalid-period", status_code=status.HTTP_303_SEE_OTHER)
+
+    existing_period = db.scalar(
+        select(ExcludedPeriod).where(
+            ExcludedPeriod.start_date == start_date,
+            ExcludedPeriod.end_date == end_date,
+            ExcludedPeriod.id != period_id,
+        )
+    )
+    if existing_period is not None:
+        error_message = (
+            "Aquesta data sense classe ja existeix."
+            if start_date == end_date
+            else "Aquest període sense classe ja existeix."
+        )
+        return _render_dashboard(
+            request,
+            settings,
+            periods,
+            error=error_message,
+            focus_section=EXCLUDED_PERIODS_SECTION_ID,
+            status_code=status.HTTP_400_BAD_REQUEST,
+        )
+
+    period.start_date = start_date
+    period.end_date = end_date
+    period.label = (label or "").strip() or None
     db.commit()
     return RedirectResponse(url=f"/admin#{EXCLUDED_PERIODS_SECTION_ID}", status_code=status.HTTP_303_SEE_OTHER)
 

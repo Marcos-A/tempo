@@ -54,11 +54,11 @@
       </label>
     </div>
     <div class="weekday-grid form-span">
-      <label>Hores dilluns <input type="number" min="0" max="6" name="monday_hours" value="{{ form.get('monday_hours', '0') }}" required /></label>
-      <label>Hores dimarts <input type="number" min="0" max="6" name="tuesday_hours" value="{{ form.get('tuesday_hours', '0') }}" required /></label>
-      <label>Hores dimecres <input type="number" min="0" max="6" name="wednesday_hours" value="{{ form.get('wednesday_hours', '0') }}" required /></label>
-      <label>Hores dijous <input type="number" min="0" max="6" name="thursday_hours" value="{{ form.get('thursday_hours', '0') }}" required /></label>
-      <label>Hores divendres <input type="number" min="0" max="6" name="friday_hours" value="{{ form.get('friday_hours', '0') }}" required /></label>
+      <label>Hores dilluns <input type="number" min="0" max="6" name="monday_hours" value="{{ form.get('monday_hours', '0') }}" data-weekday-index="0" required /></label>
+      <label>Hores dimarts <input type="number" min="0" max="6" name="tuesday_hours" value="{{ form.get('tuesday_hours', '0') }}" data-weekday-index="1" required /></label>
+      <label>Hores dimecres <input type="number" min="0" max="6" name="wednesday_hours" value="{{ form.get('wednesday_hours', '0') }}" data-weekday-index="2" required /></label>
+      <label>Hores dijous <input type="number" min="0" max="6" name="thursday_hours" value="{{ form.get('thursday_hours', '0') }}" data-weekday-index="3" required /></label>
+      <label>Hores divendres <input type="number" min="0" max="6" name="friday_hours" value="{{ form.get('friday_hours', '0') }}" data-weekday-index="4" required /></label>
     </div>
     <label>
       Nombre de RAs
@@ -102,11 +102,11 @@
           <h3>Bloc 1</h3>
           <p class="hint">Ideal per a una RA que conviu amb la resta només en una part de l'horari setmanal.</p>
           <div class="weekday-grid compact-grid">
-            <label>Dl. <input type="number" min="0" max="6" name="block_1_monday_hours" value="{{ form.get('block_1_monday_hours', '0') }}" /></label>
-            <label>Dt. <input type="number" min="0" max="6" name="block_1_tuesday_hours" value="{{ form.get('block_1_tuesday_hours', '0') }}" /></label>
-            <label>Dc. <input type="number" min="0" max="6" name="block_1_wednesday_hours" value="{{ form.get('block_1_wednesday_hours', '0') }}" /></label>
-            <label>Dj. <input type="number" min="0" max="6" name="block_1_thursday_hours" value="{{ form.get('block_1_thursday_hours', '0') }}" /></label>
-            <label>Dv. <input type="number" min="0" max="6" name="block_1_friday_hours" value="{{ form.get('block_1_friday_hours', '0') }}" /></label>
+            <label class="block-weekday-field">Dl. <input type="number" min="0" max="6" name="block_1_monday_hours" value="{{ form.get('block_1_monday_hours', '0') }}" data-weekday-index="0" /></label>
+            <label class="block-weekday-field">Dt. <input type="number" min="0" max="6" name="block_1_tuesday_hours" value="{{ form.get('block_1_tuesday_hours', '0') }}" data-weekday-index="1" /></label>
+            <label class="block-weekday-field">Dc. <input type="number" min="0" max="6" name="block_1_wednesday_hours" value="{{ form.get('block_1_wednesday_hours', '0') }}" data-weekday-index="2" /></label>
+            <label class="block-weekday-field">Dj. <input type="number" min="0" max="6" name="block_1_thursday_hours" value="{{ form.get('block_1_thursday_hours', '0') }}" data-weekday-index="3" /></label>
+            <label class="block-weekday-field">Dv. <input type="number" min="0" max="6" name="block_1_friday_hours" value="{{ form.get('block_1_friday_hours', '0') }}" data-weekday-index="4" /></label>
           </div>
           <p class="hint">Si aquest bloc no esgota totes les seves hores pròpies, la resta es redistribuirà automàticament a l'altre bloc.</p>
         </section>
@@ -114,11 +114,11 @@
           <h3>Bloc 2</h3>
           <p class="hint">Rep la resta de les hores setmanals i continua com una seqüència pròpia de RAs.</p>
           <div class="weekday-grid compact-grid">
-            <label>Dl. <input type="number" min="0" max="6" name="block_2_monday_hours" value="{{ form.get('block_2_monday_hours', '0') }}" /></label>
-            <label>Dt. <input type="number" min="0" max="6" name="block_2_tuesday_hours" value="{{ form.get('block_2_tuesday_hours', '0') }}" /></label>
-            <label>Dc. <input type="number" min="0" max="6" name="block_2_wednesday_hours" value="{{ form.get('block_2_wednesday_hours', '0') }}" /></label>
-            <label>Dj. <input type="number" min="0" max="6" name="block_2_thursday_hours" value="{{ form.get('block_2_thursday_hours', '0') }}" /></label>
-            <label>Dv. <input type="number" min="0" max="6" name="block_2_friday_hours" value="{{ form.get('block_2_friday_hours', '0') }}" /></label>
+            <label class="block-weekday-field">Dl. <input type="number" min="0" max="6" name="block_2_monday_hours" value="{{ form.get('block_2_monday_hours', '0') }}" data-weekday-index="0" /></label>
+            <label class="block-weekday-field">Dt. <input type="number" min="0" max="6" name="block_2_tuesday_hours" value="{{ form.get('block_2_tuesday_hours', '0') }}" data-weekday-index="1" /></label>
+            <label class="block-weekday-field">Dc. <input type="number" min="0" max="6" name="block_2_wednesday_hours" value="{{ form.get('block_2_wednesday_hours', '0') }}" data-weekday-index="2" /></label>
+            <label class="block-weekday-field">Dj. <input type="number" min="0" max="6" name="block_2_thursday_hours" value="{{ form.get('block_2_thursday_hours', '0') }}" data-weekday-index="3" /></label>
+            <label class="block-weekday-field">Dv. <input type="number" min="0" max="6" name="block_2_friday_hours" value="{{ form.get('block_2_friday_hours', '0') }}" data-weekday-index="4" /></label>
           </div>
         </section>
       </div>
@@ -129,13 +129,31 @@
 <script>
   const planningModeInputs = [...document.querySelectorAll('input[name="planning_mode"]')];
   const parallelConfig = document.getElementById("parallel-config");
+  const globalWeekdayInputs = [...document.querySelectorAll('.weekday-grid.form-span input[data-weekday-index]')];
+  const blockWeekdayFields = [...document.querySelectorAll('.block-weekday-field')];
 
   function syncPlanningMode() {
     const selectedMode = planningModeInputs.find((input) => input.checked)?.value || "sequential";
     parallelConfig.hidden = selectedMode !== "parallel";
   }
 
+  function syncParallelWeekdayAvailability() {
+    const globalHoursByDay = new Map(
+      globalWeekdayInputs.map((input) => [input.dataset.weekdayIndex, Number(input.value || 0)]),
+    );
+
+    blockWeekdayFields.forEach((field) => {
+      const input = field.querySelector("input");
+      const isUnavailable = (globalHoursByDay.get(input.dataset.weekdayIndex) || 0) === 0;
+      field.classList.toggle("is-unavailable", isUnavailable);
+      input.disabled = isUnavailable;
+      input.setAttribute("aria-disabled", String(isUnavailable));
+    });
+  }
+
   planningModeInputs.forEach((input) => input.addEventListener("change", syncPlanningMode));
+  globalWeekdayInputs.forEach((input) => input.addEventListener("input", syncParallelWeekdayAvailability));
   syncPlanningMode();
+  syncParallelWeekdayAvailability();
 </script>
 {% endblock %}

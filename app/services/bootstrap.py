@@ -2,7 +2,7 @@
 
 from datetime import date
 
-from sqlalchemy import select
+from sqlalchemy import inspect, select, text
 from sqlalchemy.orm import Session
 
 from app.auth import hash_password, verify_password
@@ -14,6 +14,13 @@ def bootstrap_database(db: Session) -> None:
     """Create the initial admin user and default academic year if missing."""
 
     settings = get_settings()
+    inspector = inspect(db.bind)
+
+    if "excluded_periods" in inspector.get_table_names():
+        excluded_period_columns = {column["name"] for column in inspector.get_columns("excluded_periods")}
+        if "label" not in excluded_period_columns:
+            db.execute(text("ALTER TABLE excluded_periods ADD COLUMN label VARCHAR(255)"))
+            db.commit()
 
     admin = db.scalar(select(AdminUser).where(AdminUser.username == settings.admin_username))
     if admin is None:

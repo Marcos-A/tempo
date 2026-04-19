@@ -35,6 +35,7 @@
     <form method="post" action="/admin/periods" class="form-grid">
       <label>
         Data d'inici
+        <span class="optional-label">Si només és un dia, n'hi ha prou amb indicar aquesta data.</span>
         <input class="date-input" type="text" name="start_date" placeholder="DD/MM/AAAA" inputmode="numeric" pattern="\d{1,2}/\d{1,2}/\d{2,4}" required />
       </label>
       <label>
@@ -42,10 +43,13 @@
         <span class="optional-label">Opcional</span>
         <input class="date-input" type="text" name="end_date" placeholder="DD/MM/AAAA" inputmode="numeric" pattern="\d{1,2}/\d{1,2}/\d{2,4}" />
       </label>
+      <label>
+        Nom del període
+        <span class="optional-label">Opcional</span>
+        <input type="text" name="label" placeholder="P.ex. Vacances de Nadal" />
+      </label>
       <button type="submit">Afegeix el període</button>
     </form>
-    <!-- Admin can omit the end date for the common "single blocked day" case. -->
-    <p class="hint">Si només indiques la data d'inici, es registrarà automàticament com un únic dia sense classe.</p>
   </section>
 </div>
 
@@ -57,6 +61,7 @@
       <tr>
         <th>Data d'inici</th>
         <th>Data de fi</th>
+        <th>Nom</th>
         <th>Tipus</th>
         <th></th>
       </tr>
@@ -64,13 +69,59 @@
     <tbody>
       {% for period in periods %}
       <tr>
-        <td>{{ period.start_date|date_display }}</td>
-        <td>{{ period.end_date|date_display }}</td>
-        <td>{{ "Data única" if period.start_date == period.end_date else "Interval" }}</td>
         <td>
-          <form method="post" action="/admin/periods/{{ period.id }}/delete">
-            <button type="submit" class="secondary">Suprimeix</button>
-          </form>
+          <input
+            id="period-start-{{ period.id }}"
+            class="date-input"
+            type="text"
+            name="start_date"
+            value="{{ period.start_date|date_display }}"
+            placeholder="DD/MM/AAAA"
+            inputmode="numeric"
+            pattern="\d{1,2}/\d{1,2}/\d{2,4}"
+            required
+            form="period-edit-{{ period.id }}"
+          />
+        </td>
+        <td>
+          <input
+            id="period-end-{{ period.id }}"
+            class="date-input"
+            type="text"
+            name="end_date"
+            value="{{ period.end_date|date_display }}"
+            placeholder="DD/MM/AAAA"
+            inputmode="numeric"
+            pattern="\d{1,2}/\d{1,2}/\d{2,4}"
+            required
+            form="period-edit-{{ period.id }}"
+          />
+        </td>
+        <td>
+          <input
+            type="text"
+            name="label"
+            value="{{ period.label or '' }}"
+            placeholder="Nom opcional"
+            form="period-edit-{{ period.id }}"
+          />
+        </td>
+        <td>
+          <span
+            class="period-type"
+            data-start-input-id="period-start-{{ period.id }}"
+            data-end-input-id="period-end-{{ period.id }}"
+          >{{ "Data única" if period.start_date == period.end_date else "Interval" }}</span>
+        </td>
+        <td>
+          <div class="table-actions">
+            <form method="post" action="/admin/periods/{{ period.id }}" id="period-edit-{{ period.id }}">
+              <button type="submit">Desa</button>
+            </form>
+            <form method="post" action="/admin/periods/{{ period.id }}/delete">
+              <button type="submit" class="secondary">Suprimeix</button>
+            </form>
+          </div>
         </td>
       </tr>
       {% endfor %}
@@ -85,4 +136,21 @@
   document.getElementById({{ focus_section|tojson }})?.scrollIntoView({ behavior: "auto", block: "start" });
 </script>
 {% endif %}
+<script>
+  function updatePeriodType(typeNode) {
+    const startInput = document.getElementById(typeNode.dataset.startInputId);
+    const endInput = document.getElementById(typeNode.dataset.endInputId);
+    const startValue = startInput?.value?.trim() || "";
+    const endValue = endInput?.value?.trim() || "";
+    typeNode.textContent = !endValue || endValue === startValue ? "Data única" : "Interval";
+  }
+
+  document.querySelectorAll(".period-type").forEach((typeNode) => {
+    const startInput = document.getElementById(typeNode.dataset.startInputId);
+    const endInput = document.getElementById(typeNode.dataset.endInputId);
+    startInput?.addEventListener("input", () => updatePeriodType(typeNode));
+    endInput?.addEventListener("input", () => updatePeriodType(typeNode));
+    updatePeriodType(typeNode);
+  });
+</script>
 {% endblock %}
