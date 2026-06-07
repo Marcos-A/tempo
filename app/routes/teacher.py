@@ -21,6 +21,7 @@ router = APIRouter(tags=["teacher"])
 templates = Jinja2Templates(directory="app/templates")
 templates.env.filters["date_display"] = format_display_date
 PLANNING_MODE_CHOICES = {"sequential", "parallel"}
+MAX_RA_COUNT = 24
 
 
 def _parse_weekday_hours(form_data: dict[str, str]) -> dict[int, int]:
@@ -193,8 +194,8 @@ async def prepare_plan(request: Request, db: Session = Depends(get_db)):
         planning_mode = _parse_planning_mode(form_data)
         blocks = _build_block_plans(form_data, weekday_hours, planning_mode)
         ra_count = int(form_data["ra_count"])
-        if ra_count < 1 or ra_count > 12:
-            raise ValueError("El nombre de RAs ha d'estar entre 1 i 12.")
+        if ra_count < 1 or ra_count > MAX_RA_COUNT:
+            raise ValueError(f"El nombre de RAs ha d'estar entre 1 i {MAX_RA_COUNT}.")
     except (KeyError, ValueError) as exc:
         return templates.TemplateResponse(
             request,

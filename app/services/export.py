@@ -78,10 +78,11 @@ def build_workbook(
     calendar_sheet["A1"].alignment = Alignment(horizontal="left", vertical="center")
     for cell in calendar_sheet[1]:
         cell.font = Font(bold=True)
+    palette_size = len(RA_HEADER_FILLS)
     for index, _ra in enumerate(ras):
         calendar_sheet.cell(row=1, column=4 + index).fill = PatternFill(
             fill_type="solid",
-            fgColor=RA_HEADER_FILLS[index],
+            fgColor=RA_HEADER_FILLS[index % palette_size],
         )
     calendar_sheet.freeze_panes = "A2"
 
@@ -95,7 +96,7 @@ def build_workbook(
         calendar_sheet.append(excel_row)
         active_keys = _active_ra_keys(row, ras)
         newly_started_keys = [key for key in active_keys if key not in started_ra_keys]
-        if started_ra_keys and newly_started_keys:
+        if newly_started_keys:
             for cell in calendar_sheet[calendar_sheet.max_row]:
                 cell.fill = ROW_START_FILL
         started_ra_keys.update(active_keys)

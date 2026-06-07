@@ -37,9 +37,9 @@
     <div>
       <h2>Assignació d'hores</h2>
       {% if summary.planning_mode == "parallel" %}
-      <p>Arrossega les RAs dins de cada bloc o mou-les d'un bloc a l'altre. Si un bloc no esgota les seves hores pròpies, la resta passarà automàticament a l'altre bloc.</p>
+      <p>Arrossega les RAs des del controlador lateral o fes servir els botons de pujar, baixar i canviar de bloc. Si un bloc no esgota les seves hores pròpies, la resta passarà automàticament a l'altre bloc.</p>
       {% else %}
-      <p>Arrossega les files per definir l'ordre de les RAs. L'exportació només s'activa quan no queda cap hora pendent.</p>
+      <p>Arrossega les files des del controlador lateral o fes servir els botons de pujar i baixar per definir l'ordre de les RAs. L'exportació només s'activa quan no queda cap hora pendent.</p>
       {% endif %}
     </div>
     <div class="remaining-box">
@@ -148,13 +148,42 @@
     row.dataset.blockKey = blockKey;
     const nameValue = initialState.names?.[key] || key;
     const hoursValue = initialState.hours?.[key] ?? 0;
+    const blockIndex = (planData.blocks || []).findIndex((block) => block.key === blockKey);
+    const moveBlockIcon = blockIndex <= 0 ? "→" : "←";
     row.innerHTML = `
-      <div class="drag-handle">::</div>
+      <div class="drag-handle" aria-label="Arrossega per reordenar" title="Arrossega per reordenar">::</div>
       <div class="ra-key">${key}</div>
-      <label>Nom visible <span class="optional-label">Opcional</span><input type="text" name="${key}_name" value="${nameValue}" /></label>
-      <label>Hores <input type="number" min="0" step="1" name="${key}_hours" value="${hoursValue}" /></label>
+      <label class="ra-name-field">Nom de l'RA <span class="optional-label">Opcional</span><input type="text" name="${key}_name" value="${nameValue}" /></label>
+      <label class="ra-hours-field">Hores <input type="number" min="0" step="1" name="${key}_hours" value="${hoursValue}" /></label>
+      <div class="ra-actions">
+        <button type="button" class="secondary ra-action-button" data-action="move-up" aria-label="Puja la RA" title="Puja la RA">↑</button>
+        <button type="button" class="secondary ra-action-button" data-action="move-down" aria-label="Baixa la RA" title="Baixa la RA">↓</button>
+        ${planningMode === "parallel" ? `<button type="button" class="secondary ra-action-button" data-action="move-block" aria-label="Mou la RA a l&apos;altre bloc" title="Mou la RA a l&apos;altre bloc">${moveBlockIcon}</button>` : ""}
+      </div>
     `;
     return row;
+  }
+
+  function moveRowWithinList(row, direction) {
+    if (!row) return;
+    const sibling = direction === "up" ? row.previousElementSibling : row.nextElementSibling;
+    if (!sibling) return;
+    if (direction === "up") {
+      sibling.before(row);
+    } else {
+      sibling.after(row);
+    }
+    syncState();
+  }
+
+  function moveRowToOtherBlock(row) {
+    if (!row || planningMode !== "parallel") return;
+    const currentList = row.closest(".block-dropzone");
+    const destinationList = blockLists.find((list) => list !== currentList);
+    if (!currentList || !destinationList) return;
+    destinationList.appendChild(row);
+    row.dataset.blockKey = destinationList.dataset.blockKey;
+    syncState();
   }
 
   function buildItems() {
@@ -255,9 +284,31 @@
 
   blockLists.forEach((list) => {
     list.addEventListener("input", syncState);
+    list.addEventListener("click", (event) => {
+      const button = event.target.closest(".ra-action-button");
+      if (!button) return;
+      const row = button.closest(".ra-row");
+      if (!row) return;
+      const action = button.dataset.action;
+      if (action === "move-up") {
+        moveRowWithinList(row, "up");
+        return;
+      }
+      if (action === "move-down") {
+        moveRowWithinList(row, "down");
+        return;
+      }
+      if (action === "move-block") {
+        moveRowToOtherBlock(row);
+      }
+    });
     list.addEventListener("dragstart", (event) => {
       const row = event.target.closest(".ra-row");
       if (!row) return;
+      if (!event.target.closest(".drag-handle")) {
+        event.preventDefault();
+        return;
+      }
       draggedItem = row;
       row.classList.add("dragging");
     });

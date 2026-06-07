@@ -183,6 +183,30 @@ def test_export_uses_blank_cells_for_zero_ra_hours():
     assert sheet["E2"].value is None
 
 
+def test_export_reuses_palette_colors_after_the_twelfth_ra():
+    """RA header colors should wrap around the palette instead of crashing."""
+
+    ras = [RAPlan(f"RA{index}", f"RA{index}", 1) for index in range(1, 15)]
+    workbook_io = build_workbook(
+        [
+            {
+                "date": date(2026, 9, 1),
+                "weekday": "Dimarts",
+                "total_hours": 1,
+                "ra_hours": {ra.key: (1 if ra.key == "RA1" else 0) for ra in ras},
+            }
+        ],
+        ras,
+        {"Camp": "Valor"},
+    )
+    workbook = load_workbook(workbook_io)
+    sheet = workbook["Calendari"]
+    assert sheet["D1"].fill.fgColor.rgb == "00E7EFD8"
+    assert sheet["O1"].fill.fgColor.rgb == "00EFE0C8"
+    assert sheet["P1"].fill.fgColor.rgb == "00E7EFD8"
+    assert sheet["Q1"].fill.fgColor.rgb == "00D8EBF2"
+
+
 def test_export_marks_new_ra_start_rows_with_light_fill():
     """Rows where a new RA starts should be visually highlighted."""
 
@@ -206,6 +230,8 @@ def test_export_marks_new_ra_start_rows_with_light_fill():
     )
     workbook = load_workbook(workbook_io)
     sheet = workbook["Calendari"]
+    assert sheet["A2"].fill.fgColor.rgb == "00E9E9E9"
+    assert sheet["D2"].fill.fgColor.rgb == "00E9E9E9"
     assert sheet["A3"].fill.fgColor.rgb == "00E9E9E9"
     assert sheet["D3"].fill.fgColor.rgb == "00E9E9E9"
 
@@ -239,6 +265,8 @@ def test_export_parallel_mode_only_marks_rows_where_a_new_ra_first_appears():
     )
     workbook = load_workbook(workbook_io)
     sheet = workbook["Calendari"]
+    assert sheet["A2"].fill.fgColor.rgb == "00E9E9E9"
+    assert sheet["D2"].fill.fgColor.rgb == "00E9E9E9"
     assert sheet["A3"].fill.patternType is None
     assert sheet["D3"].fill.patternType is None
     assert sheet["A4"].fill.fgColor.rgb == "00E9E9E9"
