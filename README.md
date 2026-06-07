@@ -79,19 +79,34 @@ docker compose run --rm web pytest
 development branches from another computer without touching production at
 `planner.marcos-a.com`.
 
-Server checkouts:
+Server worktrees:
 
-- Stable main checkout: `/srv/apps/curriculum-planner`
-- Dedicated preview checkout: `/srv/apps/curriculum-planner-preview`
+- Stable main worktree: `/srv/apps/curriculum-planner`
+- Dedicated preview worktree: `/srv/apps/curriculum-planner-preview`
+
+This server already uses Git worktrees:
+
+```bash
+git -C /srv/apps/curriculum-planner worktree list
+```
+
+Expected shape:
+
+- `/srv/apps/curriculum-planner` on `main`
+- `/srv/apps/curriculum-planner-preview` on whichever feature branch should be
+  shown at `planner-preview.marcos-a.com`
 
 Recommended server-side workflow:
 
+Default rule for future work on this server: unless the user explicitly asks to promote a change to production, assume that each new feature branch or bugfix branch should be deployed to `planner-preview.marcos-a.com`, not `planner.marcos-a.com`.
+
 1. Keep production work anchored to `/srv/apps/curriculum-planner`.
-2. Do feature work only in `/srv/apps/curriculum-planner-preview`.
-3. Deploy the preview stack from the preview checkout with
+2. Use `/srv/apps/curriculum-planner-preview` as the preview worktree for the
+   branch you want to show publicly.
+3. Deploy the preview stack from the preview worktree with
    `scripts/deploy_preview.sh`.
 4. Reuse the same preview subdomain for the next branch by resetting the
-   preview checkout back to `main`, creating a fresh branch, and redeploying.
+   preview worktree to `main`, creating a fresh branch, and redeploying.
 
 Example commands on the server:
 
@@ -128,7 +143,7 @@ planner-preview.marcos-a.com {
 }
 ```
 
-If the preview checkout should use a different shared data directory somewhere
+If the preview worktree should use a different shared data directory somewhere
 else on the server, set `PREVIEW_DATA_DIR=/absolute/path` before starting the
 stack.
 
@@ -140,12 +155,14 @@ To inspect the current runtime wiring at any time:
 
 ## Feature Workflow On This Server
 
+Agent expectation: when helping with a new branch, use the preview worktree and preview URL by default unless the user clearly asks for a production promotion.
+
 Use this exact sequence for each new feature or bugfix.
 
 ### 1. Start from the stable main checkout
 
 Do not develop in `/srv/apps/curriculum-planner-preview` until the stable
-checkout has the latest `main`.
+worktree has the latest `main`.
 
 ```bash
 cd /srv/apps/curriculum-planner
@@ -153,7 +170,7 @@ git checkout main
 git pull --ff-only origin main
 ```
 
-### 2. Reset the preview checkout to the latest main
+### 2. Reset the preview worktree to the latest main
 
 This keeps old branch work from leaking into the next feature.
 
@@ -164,10 +181,10 @@ git checkout --detach origin/main
 git branch -D feature/old-branch-name 2>/dev/null || true
 ```
 
-If the preview checkout is currently on a branch you still need, do not delete
+If the preview worktree is currently on a branch you still need, do not delete
 it until that work has been merged or saved elsewhere.
 
-### 3. Create a fresh branch in the preview checkout
+### 3. Create a fresh branch in the preview worktree
 
 Every new task should get a new branch name. Do not keep reusing an old branch
 like `bugfix/parallel-ra-row-highlighting` for unrelated work.
@@ -177,9 +194,9 @@ cd /srv/apps/curriculum-planner-preview
 git switch -c feature/short-description
 ```
 
-### 4. Develop and test in the preview checkout
+### 4. Develop and test in the preview worktree
 
-Run code edits, local checks, and the service tests from the preview checkout.
+Run code edits, local checks, and the service tests from the preview worktree.
 
 ```bash
 cd /srv/apps/curriculum-planner-preview
@@ -188,7 +205,7 @@ docker compose run --rm web pytest /app/tests/test_services.py
 
 ### 5. Deploy that branch to planner-preview.marcos-a.com
 
-This deploys the current preview checkout branch to the preview URL while
+This deploys the current preview worktree branch to the preview URL while
 keeping production untouched.
 
 ```bash
@@ -241,7 +258,7 @@ normal branch name rather than the worktree path.
 
 ### 8. Prepare preview for the next feature
 
-Once the feature is merged, put the preview checkout back on the new `main`
+Once the feature is merged, put the preview worktree back on the new `main`
 baseline before starting the next branch.
 
 ```bash
@@ -260,7 +277,7 @@ the next dedicated feature branch is created.
 - Do not use `/srv/apps/curriculum-planner/docker-compose.yml` to manage the
   live `planner.marcos-a.com` service.
 - Do not run preview from `/srv/apps/curriculum-planner`; always use the
-  dedicated preview checkout.
+  dedicated preview worktree.
 - Do not assume `planner-preview.marcos-a.com` has isolated data; it shares the
   production database intentionally.
 - Do not keep reusing one long-lived branch for unrelated work.
