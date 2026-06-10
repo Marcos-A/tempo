@@ -350,7 +350,10 @@ async def export_plan(request: Request):
     if plan_data.get("planning_mode") == "parallel":
         summary["Blocs"] = _format_blocks_summary(plan_data.get("blocks", []), ra_order, ra_names, ra_blocks)
     workbook = build_workbook(rows, ras, summary)
-    filename = f"{plan_data['subject_code'] or 'planificacio'}-calendari.xlsx"
+    group_name = (plan_data.get('group_name') or '').strip()
+    subject_code = (plan_data.get('subject_code') or '').strip()
+    filename_stem = f"{group_name}-{subject_code}-temporitzacio" if group_name and subject_code else "temporitzacio"
+    filename = f"{filename_stem}.xlsx"
     return StreamingResponse(
         workbook,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",

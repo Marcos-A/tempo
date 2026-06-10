@@ -184,11 +184,116 @@ button:disabled {
   gap: 0.75rem 1rem;
 }
 
+.summary-card {
+  padding: 1rem 1.25rem;
+}
+
+.summary-grid-compact {
+  grid-template-columns: minmax(0, 1.45fr) minmax(11rem, 0.9fr) minmax(0, 1.3fr);
+  gap: 0.55rem 1rem;
+}
+
+.summary-grid-compact p {
+  margin: 0;
+  line-height: 1.4;
+}
+
 .card-panel {
   padding: 1.25rem;
   border: 1px solid var(--line);
   border-radius: 16px;
   background: rgba(255, 255, 255, 0.72);
+}
+
+.step-intro {
+  display: grid;
+  gap: 0.9rem;
+  margin: 1.1rem 0 1.35rem;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.92) 0%, rgba(240, 246, 253, 0.92) 100%);
+}
+
+.step-intro-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.step-intro-kicker,
+.step-intro-time,
+.step-intro-next,
+.step-intro-list {
+  margin: 0;
+}
+
+.step-intro-kicker {
+  font-weight: 800;
+  color: var(--accent-dark);
+  letter-spacing: 0.02em;
+}
+
+.step-intro-list {
+  padding-left: 1.2rem;
+  display: grid;
+  gap: 0.45rem;
+}
+
+.step-intro-list li {
+  line-height: 1.45;
+}
+
+.step-intro-next {
+  color: var(--muted);
+  font-size: 0.95rem;
+}
+
+.optional-mp-shell {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.optional-mp {
+  display: grid;
+  gap: 0;
+}
+
+.optional-mp summary {
+  cursor: pointer;
+  font-weight: 800;
+  color: var(--accent-dark);
+  list-style: none;
+}
+
+.optional-mp summary::-webkit-details-marker {
+  display: none;
+}
+
+.optional-mp summary::after {
+  content: "+";
+  float: right;
+  font-size: 1.1rem;
+  line-height: 1;
+}
+
+.optional-mp[open] summary::after {
+  content: "-";
+}
+
+.optional-mp-content {
+  display: grid;
+  gap: 1.15rem;
+  padding-top: 1rem;
+}
+
+.optional-mp-grid {
+  gap: 1.15rem 1rem;
+}
+
+.optional-mp-hint {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.95rem;
 }
 
 .section-heading,
@@ -444,6 +549,11 @@ th, td {
   .block-summary-grid,
   .remaining-box-grid {
     grid-template-columns: 1fr;
+  }
+
+  .step-intro-header {
+    align-items: flex-start;
+    flex-direction: column;
   }
 
   .ra-row {

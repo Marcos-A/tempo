@@ -3,44 +3,63 @@
 <section class="card">
   <h1>Crea la planificació del mòdul</h1>
   <p>Configura la disponibilitat horària, confirma les dates de planificació i calcula les hores lectives reals a partir del calendari.</p>
+  <div class="step-intro card-panel">
+    <div class="step-intro-header">
+      <p class="step-intro-kicker">Pas 1 de 2</p>
+    </div>
+    <ul class="step-intro-list">
+      <li>Canvia les dates d'inici i final de curs si cal.</li>
+      <li>Afegeix les hores diàries d'impartició del mòdul.</li>
+      <li>Indica el nombre de RAs del mòdul.</li>
+    </ul>
+    <p class="step-intro-next">Al pas 2 podràs repartir les hores entre les RAs i preparar l'exportació final.</p>
+  </div>
   {% if error %}
   <p class="error">{{ error }}</p>
   {% endif %}
   <form method="post" action="/plan" class="form-grid">
-    <div class="two-column form-span">
-      <label>
-        Cicle formatiu
-        <span class="optional-label">Opcional</span>
-        <input
-          type="text"
-          name="training_cycle"
-          list="training-cycle-options"
-          value="{{ form.get('training_cycle', '') }}"
-          placeholder="P.ex. Administració i finances"
-        />
-      </label>
-      <label>
-        Grup
-        <span class="optional-label">Opcional</span>
-        <input type="text" name="group_name" value="{{ form.get('group_name', '') }}" placeholder="P.ex. AF1M" />
-      </label>
-    </div>
-    <datalist id="training-cycle-options">
-      <option value="CFGM Gestió administrativa"></option>
-      <option value="CFGM Gestió administrativa d'àmbit jurídic"></option>
-      <option value="CFGS Administració i finances"></option>
-    </datalist>
-    <div class="two-column form-span">
-      <label>
-        Codi del mòdul
-        <span class="optional-label">Opcional</span>
-        <input type="text" name="subject_code" value="{{ form.get('subject_code', '') }}" placeholder="P.ex. MP0651" />
-      </label>
-      <label>
-        Nom del mòdul
-        <span class="optional-label">Opcional</span>
-        <input type="text" name="subject_name" value="{{ form.get('subject_name', '') }}" placeholder="P.ex. Comunicació i atenció al client." />
-      </label>
+    <div class="optional-mp-shell form-span">
+      <p class="optional-mp-hint">Desplega aquest apartat només si vols afegir més context al document exportat.</p>
+      <details class="optional-mp card-panel" {% if form.get('training_cycle') or form.get('group_name') or form.get('subject_code') or form.get('subject_name') %}open{% endif %}>
+        <summary>Informació opcional del MP</summary>
+        <div class="optional-mp-content">
+          <div class="two-column optional-mp-grid">
+            <label>
+              Cicle formatiu
+              <span class="optional-label">Opcional</span>
+              <input
+                type="text"
+                name="training_cycle"
+                list="training-cycle-options"
+                value="{{ form.get('training_cycle', '') }}"
+                placeholder="P.ex. Administració i finances"
+              />
+            </label>
+            <label>
+              Grup
+              <span class="optional-label">Opcional</span>
+              <input type="text" name="group_name" value="{{ form.get('group_name', '') }}" placeholder="P.ex. AF1M" />
+            </label>
+          </div>
+          <datalist id="training-cycle-options">
+            <option value="CFGM Gestió administrativa"></option>
+            <option value="CFGM Gestió administrativa d'àmbit jurídic"></option>
+            <option value="CFGS Administració i finances"></option>
+          </datalist>
+          <div class="two-column optional-mp-grid">
+            <label>
+              Codi del mòdul
+              <span class="optional-label">Opcional</span>
+              <input type="text" name="subject_code" value="{{ form.get('subject_code', '') }}" placeholder="P.ex. MP0651" />
+            </label>
+            <label>
+              Nom del mòdul
+              <span class="optional-label">Opcional</span>
+              <input type="text" name="subject_name" value="{{ form.get('subject_name', '') }}" placeholder="P.ex. Comunicació i atenció al client" />
+            </label>
+          </div>
+        </div>
+      </details>
     </div>
     <div class="two-column form-span">
       <label>
@@ -62,7 +81,7 @@
     </div>
     <label>
       Nombre de RAs
-      <input type="number" min="1" max="24" name="ra_count" value="{{ form.get('ra_count', '6') }}" required />
+      <input type="number" min="1" max="24" name="ra_count" value="{{ form.get('ra_count', '1') }}" required />
     </label>
     <div class="planning-mode card-panel form-span">
       <div class="section-heading">
@@ -72,7 +91,7 @@
       </div>
       <div class="planning-mode-grid">
         <div class="planning-mode-option">
-          <p>Mantingueu el mode seqüencial quan els RA s'imparteixin consecutivament.</p>
+          <p>Mantingueu el mode seqüencial quan els RA s'imparteixin consecutivament. És el cas més habitual.</p>
           <label class="choice-card">
             <input type="radio" name="planning_mode" value="sequential" {% if form.get('planning_mode', 'sequential') == 'sequential' %}checked{% endif %} />
             <span>Seqüencial</span>

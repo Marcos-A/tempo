@@ -163,24 +163,60 @@ def test_export_uses_blank_cells_for_zero_ra_hours():
     )
     workbook = load_workbook(workbook_io)
     sheet = workbook["Calendari"]
-    assert "A1:B1" in [str(range_ref) for range_ref in sheet.merged_cells.ranges]
-    assert sheet["A1"].value == "Data"
-    assert sheet["A1"].alignment.horizontal == "left"
-    assert sheet["A2"].value == "dt."
-    assert sheet["A2"].alignment.horizontal == "center"
-    assert sheet["B2"].value.date().isoformat() == "2026-09-01"
-    assert sheet["B2"].number_format == "DD/MM/YYYY"
-    assert sheet["B2"].alignment.horizontal == "center"
-    assert sheet["C1"].value == "Hores"
+    assert sheet.freeze_panes == "D6"
+    assert "A1:C1" in [str(range_ref) for range_ref in sheet.merged_cells.ranges]
+    assert "A5:B5" in [str(range_ref) for range_ref in sheet.merged_cells.ranges]
+    assert sheet["A1"].value == "Cicle formatiu:"
+    assert sheet["D1"].value is None
+    assert sheet["A5"].value == "Data"
+    assert sheet["A5"].alignment.horizontal == "left"
+    assert sheet["A6"].value == "dt."
+    assert sheet["A6"].alignment.horizontal == "center"
+    assert sheet["B6"].value.date().isoformat() == "2026-09-01"
+    assert sheet["B6"].number_format == "DD/MM/YYYY"
+    assert sheet["B6"].alignment.horizontal == "center"
+    assert sheet["C5"].value == "Hores"
     assert sheet.column_dimensions["C"].width < 16
-    assert sheet["C1"].alignment.horizontal == "center"
-    assert sheet["C2"].alignment.horizontal == "center"
-    assert sheet["D1"].alignment.horizontal == "center"
-    assert sheet["D2"].alignment.horizontal == "center"
-    assert sheet["D1"].fill.fgColor.rgb == "00E7EFD8"
-    assert sheet["A1"].border.left.style == "thin"
-    assert sheet["D2"].value == 4
-    assert sheet["E2"].value is None
+    assert sheet["C5"].alignment.horizontal == "center"
+    assert sheet["C6"].alignment.horizontal == "center"
+    assert sheet["D5"].alignment.horizontal == "center"
+    assert sheet["D6"].alignment.horizontal == "center"
+    assert sheet["D5"].fill.fgColor.rgb == "00E7EFD8"
+    assert sheet["A5"].border.left.style == "thin"
+    assert sheet["D6"].value == 4
+    assert sheet["E6"].value is None
+
+
+def test_export_includes_optional_module_fields_above_the_calendar_table():
+    """The calendar sheet should reserve editable rows for optional module metadata."""
+
+    workbook_io = build_workbook(
+        [
+            {
+                "date": date(2026, 9, 1),
+                "weekday": "Dimarts",
+                "total_hours": 4,
+                "ra_hours": {"RA1": 4},
+            }
+        ],
+        [RAPlan("RA1", "RA1", 4)],
+        {
+            "Cicle formatiu": "Administració i finances",
+            "Grup": "-",
+            "Codi del mòdul": "MP0440",
+            "Nom del mòdul": "-",
+        },
+    )
+    workbook = load_workbook(workbook_io)
+    sheet = workbook["Calendari"]
+    assert sheet["A1"].value == "Cicle formatiu:"
+    assert sheet["D1"].value == "Administració i finances"
+    assert sheet["A2"].value == "Grup:"
+    assert sheet["D2"].value is None
+    assert sheet["A3"].value == "Codi del mòdul:"
+    assert sheet["D3"].value == "MP0440"
+    assert sheet["A4"].value == "Nom del mòdul:"
+    assert sheet["D4"].value is None
 
 
 def test_export_reuses_palette_colors_after_the_twelfth_ra():
@@ -201,10 +237,10 @@ def test_export_reuses_palette_colors_after_the_twelfth_ra():
     )
     workbook = load_workbook(workbook_io)
     sheet = workbook["Calendari"]
-    assert sheet["D1"].fill.fgColor.rgb == "00E7EFD8"
-    assert sheet["O1"].fill.fgColor.rgb == "00EFE0C8"
-    assert sheet["P1"].fill.fgColor.rgb == "00E7EFD8"
-    assert sheet["Q1"].fill.fgColor.rgb == "00D8EBF2"
+    assert sheet["D5"].fill.fgColor.rgb == "00E7EFD8"
+    assert sheet["O5"].fill.fgColor.rgb == "00EFE0C8"
+    assert sheet["P5"].fill.fgColor.rgb == "00E7EFD8"
+    assert sheet["Q5"].fill.fgColor.rgb == "00D8EBF2"
 
 
 def test_export_marks_new_ra_start_rows_with_light_fill():
@@ -230,10 +266,10 @@ def test_export_marks_new_ra_start_rows_with_light_fill():
     )
     workbook = load_workbook(workbook_io)
     sheet = workbook["Calendari"]
-    assert sheet["A2"].fill.fgColor.rgb == "00E9E9E9"
-    assert sheet["D2"].fill.fgColor.rgb == "00E9E9E9"
-    assert sheet["A3"].fill.fgColor.rgb == "00E9E9E9"
-    assert sheet["D3"].fill.fgColor.rgb == "00E9E9E9"
+    assert sheet["A6"].fill.fgColor.rgb == "00E9E9E9"
+    assert sheet["D6"].fill.fgColor.rgb == "00E9E9E9"
+    assert sheet["A7"].fill.fgColor.rgb == "00E9E9E9"
+    assert sheet["D7"].fill.fgColor.rgb == "00E9E9E9"
 
 
 def test_export_parallel_mode_only_marks_rows_where_a_new_ra_first_appears():
@@ -265,12 +301,12 @@ def test_export_parallel_mode_only_marks_rows_where_a_new_ra_first_appears():
     )
     workbook = load_workbook(workbook_io)
     sheet = workbook["Calendari"]
-    assert sheet["A2"].fill.fgColor.rgb == "00E9E9E9"
-    assert sheet["D2"].fill.fgColor.rgb == "00E9E9E9"
-    assert sheet["A3"].fill.patternType is None
-    assert sheet["D3"].fill.patternType is None
-    assert sheet["A4"].fill.fgColor.rgb == "00E9E9E9"
-    assert sheet["F4"].fill.fgColor.rgb == "00E9E9E9"
+    assert sheet["A6"].fill.fgColor.rgb == "00E9E9E9"
+    assert sheet["D6"].fill.fgColor.rgb == "00E9E9E9"
+    assert sheet["A7"].fill.patternType is None
+    assert sheet["D7"].fill.patternType is None
+    assert sheet["A8"].fill.fgColor.rgb == "00E9E9E9"
+    assert sheet["F8"].fill.fgColor.rgb == "00E9E9E9"
 
 
 def test_parse_date_input_accepts_dd_mm_yyyy():

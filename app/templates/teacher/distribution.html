@@ -1,20 +1,13 @@
 {% extends "base.html" %}
 {% block content %}
-<section class="card">
-  <h1>Distribució de RAs</h1>
-  <div class="summary-grid">
-    <p><strong>Cicle formatiu:</strong> {{ summary.training_cycle or "-" }}</p>
-    <p><strong>Grup:</strong> {{ summary.group_name or "-" }}</p>
-    <p><strong>Mòdul:</strong> {{ summary.subject_code or "-" }} {{ summary.subject_name or "" }}</p>
+<section class="card summary-card">
+  <div class="summary-grid summary-grid-compact">
     <p><strong>Interval de dates:</strong> {{ summary.start_date_display or summary.start_date }} a {{ summary.end_date_display or summary.end_date }}</p>
     <p><strong>Nombre de RAs:</strong> {{ summary.ra_count }}</p>
     <p><strong>Hores totals disponibles:</strong> <span id="total-available">{{ summary.total_available_hours }}</span></p>
     <p><strong>Hores per dia:</strong> {{ summary.weekday_hours_display }}</p>
     <p><strong>Mode:</strong> {{ summary.planning_mode_label }}</p>
     <p><strong>Impacte dels períodes sense classe:</strong> {{ summary.excluded_teaching_days }} dies lectius, {{ summary.excluded_teaching_hours }} h</p>
-    {% if summary.planning_mode == "parallel" %}
-    <p><strong>Blocs:</strong> {{ summary.blocks|length }}</p>
-    {% endif %}
   </div>
   {% if summary.planning_mode == "parallel" %}
   <div class="block-summary-grid">
@@ -36,11 +29,21 @@
   <div class="page-header">
     <div>
       <h2>Assignació d'hores</h2>
-      {% if summary.planning_mode == "parallel" %}
-      <p>Arrossega les RAs des del controlador lateral o fes servir els botons de pujar, baixar i canviar de bloc. Si un bloc no esgota les seves hores pròpies, la resta passarà automàticament a l'altre bloc.</p>
-      {% else %}
-      <p>Arrossega les files des del controlador lateral o fes servir els botons de pujar i baixar per definir l'ordre de les RAs. L'exportació només s'activa quan no queda cap hora pendent.</p>
-      {% endif %}
+      <div class="card-panel step-intro">
+        <p class="step-intro-kicker">Pas 2 de 2</p>
+        <ul class="step-intro-list">
+          {% if summary.planning_mode == "parallel" %}
+          <li>Redistribueix i reordena els RAs d'acord amb l'ordre d'impartició.</li>
+          <li>Redistribueix les {{ summary.total_available_hours }} hores disponibles entre els RAs.</li>
+          <li>Opcionalment, afegeix un nom més clarificador als RAs, idealment breu (p.ex. «Excel» o «IVA»).</li>
+          {% else %}
+          <li>Reordena els RAs si cal d'acord amb l'ordre d'impartició.</li>
+          <li>Redistribueix les {{ summary.total_available_hours }} hores disponibles entre els RAs.</li>
+          <li>Opcionalment, afegeix un nom més clarificador als RAs, idealment breu (p.ex. «Excel» o «IVA»).</li>
+          {% endif %}
+        </ul>
+        <p class="step-intro-next">L'exportació només s'activa quan no queda cap hora pendent.</p>
+      </div>
     </div>
     <div class="remaining-box">
       Hores pendents: <strong id="remaining-hours">{{ summary.total_available_hours }}</strong>
