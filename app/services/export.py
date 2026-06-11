@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 from io import BytesIO
+from xml.etree import ElementTree as ET
+from zipfile import ZIP_DEFLATED, ZipFile
 
 from openpyxl import Workbook
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
@@ -48,6 +50,14 @@ CALENDAR_METADATA_FIELDS = (
 )
 CALENDAR_HEADER_ROW = 5
 CALENDAR_DATA_START_ROW = 6
+SUMMARY_LABELS = (
+    "Hores previstes:",
+    "Hores reals:",
+    "Acompliment:",
+)
+SHEET_MAIN_NS = "http://schemas.openxmlformats.org/spreadsheetml/2006/main"
+COMMENT_COLUMN_WIDTH_MULTIPLIER = 3
+RA_COLUMN_WIDTH = 14
 
 
 def _auto_width_for_column_values(values: list[object]) -> float:
@@ -74,6 +84,50 @@ def _calendar_metadata_value(summary: dict[str, object], key: str) -> object:
     return value
 
 
+def _apply_ra_fill(cell, index: int) -> None:
+    """Apply the repeating RA palette fill to one cell."""
+
+    cell.fill = PatternFill(
+        fill_type="solid",
+        fgColor=RA_HEADER_FILLS[index % len(RA_HEADER_FILLS)],
+    )
+
+
+def _suppress_adjacent_formula_warnings(workbook_bytes: BytesIO, ignored_ranges: list[str]) -> BytesIO:
+    """Mark selected formula ranges as intentionally ignored for Excel warnings."""
+
+    if not ignored_ranges:
+        workbook_bytes.seek(0)
+        return workbook_bytes
+
+    workbook_bytes.seek(0)
+    source = BytesIO(workbook_bytes.getvalue())
+    patched = BytesIO()
+    ET.register_namespace("", SHEET_MAIN_NS)
+    worksheet_path = "xl/worksheets/sheet1.xml"
+
+    with ZipFile(source, "r") as source_zip, ZipFile(patched, "w", ZIP_DEFLATED) as target_zip:
+        for item in source_zip.infolist():
+            data = source_zip.read(item.filename)
+            if item.filename == worksheet_path:
+                root = ET.fromstring(data)
+                ignored_errors = root.find(f"{{{SHEET_MAIN_NS}}}ignoredErrors")
+                if ignored_errors is None:
+                    ignored_errors = ET.Element(f"{{{SHEET_MAIN_NS}}}ignoredErrors")
+                    root.append(ignored_errors)
+                for cell_range in ignored_ranges:
+                    ET.SubElement(
+                        ignored_errors,
+                        f"{{{SHEET_MAIN_NS}}}ignoredError",
+                        {"sqref": cell_range, "formulaRange": "1"},
+                    )
+                data = ET.tostring(root, encoding="utf-8", xml_declaration=False)
+            target_zip.writestr(item, data)
+
+    patched.seek(0)
+    return patched
+
+
 def build_workbook(
     calendar_rows: list[dict[str, object]],
     ras: list[RAPlan],
@@ -88,6 +142,11 @@ def build_workbook(
     workbook = Workbook()
     calendar_sheet = workbook.active
     calendar_sheet.title = "Calendari"
+    comment_column_index = 4 + len(ras)
+    has_optional_ra_names = any((ra.name or "").strip() != ra.key for ra in ras)
+    header_main_row = CALENDAR_HEADER_ROW
+    header_sub_row = CALENDAR_HEADER_ROW + 1 if has_optional_ra_names else None
+    data_start_row = CALENDAR_DATA_START_ROW + (1 if has_optional_ra_names else 0)
 
     for row_index, field_name in enumerate(CALENDAR_METADATA_FIELDS, start=1):
         calendar_sheet.merge_cells(start_row=row_index, start_column=1, end_row=row_index, end_column=3)
@@ -99,25 +158,65 @@ def build_workbook(
         value_cell.value = _calendar_metadata_value(summary, field_name)
         value_cell.alignment = Alignment(horizontal="left", vertical="center")
 
-    headers = ["Data", None, "Hores"] + [f"{ra.name}: {ra.hours} h" for ra in ras]
-    calendar_sheet.append(headers)
-    calendar_sheet.merge_cells(start_row=CALENDAR_HEADER_ROW, start_column=1, end_row=CALENDAR_HEADER_ROW, end_column=2)
-    calendar_sheet.cell(row=CALENDAR_HEADER_ROW, column=1).alignment = Alignment(horizontal="left", vertical="center")
-    for cell in calendar_sheet[CALENDAR_HEADER_ROW]:
-        cell.font = Font(bold=True)
-    palette_size = len(RA_HEADER_FILLS)
-    for index, _ra in enumerate(ras):
-        calendar_sheet.cell(row=CALENDAR_HEADER_ROW, column=4 + index).fill = PatternFill(
-            fill_type="solid",
-            fgColor=RA_HEADER_FILLS[index % palette_size],
+    if has_optional_ra_names:
+        calendar_sheet.merge_cells(start_row=header_main_row, start_column=1, end_row=header_sub_row, end_column=2)
+        calendar_sheet.merge_cells(start_row=header_main_row, start_column=3, end_row=header_sub_row, end_column=3)
+        calendar_sheet.merge_cells(
+            start_row=header_main_row,
+            start_column=comment_column_index,
+            end_row=header_sub_row,
+            end_column=comment_column_index,
         )
-    calendar_sheet.freeze_panes = "D6"
+    else:
+        calendar_sheet.merge_cells(start_row=header_main_row, start_column=1, end_row=header_main_row, end_column=2)
+
+    data_header_cell = calendar_sheet.cell(row=header_main_row, column=1)
+    data_header_cell.value = "Data"
+    data_header_cell.alignment = Alignment(horizontal="left", vertical="center")
+    data_header_cell.font = Font(bold=True)
+
+    hours_header_cell = calendar_sheet.cell(row=header_main_row, column=3)
+    hours_header_cell.value = "Hores"
+    hours_header_cell.alignment = Alignment(horizontal="center", vertical="center")
+    hours_header_cell.font = Font(bold=True)
+
+    comment_header_cell = calendar_sheet.cell(row=header_main_row, column=comment_column_index)
+    comment_header_cell.value = "Comentaris"
+    comment_header_cell.alignment = Alignment(horizontal="center", vertical="center")
+    comment_header_cell.font = Font(bold=True)
+
+    for index, ra in enumerate(ras):
+        column_index = 4 + index
+        key_cell = calendar_sheet.cell(row=header_main_row, column=column_index)
+        key_cell.value = ra.key
+        key_cell.font = Font(bold=True)
+        key_cell.alignment = Alignment(horizontal="center", vertical="center")
+        _apply_ra_fill(key_cell, index)
+
+        if has_optional_ra_names:
+            optional_name = (ra.name or "").strip()
+            if optional_name != ra.key:
+                name_cell = calendar_sheet.cell(row=header_sub_row, column=column_index)
+                name_cell.value = optional_name
+                name_cell.font = Font(bold=True)
+                name_cell.alignment = Alignment(horizontal="center", vertical="center")
+                _apply_ra_fill(name_cell, index)
+            else:
+                calendar_sheet.merge_cells(
+                    start_row=header_main_row,
+                    start_column=column_index,
+                    end_row=header_sub_row,
+                    end_column=column_index,
+                )
+        
+    calendar_sheet.freeze_panes = f"D{data_start_row}"
 
     started_ra_keys: set[str] = set()
     for row in calendar_rows:
         excel_row = [WEEKDAY_ABBREVIATIONS.get(row["weekday"], row["weekday"]), row["date"], row["total_hours"]]
         ra_hours = row["ra_hours"]
         excel_row.extend(ra_hours[ra.key] or None for ra in ras)
+        excel_row.append(None)
         calendar_sheet.append(excel_row)
         active_keys = _active_ra_keys(row, ras)
         newly_started_keys = [key for key in active_keys if key not in started_ra_keys]
@@ -126,34 +225,100 @@ def build_workbook(
                 cell.fill = ROW_START_FILL
         started_ra_keys.update(active_keys)
 
-    for row in calendar_sheet.iter_rows(min_row=CALENDAR_DATA_START_ROW, min_col=2, max_col=2):
+    summary_start_row = calendar_sheet.max_row + 1
+    for row_offset, label in enumerate(SUMMARY_LABELS):
+        row_number = summary_start_row + row_offset
+        calendar_sheet.cell(row=row_number, column=1).value = label
+        calendar_sheet.cell(row=row_number, column=1).font = Font(bold=True)
+        calendar_sheet.cell(row=row_number, column=1).alignment = Alignment(horizontal="left", vertical="center")
+        calendar_sheet.merge_cells(start_row=row_number, start_column=1, end_row=row_number, end_column=3)
+
+    data_end_row = summary_start_row - 1
+    expected_row = summary_start_row
+    actual_row = summary_start_row + 1
+    completion_row = summary_start_row + 2
+    for index, ra in enumerate(ras):
+        column_index = 4 + index
+        column_letter = get_column_letter(column_index)
+        expected_cell = calendar_sheet.cell(row=expected_row, column=column_index)
+        expected_cell.value = ra.hours
+        expected_cell.font = Font(bold=True)
+        expected_cell.alignment = Alignment(horizontal="center", vertical="center")
+        _apply_ra_fill(expected_cell, index)
+
+        actual_cell = calendar_sheet.cell(row=actual_row, column=column_index)
+        actual_cell.value = f"=SUM({column_letter}{data_start_row}:{column_letter}{data_end_row})"
+        actual_cell.alignment = Alignment(horizontal="center", vertical="center")
+
+        completion_cell = calendar_sheet.cell(row=completion_row, column=column_index)
+        completion_cell.value = f"=IFERROR({column_letter}{actual_row}/{column_letter}{expected_row},\"\")"
+        completion_cell.number_format = "0%"
+        completion_cell.alignment = Alignment(horizontal="center", vertical="center")
+
+    for row in calendar_sheet.iter_rows(min_row=data_start_row, max_row=data_end_row, min_col=2, max_col=2):
         row[0].number_format = "DD/MM/YYYY"
 
-    weekday_values = [calendar_sheet[f"A{row_index}"].value for row_index in range(CALENDAR_DATA_START_ROW, calendar_sheet.max_row + 1)]
-    date_values = [calendar_sheet[f"B{row_index}"].value.strftime("%d/%m/%Y") for row_index in range(CALENDAR_DATA_START_ROW, calendar_sheet.max_row + 1)]
-    hour_values = [calendar_sheet[f"C{row_index}"].value for row_index in range(CALENDAR_HEADER_ROW, calendar_sheet.max_row + 1)]
+    weekday_values = [calendar_sheet[f"A{row_index}"].value for row_index in range(data_start_row, data_end_row + 1)]
+    date_values = [calendar_sheet[f"B{row_index}"].value.strftime("%d/%m/%Y") for row_index in range(data_start_row, data_end_row + 1)]
+    hour_values = [calendar_sheet[f"C{row_index}"].value for row_index in range(header_main_row, data_end_row + 1)]
     calendar_sheet.column_dimensions["A"].width = _auto_width_for_column_values(weekday_values)
     calendar_sheet.column_dimensions["B"].width = _auto_width_for_column_values(date_values)
     calendar_sheet.column_dimensions["C"].width = _auto_width_for_column_values(hour_values)
-    for row in calendar_sheet.iter_rows(min_row=CALENDAR_DATA_START_ROW, max_row=calendar_sheet.max_row, min_col=1, max_col=2):
+    for row in calendar_sheet.iter_rows(min_row=data_start_row, max_row=data_end_row, min_col=1, max_col=2):
         for cell in row:
             cell.alignment = Alignment(horizontal="center", vertical="center")
-    for row in calendar_sheet.iter_rows(min_row=CALENDAR_HEADER_ROW, max_row=calendar_sheet.max_row, min_col=3, max_col=3):
+    for row in calendar_sheet.iter_rows(min_row=header_main_row, max_row=completion_row, min_col=3, max_col=3):
         row[0].alignment = Alignment(horizontal="center", vertical="center")
     for index in range(len(ras)):
         column_letter = get_column_letter(4 + index)
-        calendar_sheet.column_dimensions[column_letter].width = 14
-        for row in calendar_sheet.iter_rows(min_row=CALENDAR_HEADER_ROW, max_row=calendar_sheet.max_row, min_col=4 + index, max_col=4 + index):
+        calendar_sheet.column_dimensions[column_letter].width = RA_COLUMN_WIDTH
+        for row in calendar_sheet.iter_rows(min_row=header_main_row, max_row=completion_row, min_col=4 + index, max_col=4 + index):
             row[0].alignment = Alignment(horizontal="center", vertical="center")
 
+    comment_column_letter = get_column_letter(comment_column_index)
+    calendar_sheet.column_dimensions[comment_column_letter].width = RA_COLUMN_WIDTH * COMMENT_COLUMN_WIDTH_MULTIPLIER
+    for row in calendar_sheet.iter_rows(min_row=data_start_row, max_row=completion_row, min_col=comment_column_index, max_col=comment_column_index):
+        row[0].alignment = Alignment(horizontal="left", vertical="center")
+
     for row in calendar_sheet.iter_rows(
-        min_row=CALENDAR_HEADER_ROW,
-        max_row=calendar_sheet.max_row,
+        min_row=header_main_row,
+        max_row=data_end_row,
         min_col=1,
-        max_col=3 + len(ras),
+        max_col=comment_column_index,
     ):
         for cell in row:
             cell.border = THIN_BORDER
+
+    if has_optional_ra_names:
+        for index, ra in enumerate(ras):
+            optional_name = (ra.name or "").strip()
+            if optional_name == ra.key:
+                continue
+            column_index = 4 + index
+            key_cell = calendar_sheet.cell(row=header_main_row, column=column_index)
+            name_cell = calendar_sheet.cell(row=header_sub_row, column=column_index)
+            key_cell.border = Border(
+                left=THIN_BORDER.left,
+                right=THIN_BORDER.right,
+                top=THIN_BORDER.top,
+                bottom=Side(style=None),
+            )
+            name_cell.border = Border(
+                left=THIN_BORDER.left,
+                right=THIN_BORDER.right,
+                top=Side(style=None),
+                bottom=THIN_BORDER.bottom,
+            )
+
+    if ras:
+        for row in calendar_sheet.iter_rows(
+            min_row=expected_row,
+            max_row=completion_row,
+            min_col=4,
+            max_col=3 + len(ras),
+        ):
+            for cell in row:
+                cell.border = THIN_BORDER
 
     summary_sheet = workbook.create_sheet("Resum")
     summary_sheet.freeze_panes = "A2"
@@ -170,4 +335,14 @@ def build_workbook(
     output = BytesIO()
     workbook.save(output)
     output.seek(0)
+
+    if ras:
+        start_column = get_column_letter(4)
+        end_column = get_column_letter(3 + len(ras))
+        ignored_ranges = [
+            f"{start_column}{actual_row}:{end_column}{actual_row}",
+            f"{start_column}{completion_row}:{end_column}{completion_row}",
+        ]
+        output = _suppress_adjacent_formula_warnings(output, ignored_ranges)
+
     return output

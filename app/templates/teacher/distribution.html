@@ -143,6 +143,22 @@
     return null;
   }
 
+  function attachZeroResetBehavior(input) {
+    if (!input) return;
+
+    input.addEventListener("focus", () => {
+      if (input.value === "0") {
+        input.value = "";
+      }
+    });
+
+    input.addEventListener("blur", () => {
+      if (input.value === "") {
+        input.value = "0";
+      }
+    });
+  }
+
   function createRow(key, blockKey) {
     const row = document.createElement("div");
     row.className = "ra-row";
@@ -164,6 +180,7 @@
         ${planningMode === "parallel" ? `<button type="button" class="secondary ra-action-button" data-action="move-block" aria-label="Mou la RA a l&apos;altre bloc" title="Mou la RA a l&apos;altre bloc">${moveBlockIcon}</button>` : ""}
       </div>
     `;
+    attachZeroResetBehavior(row.querySelector(`input[name="${key}_hours"]`));
     return row;
   }
 
