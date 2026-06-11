@@ -258,11 +258,31 @@ button:disabled {
   gap: 0;
 }
 
+.optional-mp.card-panel {
+  padding: 0.95rem 1.1rem;
+}
+
 .optional-mp summary {
   cursor: pointer;
-  font-weight: 800;
   color: var(--accent-dark);
   list-style: none;
+  line-height: 1.35;
+  padding-right: 1.9rem;
+  position: relative;
+}
+
+.optional-mp-title {
+  display: block;
+  color: var(--accent-dark);
+  font-weight: 800;
+}
+
+.optional-mp-summary-note {
+  display: block;
+  color: #8a949b;
+  font-size: 0.82rem;
+  font-weight: 500;
+  margin-top: 0.08rem;
 }
 
 .optional-mp summary::-webkit-details-marker {
@@ -271,8 +291,10 @@ button:disabled {
 
 .optional-mp summary::after {
   content: "+";
-  float: right;
-  font-size: 1.1rem;
+  position: absolute;
+  right: 0;
+  top: 1.2rem;
+  font-size: 1.05rem;
   line-height: 1;
 }
 

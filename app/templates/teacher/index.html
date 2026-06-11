@@ -19,9 +19,8 @@
   {% endif %}
   <form method="post" action="/plan" class="form-grid">
     <div class="optional-mp-shell form-span">
-      <p class="optional-mp-hint">Desplega aquest apartat només si vols afegir més context al document exportat.</p>
       <details class="optional-mp card-panel" {% if form.get('training_cycle') or form.get('group_name') or form.get('subject_code') or form.get('subject_name') %}open{% endif %}>
-        <summary>Informació opcional del MP</summary>
+        <summary><span class="optional-mp-title">Informació opcional del MP</span><span class="optional-mp-summary-note">Desplega aquest apartat només si vols afegir més context al document exportat</span></summary>
         <div class="optional-mp-content">
           <div class="two-column optional-mp-grid">
             <label>
