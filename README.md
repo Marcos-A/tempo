@@ -92,8 +92,9 @@ The teacher flow is intentionally lightweight and is mostly stateless.
 
 ### Practical concurrency expectations
 
-- The current production deployment runs a single Uvicorn process in one
-  container.
+- The production-style runtime starts through `python -m app.server` and
+  uses a modest multi-worker default. You can override it with
+  `WEB_CONCURRENCY`.
 - The application uses SQLite, mounted from `/srv/data/curriculum-planner`.
 - Teacher usage is mostly read-heavy plus in-memory calculations, because the
   step-2 editing experience lives in the browser.
@@ -114,6 +115,24 @@ staggered. The most likely pressure points are:
 Excluded dates are resolved during step 1 and included in the JSON payload sent
 to step 2. If an admin changes excluded dates while a teacher is already on
 step 2, that teacher will still export using the earlier step-1 snapshot.
+
+### Lightweight load checking
+
+A small concurrent smoke test is available for the public teacher flow:
+
+```bash
+python scripts/load_test_teacher_flow.py --base-url http://127.0.0.1:8091
+```
+
+Useful flags:
+
+- `--requests` to control the total request count
+- `--concurrency` to control parallelism
+- `--timeout` to adjust the per-request timeout
+
+This script exercises `/plan` with a representative teacher request and prints
+latency plus throughput figures. It is meant as a lightweight regression check,
+not a full benchmark suite.
 
 ## Remote preview deployment
 

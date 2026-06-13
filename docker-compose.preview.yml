@@ -4,7 +4,7 @@ services:
   web:
     container_name: curriculum-planner-preview-web
     build: .
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --proxy-headers --forwarded-allow-ips=*
+    command: python -m app.server
     env_file:
       - ${PREVIEW_ENV_FILE:-/srv/config/curriculum-planner/.env.prod}
     ports:
