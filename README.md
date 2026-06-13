@@ -73,6 +73,48 @@ change Python dependencies or the Docker image itself, rebuild again.
 docker compose run --rm web pytest
 ```
 
+## State Handling And Concurrency
+
+The teacher flow is intentionally lightweight and is mostly stateless.
+
+### Where step data lives
+
+- Step 1 (`/plan`) validates the submitted dates, weekday hours, planning mode,
+  and excluded periods, then renders step 2 with a compact JSON payload
+  embedded in the HTML.
+- Step 2 runs in the browser. The RA order, names, hours, and block assignment
+  are edited client-side and are posted back to `/export` only when the user
+  requests the final XLSX.
+- This means in-progress teacher planning data is not stored in the server-side
+  session and is not persisted to the SQLite database between steps 1 and 2.
+- If the user refreshes the page or closes the tab before exporting, that
+  in-progress step-2 state is lost unless the browser still preserves the page.
+
+### Practical concurrency expectations
+
+- The current production deployment runs a single Uvicorn process in one
+  container.
+- The application uses SQLite, mounted from `/srv/data/curriculum-planner`.
+- Teacher usage is mostly read-heavy plus in-memory calculations, because the
+  step-2 editing experience lives in the browser.
+- Admin writes are expected to be rare and limited to one or a few people a few
+  times per year, which makes SQLite a reasonable fit for the current scale.
+
+In practical terms, the app should be fine for ordinary school usage with a few
+dozen teachers working at the same time, especially when exports are naturally
+staggered. The most likely pressure points are:
+
+- bursts of simultaneous XLSX exports, because export generation is server-side
+  work
+- single-worker request throughput, because production currently serves traffic
+  through one app process
+
+### Consistency note
+
+Excluded dates are resolved during step 1 and included in the JSON payload sent
+to step 2. If an admin changes excluded dates while a teacher is already on
+step 2, that teacher will still export using the earlier step-1 snapshot.
+
 ## Remote preview deployment
 
 `planner-preview.marcos-a.com` is the dedicated preview URL for testing
