@@ -69,6 +69,13 @@ def test_distribution_validation_requires_exact_match():
         validate_ra_distribution(10, [RAPlan("RA1", "RA1", 7), RAPlan("RA2", "RA2", 2)])
 
 
+def test_distribution_validation_rejects_zero_hour_ras():
+    """Every RA must keep at least one assigned hour before export."""
+
+    with pytest.raises(ValueError, match="com a mínim 1 hora"):
+        validate_ra_distribution(10, [RAPlan("RA1", "RA1", 10), RAPlan("RA2", "RA2", 0)])
+
+
 def test_parallel_blocks_preserve_their_weekly_split_when_both_need_all_hours():
     """Parallel blocks should stay in their own lanes when neither finishes early."""
 
@@ -164,55 +171,72 @@ def test_export_uses_blank_cells_for_zero_ra_hours():
     )
     workbook = load_workbook(workbook_io)
     sheet = workbook["Calendari"]
-    assert sheet.freeze_panes == "D6"
-    assert "A1:C1" in [str(range_ref) for range_ref in sheet.merged_cells.ranges]
-    assert "A5:B5" in [str(range_ref) for range_ref in sheet.merged_cells.ranges]
-    assert "A7:C7" in [str(range_ref) for range_ref in sheet.merged_cells.ranges]
-    assert sheet["A1"].value == "Cicle formatiu:"
-    assert sheet["D1"].value is None
-    assert sheet["A5"].value == "Data"
-    assert sheet["A5"].alignment.horizontal == "left"
-    assert sheet["A6"].value == "dt."
-    assert sheet["A6"].alignment.horizontal == "center"
-    assert sheet["B6"].value.date().isoformat() == "2026-09-01"
-    assert sheet["B6"].number_format == "DD/MM/YYYY"
-    assert sheet["B6"].alignment.horizontal == "center"
-    assert sheet["C5"].value == "Hores"
+    merged_ranges = [str(range_ref) for range_ref in sheet.merged_cells.ranges]
+
+    assert sheet.freeze_panes == "D7"
+    assert "D1:F1" in merged_ranges
+    assert "A2:C2" in merged_ranges
+    assert "A6:B6" in merged_ranges
+    assert "A8:C8" in merged_ranges
+    assert sheet["D1"].value == "MODIFIQUEU EL NOMBRE D'HORES SI LES REALS DIFIEREIXEN DE LES PREVISTES PER TAL D'OBTENIR LA RÀTIO D'ACOMPLIMENT DE LA PLANIFICACIÓ"
+    assert sheet["D1"].alignment.horizontal == "center"
+    assert sheet["D1"].font.bold is True
+    assert sheet["D1"].font.color.rgb == "00FFFFFF"
+    assert sheet["D1"].fill.fgColor.rgb == "00000000"
+    assert sheet.row_dimensions[1].height >= 36
+    assert sheet["A2"].value == "Cicle formatiu:"
+    assert sheet["D2"].value is None
+    assert sheet["A6"].value == "Data"
+    assert sheet["A6"].alignment.horizontal == "left"
+    assert sheet["A7"].value == "dt."
+    assert sheet["A7"].alignment.horizontal == "center"
+    assert sheet["B7"].value.date().isoformat() == "2026-09-01"
+    assert sheet["B7"].number_format == "DD/MM/YYYY"
+    assert sheet["B7"].alignment.horizontal == "center"
+    assert sheet["C6"].value == "Hores"
     assert sheet.column_dimensions["C"].width < 16
-    assert sheet["C5"].alignment.horizontal == "center"
     assert sheet["C6"].alignment.horizontal == "center"
-    assert sheet["D5"].value == "RA1"
-    assert sheet["E5"].value == "RA2"
-    assert sheet["F5"].value == "Comentaris"
-    assert sheet["F5"].alignment.horizontal == "center"
+    assert sheet["C7"].alignment.horizontal == "center"
+    assert sheet["D6"].value == "RA1"
+    assert sheet["E6"].value == "RA2"
+    assert sheet["F6"].value == "Comentaris"
+    assert sheet["F6"].alignment.horizontal == "center"
     assert sheet.column_dimensions["F"].width == 42
-    assert sheet["D5"].alignment.horizontal == "center"
     assert sheet["D6"].alignment.horizontal == "center"
-    assert sheet["F6"].alignment.horizontal == "left"
-    assert sheet["D5"].fill.fgColor.rgb == "00E7EFD8"
-    assert sheet["A5"].border.left.style == "thin"
-    assert sheet["D6"].value == 4
-    assert sheet["E6"].value is None
-    assert sheet["F6"].value is None
-    assert sheet["F7"].border.left.style is None
+    assert sheet["D7"].alignment.horizontal == "center"
+    assert sheet["F7"].alignment.horizontal == "left"
+    assert sheet["D6"].fill.fgColor.rgb == "00E7EFD8"
+    assert sheet["A6"].border.left.style == "thin"
+    assert sheet["D7"].value == 4
+    assert sheet["E7"].value is None
+    assert sheet["F7"].value is None
     assert sheet["F8"].border.left.style is None
     assert sheet["F9"].border.left.style is None
-    assert sheet["A7"].value == "Hores previstes:"
-    assert sheet["A8"].value == "Hores reals:"
-    assert sheet["A9"].value == "Acompliment:"
-    assert sheet["A7"].border.left.style is None
-    assert sheet["C7"].border.right.style is None
-    assert sheet["D7"].border.left.style == "thin"
-    assert sheet["D7"].value == 4
-    assert sheet["E7"].value == 0
-    assert sheet["F7"].value is None
-    assert sheet["D7"].fill.fgColor.rgb == "00E7EFD8"
-    assert sheet["E7"].fill.fgColor.rgb == "00D8EBF2"
-    assert sheet["D8"].value == "=SUM(D6:D6)"
-    assert sheet["E8"].value == "=SUM(E6:E6)"
-    assert sheet["D9"].value == '=IFERROR(D8/D7,"")'
-    assert sheet["E9"].value == '=IFERROR(E8/E7,"")'
-    assert sheet["D9"].number_format == "0%"
+    assert sheet["F10"].border.left.style is None
+    assert sheet["A8"].value == "Hores previstes:"
+    assert sheet["A9"].value == "Hores reals:"
+    assert sheet["A10"].value == "Acompliment:"
+    assert sheet["A8"].border.left.style is None
+    assert sheet["C8"].border.right.style is None
+    assert sheet["D8"].border.left.style == "thin"
+    assert sheet["D8"].value == 4
+    assert sheet["E8"].value == 0
+    assert sheet["F8"].value == "=SUM(D8:E8)"
+    assert sheet["F8"].alignment.horizontal == "center"
+    assert sheet["F8"].font.bold is True
+    assert sheet["D8"].fill.fgColor.rgb == "00E7EFD8"
+    assert sheet["E8"].fill.fgColor.rgb == "00D8EBF2"
+    assert sheet["D9"].value == "=SUM(D7:D7)"
+    assert sheet["E9"].value == "=SUM(E7:E7)"
+    assert sheet["F9"].value == "=SUM(D9:E9)"
+    assert sheet["F9"].alignment.horizontal == "center"
+    assert sheet["D10"].value == '=IFERROR(D9/D8,"")'
+    assert sheet["E10"].value == '=IFERROR(E9/E8,"")'
+    assert sheet["F10"].value == '=IFERROR(F9/F8,"")'
+    assert sheet["F10"].alignment.horizontal == "center"
+    assert sheet["D10"].number_format == "0%"
+    assert sheet["F10"].number_format == "0%"
+
 
 
 def test_export_summary_rows_use_formulas_for_real_and_completion_hours():
@@ -238,13 +262,18 @@ def test_export_summary_rows_use_formulas_for_real_and_completion_hours():
     )
     workbook = load_workbook(workbook_io)
     sheet = workbook["Calendari"]
-    assert sheet["D8"].value == 3
-    assert sheet["E8"].value == 2
-    assert sheet["D9"].value == "=SUM(D6:D7)"
-    assert sheet["E9"].value == "=SUM(E6:E7)"
-    assert sheet["D10"].value == '=IFERROR(D9/D8,"")'
-    assert sheet["E10"].value == '=IFERROR(E9/E8,"")'
-    assert sheet["E10"].number_format == "0%"
+    assert sheet["D9"].value == 3
+    assert sheet["E9"].value == 2
+    assert sheet["F9"].value == "=SUM(D9:E9)"
+    assert sheet["D10"].value == "=SUM(D7:D8)"
+    assert sheet["E10"].value == "=SUM(E7:E8)"
+    assert sheet["F10"].value == "=SUM(D10:E10)"
+    assert sheet["D11"].value == '=IFERROR(D10/D9,"")'
+    assert sheet["E11"].value == '=IFERROR(E10/E9,"")'
+    assert sheet["F11"].value == '=IFERROR(F10/F9,"")'
+    assert sheet["E11"].number_format == "0%"
+    assert sheet["F11"].number_format == "0%"
+
 
 
 def test_export_marks_summary_formulas_as_ignored_for_adjacent_formula_warnings():
@@ -273,9 +302,10 @@ def test_export_marks_summary_formulas_as_ignored_for_adjacent_formula_warnings(
         sheet_xml = workbook_zip.read("xl/worksheets/sheet1.xml").decode("utf-8")
 
     assert '<ignoredErrors>' in sheet_xml
-    assert 'sqref="D9:E9"' in sheet_xml
-    assert 'sqref="D10:E10"' in sheet_xml
+    assert 'sqref="D10:F10"' in sheet_xml
+    assert 'sqref="D11:F11"' in sheet_xml
     assert 'formulaRange="1"' in sheet_xml
+
 
 
 def test_export_uses_two_row_ra_headers_when_optional_names_are_present():
@@ -301,22 +331,22 @@ def test_export_uses_two_row_ra_headers_when_optional_names_are_present():
     sheet = workbook["Calendari"]
     merged_ranges = [str(range_ref) for range_ref in sheet.merged_cells.ranges]
 
-    assert sheet.freeze_panes == "D7"
-    assert "A5:B6" in merged_ranges
-    assert "C5:C6" in merged_ranges
-    assert "E5:E6" in merged_ranges
-    assert "G5:G6" in merged_ranges
-    assert sheet["D5"].value == "RA1"
-    assert sheet["D5"].border.bottom.style is None
-    assert sheet["D6"].value == "Opcional"
-    assert sheet["D6"].border.top.style is None
-    assert sheet["E5"].value == "RA2"
-    assert sheet["E6"].value is None
-    assert sheet["F5"].value == "RA3"
-    assert sheet["F6"].value == "Opcional"
-    assert sheet["G5"].value == "Comentaris"
-    assert sheet["A7"].value == "dt."
-    assert sheet["B7"].value.date().isoformat() == "2026-09-01"
+    assert sheet.freeze_panes == "D8"
+    assert "A6:B7" in merged_ranges
+    assert "C6:C7" in merged_ranges
+    assert "E6:E7" in merged_ranges
+    assert "G6:G7" in merged_ranges
+    assert sheet["D6"].value == "RA1"
+    assert sheet["D6"].border.bottom.style is None
+    assert sheet["D7"].value == "Opcional"
+    assert sheet["D7"].border.top.style is None
+    assert sheet["E6"].value == "RA2"
+    assert sheet["E7"].value is None
+    assert sheet["F6"].value == "RA3"
+    assert sheet["F7"].value == "Opcional"
+    assert sheet["G6"].value == "Comentaris"
+    assert sheet["A8"].value == "dt."
+    assert sheet["B8"].value.date().isoformat() == "2026-09-01"
 
 
 
@@ -342,14 +372,15 @@ def test_export_includes_optional_module_fields_above_the_calendar_table():
     )
     workbook = load_workbook(workbook_io)
     sheet = workbook["Calendari"]
-    assert sheet["A1"].value == "Cicle formatiu:"
-    assert sheet["D1"].value == "Administració i finances"
-    assert sheet["A2"].value == "Grup:"
-    assert sheet["D2"].value is None
-    assert sheet["A3"].value == "Codi del mòdul:"
-    assert sheet["D3"].value == "MP0440"
-    assert sheet["A4"].value == "Nom del mòdul:"
-    assert sheet["D4"].value is None
+    assert sheet["A2"].value == "Cicle formatiu:"
+    assert sheet["D2"].value == "Administració i finances"
+    assert sheet["A3"].value == "Grup:"
+    assert sheet["D3"].value is None
+    assert sheet["A4"].value == "Codi del mòdul:"
+    assert sheet["D4"].value == "MP0440"
+    assert sheet["A5"].value == "Nom del mòdul:"
+    assert sheet["D5"].value is None
+
 
 
 def test_export_reuses_palette_colors_after_the_twelfth_ra():
@@ -370,14 +401,15 @@ def test_export_reuses_palette_colors_after_the_twelfth_ra():
     )
     workbook = load_workbook(workbook_io)
     sheet = workbook["Calendari"]
-    assert sheet["D5"].fill.fgColor.rgb == "00E7EFD8"
-    assert sheet["O5"].fill.fgColor.rgb == "00EFE0C8"
-    assert sheet["P5"].fill.fgColor.rgb == "00E7EFD8"
-    assert sheet["Q5"].fill.fgColor.rgb == "00D8EBF2"
-    assert sheet["R5"].value == "Comentaris"
+    assert sheet["D6"].fill.fgColor.rgb == "00E7EFD8"
+    assert sheet["O6"].fill.fgColor.rgb == "00EFE0C8"
+    assert sheet["P6"].fill.fgColor.rgb == "00E7EFD8"
+    assert sheet["Q6"].fill.fgColor.rgb == "00D8EBF2"
+    assert sheet["R6"].value == "Comentaris"
     assert sheet.column_dimensions["R"].width == 42
-    assert sheet["D7"].fill.fgColor.rgb == "00E7EFD8"
-    assert sheet["Q7"].fill.fgColor.rgb == "00D8EBF2"
+    assert sheet["D8"].fill.fgColor.rgb == "00E7EFD8"
+    assert sheet["Q8"].fill.fgColor.rgb == "00D8EBF2"
+
 
 
 def test_export_marks_new_ra_start_rows_with_light_fill():
@@ -403,12 +435,13 @@ def test_export_marks_new_ra_start_rows_with_light_fill():
     )
     workbook = load_workbook(workbook_io)
     sheet = workbook["Calendari"]
-    assert sheet["A6"].fill.fgColor.rgb == "00E9E9E9"
-    assert sheet["D6"].fill.fgColor.rgb == "00E9E9E9"
-    assert sheet["F6"].fill.fgColor.rgb == "00E9E9E9"
     assert sheet["A7"].fill.fgColor.rgb == "00E9E9E9"
     assert sheet["D7"].fill.fgColor.rgb == "00E9E9E9"
     assert sheet["F7"].fill.fgColor.rgb == "00E9E9E9"
+    assert sheet["A8"].fill.fgColor.rgb == "00E9E9E9"
+    assert sheet["D8"].fill.fgColor.rgb == "00E9E9E9"
+    assert sheet["F8"].fill.fgColor.rgb == "00E9E9E9"
+
 
 
 def test_export_parallel_mode_only_marks_rows_where_a_new_ra_first_appears():
@@ -440,15 +473,15 @@ def test_export_parallel_mode_only_marks_rows_where_a_new_ra_first_appears():
     )
     workbook = load_workbook(workbook_io)
     sheet = workbook["Calendari"]
-    assert sheet["A6"].fill.fgColor.rgb == "00E9E9E9"
-    assert sheet["D6"].fill.fgColor.rgb == "00E9E9E9"
-    assert sheet["G6"].fill.fgColor.rgb == "00E9E9E9"
-    assert sheet["A7"].fill.patternType is None
-    assert sheet["D7"].fill.patternType is None
-    assert sheet["G7"].fill.patternType is None
-    assert sheet["A8"].fill.fgColor.rgb == "00E9E9E9"
-    assert sheet["F8"].fill.fgColor.rgb == "00E9E9E9"
-    assert sheet["G8"].fill.fgColor.rgb == "00E9E9E9"
+    assert sheet["A7"].fill.fgColor.rgb == "00E9E9E9"
+    assert sheet["D7"].fill.fgColor.rgb == "00E9E9E9"
+    assert sheet["G7"].fill.fgColor.rgb == "00E9E9E9"
+    assert sheet["A8"].fill.patternType is None
+    assert sheet["D8"].fill.patternType is None
+    assert sheet["G8"].fill.patternType is None
+    assert sheet["A9"].fill.fgColor.rgb == "00E9E9E9"
+    assert sheet["F9"].fill.fgColor.rgb == "00E9E9E9"
+    assert sheet["G9"].fill.fgColor.rgb == "00E9E9E9"
 
 
 def test_parse_date_input_accepts_dd_mm_yyyy():

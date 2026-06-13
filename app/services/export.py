@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from io import BytesIO
+from math import ceil
 from xml.etree import ElementTree as ET
 from zipfile import ZIP_DEFLATED, ZipFile
 
@@ -48,8 +49,8 @@ CALENDAR_METADATA_FIELDS = (
     "Codi del mòdul",
     "Nom del mòdul",
 )
-CALENDAR_HEADER_ROW = 5
-CALENDAR_DATA_START_ROW = 6
+CALENDAR_HEADER_ROW = 6
+CALENDAR_DATA_START_ROW = 7
 SUMMARY_LABELS = (
     "Hores previstes:",
     "Hores reals:",
@@ -58,6 +59,10 @@ SUMMARY_LABELS = (
 SHEET_MAIN_NS = "http://schemas.openxmlformats.org/spreadsheetml/2006/main"
 COMMENT_COLUMN_WIDTH_MULTIPLIER = 3
 RA_COLUMN_WIDTH = 14
+INSTRUCTION_BANNER = (
+    "MODIFIQUEU EL NOMBRE D'HORES SI LES REALS DIFIEREIXEN DE LES PREVISTES PER TAL D'OBTENIR LA RÀTIO "
+    "D'ACOMPLIMENT DE LA PLANIFICACIÓ"
+)
 
 
 def _auto_width_for_column_values(values: list[object]) -> float:
@@ -66,6 +71,15 @@ def _auto_width_for_column_values(values: list[object]) -> float:
     visible_lengths = [len(str(value)) for value in values if value is not None]
     longest = max(visible_lengths, default=0)
     return max(longest + 2, 6)
+
+
+def _instruction_banner_height(ra_count: int) -> float:
+    """Estimate a readable row height for the wrapped banner text."""
+
+    merged_width = (ra_count * RA_COLUMN_WIDTH) + (RA_COLUMN_WIDTH * COMMENT_COLUMN_WIDTH_MULTIPLIER)
+    chars_per_line = max(int(merged_width * 0.95), 24)
+    line_count = max(1, ceil(len(INSTRUCTION_BANNER) / chars_per_line))
+    return max(24, line_count * 18)
 
 
 def _active_ra_keys(row: dict[str, object], ras: list[RAPlan]) -> tuple[str, ...]:
@@ -148,7 +162,15 @@ def build_workbook(
     header_sub_row = CALENDAR_HEADER_ROW + 1 if has_optional_ra_names else None
     data_start_row = CALENDAR_DATA_START_ROW + (1 if has_optional_ra_names else 0)
 
-    for row_index, field_name in enumerate(CALENDAR_METADATA_FIELDS, start=1):
+    calendar_sheet.merge_cells(start_row=1, start_column=4, end_row=1, end_column=comment_column_index)
+    instruction_cell = calendar_sheet.cell(row=1, column=4)
+    instruction_cell.value = INSTRUCTION_BANNER
+    instruction_cell.font = Font(bold=True, color="FFFFFF")
+    instruction_cell.fill = PatternFill(fill_type="solid", fgColor="000000")
+    instruction_cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+    calendar_sheet.row_dimensions[1].height = _instruction_banner_height(len(ras))
+
+    for row_index, field_name in enumerate(CALENDAR_METADATA_FIELDS, start=2):
         calendar_sheet.merge_cells(start_row=row_index, start_column=1, end_row=row_index, end_column=3)
         label_cell = calendar_sheet.cell(row=row_index, column=1)
         label_cell.value = f"{field_name}:"
@@ -255,6 +277,31 @@ def build_workbook(
         completion_cell.number_format = "0%"
         completion_cell.alignment = Alignment(horizontal="center", vertical="center")
 
+    if ras:
+        first_ra_column_letter = get_column_letter(4)
+        last_ra_column_letter = get_column_letter(3 + len(ras))
+        comment_column_letter = get_column_letter(comment_column_index)
+
+        comment_expected_cell = calendar_sheet.cell(row=expected_row, column=comment_column_index)
+        comment_expected_cell.value = (
+            f"=SUM({first_ra_column_letter}{expected_row}:{last_ra_column_letter}{expected_row})"
+        )
+        comment_expected_cell.font = Font(bold=True)
+        comment_expected_cell.alignment = Alignment(horizontal="center", vertical="center")
+
+        comment_actual_cell = calendar_sheet.cell(row=actual_row, column=comment_column_index)
+        comment_actual_cell.value = (
+            f"=SUM({first_ra_column_letter}{actual_row}:{last_ra_column_letter}{actual_row})"
+        )
+        comment_actual_cell.alignment = Alignment(horizontal="center", vertical="center")
+
+        comment_completion_cell = calendar_sheet.cell(row=completion_row, column=comment_column_index)
+        comment_completion_cell.value = (
+            f"=IFERROR({comment_column_letter}{actual_row}/{comment_column_letter}{expected_row},\"\")"
+        )
+        comment_completion_cell.number_format = "0%"
+        comment_completion_cell.alignment = Alignment(horizontal="center", vertical="center")
+
     for row in calendar_sheet.iter_rows(min_row=data_start_row, max_row=data_end_row, min_col=2, max_col=2):
         row[0].number_format = "DD/MM/YYYY"
 
@@ -277,7 +324,7 @@ def build_workbook(
 
     comment_column_letter = get_column_letter(comment_column_index)
     calendar_sheet.column_dimensions[comment_column_letter].width = RA_COLUMN_WIDTH * COMMENT_COLUMN_WIDTH_MULTIPLIER
-    for row in calendar_sheet.iter_rows(min_row=data_start_row, max_row=completion_row, min_col=comment_column_index, max_col=comment_column_index):
+    for row in calendar_sheet.iter_rows(min_row=data_start_row, max_row=data_end_row, min_col=comment_column_index, max_col=comment_column_index):
         row[0].alignment = Alignment(horizontal="left", vertical="center")
 
     for row in calendar_sheet.iter_rows(
@@ -338,10 +385,9 @@ def build_workbook(
 
     if ras:
         start_column = get_column_letter(4)
-        end_column = get_column_letter(3 + len(ras))
         ignored_ranges = [
-            f"{start_column}{actual_row}:{end_column}{actual_row}",
-            f"{start_column}{completion_row}:{end_column}{completion_row}",
+            f"{start_column}{actual_row}:{comment_column_letter}{actual_row}",
+            f"{start_column}{completion_row}:{comment_column_letter}{completion_row}",
         ]
         output = _suppress_adjacent_formula_warnings(output, ignored_ranges)
 

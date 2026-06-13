@@ -62,11 +62,11 @@
           <li>Opcionalment, afegeix un nom més clarificador als RAs, idealment breu (p.ex. «Excel» o «IVA»).</li>
           {% endif %}
         </ul>
-        <p class="step-intro-next">L'exportació només s'activa quan no queda cap hora pendent.</p>
+        <p class="step-intro-next">L'exportació només s'activa quan no queda cap hora pendent i totes les RAs tenen com a mínim 1 h assignada.</p>
       </div>
     </div>
     <div class="remaining-box">
-      Hores pendents: <strong id="remaining-hours">{{ summary.total_available_hours }}</strong>
+      Hores pendents: <strong id="remaining-hours" class="block-pending-hours block-pending-open">{{ summary.total_available_hours }}</strong>
     </div>
   </div>
 
@@ -173,6 +173,16 @@
     return (blockName || "bloc").trim().toLowerCase();
   }
 
+  function pendingHoursStatusClass(remainingHours) {
+    if (remainingHours === 0) {
+      return "block-pending-complete";
+    }
+    if (remainingHours < 0) {
+      return "block-pending-over";
+    }
+    return "block-pending-open";
+  }
+
   function attachZeroResetBehavior(input) {
     if (!input) return;
 
@@ -266,7 +276,9 @@
       [...list.querySelectorAll(".ra-row")].forEach((row) => {
         const key = row.dataset.key;
         const name = row.querySelector(`input[name="${key}_name"]`).value.trim() || key;
+        const hoursField = row.querySelector(".ra-hours-field");
         const hourValue = Number(row.querySelector(`input[name="${key}_hours"]`).value || 0);
+        hoursField?.classList.toggle("is-zero", hourValue === 0);
         order.push(key);
         names[key] = name;
         hours[key] = hourValue;
@@ -287,9 +299,10 @@
     });
 
     const remaining = totalAvailable - assigned;
+    const hasZeroHourRa = Object.values(hours).some((value) => value === 0);
     if (remainingHoursEl) {
       remainingHoursEl.textContent = remaining;
-      remainingHoursEl.className = remaining === 0 ? "ok" : remaining < 0 ? "error-text" : "";
+      remainingHoursEl.className = `block-pending-hours ${pendingHoursStatusClass(remaining)}`;
     }
     (planData.blocks || []).forEach((block) => {
       const blockKey = block.key;
@@ -300,7 +313,7 @@
       const pendingEl = blockPendingEls[blockKey];
       if (pendingEl) {
         pendingEl.textContent = `${remainingBlockHours} h pendents de ${Number(block.available_hours || 0)} h pròpies`;
-        pendingEl.className = remainingBlockHours === 0 ? "block-pending-hours block-pending-complete" : remainingBlockHours < 0 ? "block-pending-hours block-pending-over" : "block-pending-hours block-pending-open";
+        pendingEl.className = `block-pending-hours ${pendingHoursStatusClass(remainingBlockHours)}`;
       }
 
       const endDateEl = blockEndDateEls[blockKey];
@@ -340,7 +353,7 @@
         blockTransferWarning.textContent = "";
       }
     }
-    exportButton.disabled = remaining !== 0;
+    exportButton.disabled = remaining !== 0 || hasZeroHourRa;
     raOrderInput.value = JSON.stringify(order);
     raNamesInput.value = JSON.stringify(names);
     raHoursInput.value = JSON.stringify(hours);

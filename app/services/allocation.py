@@ -34,6 +34,8 @@ def validate_ra_distribution(total_available: int, ras: list[RAPlan]) -> None:
         raise ValueError("Les hores assignades a les RAs han de coincidir exactament amb les hores disponibles.")
     if any(item.hours < 0 for item in ras):
         raise ValueError("Les hores de les RAs no poden ser negatives.")
+    if any(item.hours == 0 for item in ras):
+        raise ValueError("Cada RA ha de tenir com a mínim 1 hora assignada abans d'exportar.")
 
 
 def _allocate_block_hours(
