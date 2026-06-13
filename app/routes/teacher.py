@@ -103,12 +103,15 @@ def _summarize_exclusion_impact(
     end_date: date,
     weekday_hours: dict[int, int],
     excluded_dates: set[date],
-) -> tuple[int, int]:
-    """Return excluded teaching days and hours within the selected plan window."""
+    excluded_labels_by_date: dict[date, str],
+) -> tuple[int, int, list[dict[str, object]]]:
+    """Return excluded teaching days, hours, and affected dates within the plan window."""
 
     excluded_teaching_days = 0
     excluded_teaching_hours = 0
-    for current_date in excluded_dates:
+    affected_dates: list[dict[str, object]] = []
+    weekday_labels = ("dl.", "dt.", "dc.", "dj.", "dv.")
+    for current_date in sorted(excluded_dates):
         if not (start_date <= current_date <= end_date):
             continue
         weekday_index = current_date.weekday()
@@ -119,7 +122,18 @@ def _summarize_exclusion_impact(
             continue
         excluded_teaching_days += 1
         excluded_teaching_hours += hours
-    return excluded_teaching_days, excluded_teaching_hours
+        label = excluded_labels_by_date.get(current_date, "").strip()
+        label_text = f" ({label})" if label else ""
+        affected_dates.append(
+            {
+                "date": current_date.isoformat(),
+                "display": f"{weekday_labels[weekday_index]} {format_display_date(current_date)}{label_text}",
+                "hours": hours,
+                "hours_display": f"{hours} h",
+                "label": label,
+            }
+        )
+    return excluded_teaching_days, excluded_teaching_hours, affected_dates
 
 
 def _serialize_blocks(blocks: list[BlockPlan]) -> list[dict[str, object]]:
@@ -146,6 +160,20 @@ def _summarize_block_available_hours(schedule: list[ScheduleDay], blocks: list[B
         for block in blocks:
             totals[block.key] += block.weekday_hours.get(day.weekday_index, 0)
     return totals
+
+
+def _map_excluded_labels_by_date(periods: list[ExcludedPeriod]) -> dict[date, str]:
+    """Map excluded dates to their optional labels for user-facing summaries."""
+
+    labels_by_date: dict[date, str] = {}
+    for period in periods:
+        label = (period.label or "").strip()
+        current_date = period.start_date
+        while current_date <= period.end_date:
+            if label and current_date not in labels_by_date:
+                labels_by_date[current_date] = label
+            current_date = current_date.fromordinal(current_date.toordinal() + 1)
+    return labels_by_date
 
 
 def _default_ra_state(ra_count: int, planning_mode: str) -> dict[str, object]:
@@ -217,11 +245,12 @@ async def prepare_plan(request: Request, db: Session = Depends(get_db)):
     # Admin exclusions are stored as ranges; they are expanded into concrete dates
     # so the teaching calendar can remove each blocked day precisely.
     excluded_dates = expand_excluded_periods([(period.start_date, period.end_date) for period in periods])
+    excluded_labels_by_date = _map_excluded_labels_by_date(periods)
     schedule = build_schedule(start_date, end_date, weekday_hours, excluded_dates)
     total_hours = total_available_hours(schedule)
     block_available_hours = _summarize_block_available_hours(schedule, blocks)
-    excluded_teaching_days, excluded_teaching_hours = _summarize_exclusion_impact(
-        start_date, end_date, weekday_hours, excluded_dates
+    excluded_teaching_days, excluded_teaching_hours, excluded_teaching_dates = _summarize_exclusion_impact(
+        start_date, end_date, weekday_hours, excluded_dates, excluded_labels_by_date
     )
 
     if total_hours == 0:
@@ -254,6 +283,7 @@ async def prepare_plan(request: Request, db: Session = Depends(get_db)):
         "ra_count": ra_count,
         "excluded_teaching_days": excluded_teaching_days,
         "excluded_teaching_hours": excluded_teaching_hours,
+        "excluded_teaching_dates": excluded_teaching_dates,
         "schedule": [
             {"date": day.date.isoformat(), "weekday_index": day.weekday_index, "weekday_name": day.weekday_name, "hours": day.hours}
             for day in schedule

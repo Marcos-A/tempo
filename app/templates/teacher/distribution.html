@@ -20,6 +20,25 @@
     {% endfor %}
   </div>
   {% endif %}
+  <details class="summary-disclosure">
+    <summary>
+      <span>Mostra els dies exclosos d'aquest MP</span>
+      <small>{{ summary.excluded_teaching_days }} dies lectius · {{ summary.excluded_teaching_hours }} h</small>
+    </summary>
+    {% if summary.excluded_teaching_dates %}
+    <p class="summary-disclosure-copy">Aquests són els dies lectius exclosos que s'han descomptat del calendari d'aquest MP:</p>
+    <div class="summary-disclosure-table" role="table" aria-label="Dies exclosos d'aquest MP">
+      {% for excluded_day in summary.excluded_teaching_dates %}
+      <div class="summary-disclosure-row" role="row">
+        <div class="summary-disclosure-date" role="cell">{{ excluded_day.display }}</div>
+        <div class="summary-disclosure-hours" role="cell">{{ excluded_day.hours_display }}</div>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <p class="summary-disclosure-copy">No hi ha dies exclosos que afectin aquest MP.</p>
+    {% endif %}
+  </details>
   {% if export_error %}
   <p class="error">{{ export_error }}</p>
   {% endif %}
@@ -34,7 +53,8 @@
         <ul class="step-intro-list">
           {% if summary.planning_mode == "parallel" %}
           <li>Redistribueix i reordena els RAs d'acord amb l'ordre d'impartició.</li>
-          <li>Redistribueix les {{ summary.total_available_hours }} hores disponibles entre els RAs.</li>
+          <li>Assigna les {{ summary.total_available_hours }} hores disponibles entre els RAs i els blocs.</li>
+          <li>Si un bloc no esgota totes les seves hores pròpies, la resta s'assignarà automàticament a l'altre bloc.</li>
           <li>Opcionalment, afegeix un nom més clarificador als RAs, idealment breu (p.ex. «Excel» o «IVA»).</li>
           {% else %}
           <li>Reordena els RAs si cal d'acord amb l'ordre d'impartició.</li>
@@ -64,7 +84,8 @@
         <div class="block-card-header">
           <div>
             <h3>{{ block.name }}</h3>
-            <p class="hint">{{ block.weekday_hours_display }} · {{ block.available_hours }} h pròpies</p>
+            <p class="hint">{{ block.weekday_hours_display }}</p>
+            <p class="hint block-pending-hours" id="block-pending-{{ block.key }}">{{ block.available_hours }} h pendents de {{ block.available_hours }} h pròpies</p>
             <p class="block-end-date hint" id="block-end-{{ block.key }}"></p>
           </div>
           <span class="pill">{{ block.key|replace("_", " ") }}</span>
@@ -77,11 +98,13 @@
     <div id="ra-list" class="ra-list" data-block-key="sequential"></div>
     {% endif %}
 
-    <button type="submit" id="export-button" disabled>Exporta l'XLSX</button>
+    <div class="export-actions">
+      <button type="submit" id="export-button" disabled>Exporta l'XLSX</button>
+      {% if summary.planning_mode == "parallel" %}
+      <p id="block-transfer-warning" class="transfer-note" hidden></p>
+      {% endif %}
+    </div>
   </form>
-  {% if summary.planning_mode == "parallel" %}
-  <p id="block-transfer-warning" class="hint" hidden></p>
-  {% endif %}
 </section>
 
 <script id="plan-data" type="application/json">{{ plan_json|safe }}</script>
@@ -97,6 +120,9 @@
   const remainingHoursEl = document.getElementById("remaining-hours");
   const blockEndDateEls = Object.fromEntries(
     (planData.blocks || []).map((block) => [block.key, document.getElementById(`block-end-${block.key}`)])
+  );
+  const blockPendingEls = Object.fromEntries(
+    (planData.blocks || []).map((block) => [block.key, document.getElementById(`block-pending-${block.key}`)])
   );
   const raOrderInput = document.getElementById("ra-order");
   const raNamesInput = document.getElementById("ra-names");
@@ -141,6 +167,10 @@
     }
 
     return null;
+  }
+
+  function formatBlockNameForSentence(blockName) {
+    return (blockName || "bloc").trim().toLowerCase();
   }
 
   function attachZeroResetBehavior(input) {
@@ -266,6 +296,13 @@
       const blockRows = blockLists.find((list) => list.dataset.blockKey === blockKey)?.querySelectorAll(".ra-row") || [];
       const assignedBlockHours = Number(assignedByBlock[blockKey] || 0);
 
+      const remainingBlockHours = Number(block.available_hours || 0) - assignedBlockHours;
+      const pendingEl = blockPendingEls[blockKey];
+      if (pendingEl) {
+        pendingEl.textContent = `${remainingBlockHours} h pendents de ${Number(block.available_hours || 0)} h pròpies`;
+        pendingEl.className = remainingBlockHours === 0 ? "block-pending-hours block-pending-complete" : remainingBlockHours < 0 ? "block-pending-hours block-pending-over" : "block-pending-hours block-pending-open";
+      }
+
       const endDateEl = blockEndDateEls[blockKey];
       if (!endDateEl) return;
       const hasAssignedRows = [...blockRows].some((row) => Number(row.querySelector(`input[name="${row.dataset.key}_hours"]`).value || 0) > 0);
@@ -297,7 +334,7 @@
       if (warningTarget && receiverTarget && remaining === 0) {
         const transferHours = Number(warningTarget.available_hours || 0) - Number(assignedByBlock[warningTarget.key] || 0);
         blockTransferWarning.hidden = false;
-        blockTransferWarning.textContent = `${warningTarget.name} no esgota ${transferHours} h pròpies. Aquestes hores s'assignaran automàticament a ${receiverTarget.name}.`;
+        blockTransferWarning.textContent = `El ${formatBlockNameForSentence(warningTarget.name)} no esgota ${transferHours} h pròpies. Aquestes hores s'assignaran automàticament al ${formatBlockNameForSentence(receiverTarget.name)}.`;
       } else {
         blockTransferWarning.hidden = true;
         blockTransferWarning.textContent = "";
