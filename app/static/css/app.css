@@ -5,6 +5,7 @@
   --text: #1f2933;
   --accent: #1e5ea8;
   --accent-dark: #17497f;
+  --warning: #ad7a12;
   --danger: #a62c2b;
   --muted: #5b6870;
 }
@@ -522,7 +523,7 @@ button:disabled {
 }
 
 .block-pending-open {
-  color: #b06a12;
+  color: var(--warning);
 }
 
 .block-pending-over {
@@ -595,6 +596,11 @@ button:disabled {
 .ra-hours-field {
   grid-area: hours;
   max-width: 120px;
+}
+
+.ra-hours-field.is-zero input {
+  color: #b33a36;
+  font-weight: 700;
 }
 
 .ra-actions {
