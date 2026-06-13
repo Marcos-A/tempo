@@ -344,6 +344,7 @@ button:disabled {
 .planning-mode-option {
   display: grid;
   gap: 0.8rem;
+  grid-template-rows: minmax(3.2rem, auto) 1fr;
 }
 
 .planning-mode-option p {
@@ -364,6 +365,8 @@ button:disabled {
 .choice-card {
   gap: 0.5rem;
   cursor: pointer;
+  min-height: 8.5rem;
+  align-content: start;
 }
 
 .choice-card input {
@@ -376,6 +379,16 @@ button:disabled {
 
 .choice-card small {
   color: var(--muted);
+}
+
+.planning-mode-alert {
+  margin: 1rem 0 0;
+  padding: 0.85rem 1rem;
+  border: 1px solid rgba(166, 44, 43, 0.18);
+  border-radius: 12px;
+  background: rgba(166, 44, 43, 0.06);
+  font-size: 0.95rem;
+  line-height: 1.4;
 }
 
 .pill {
@@ -539,6 +552,10 @@ button.secondary.ra-action-button:focus-visible {
   border-radius: 14px;
   background: #f9f7f0;
   border: 1px dashed #d3cab8;
+}
+
+#parallel-editor {
+  margin-bottom: 1.2rem;
 }
 
 table {

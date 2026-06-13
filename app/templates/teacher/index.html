@@ -106,6 +106,9 @@
           </label>
         </div>
       </div>
+      <p id="parallel-mode-warning" class="planning-mode-alert error" {% if not (form.get('planning_mode') == 'parallel' and form.get('ra_count', '1')|int <= 1) %}hidden{% endif %}>
+        El mode per blocs en paral·lel requereix com a mínim 2 RAs.
+      </p>
     </div>
     <section id="parallel-config" class="card-panel form-span" {% if form.get('planning_mode') != 'parallel' %}hidden{% endif %}>
       <div class="section-heading">
@@ -145,14 +148,18 @@
   </form>
 </section>
 <script>
+  const planningForm = document.querySelector('form[action="/plan"]');
   const planningModeInputs = [...document.querySelectorAll('input[name="planning_mode"]')];
+  const raCountInput = document.querySelector('input[name="ra_count"]');
   const parallelConfig = document.getElementById("parallel-config");
+  const parallelModeWarning = document.getElementById("parallel-mode-warning");
   const globalWeekdayInputs = [...document.querySelectorAll('.weekday-grid.form-span input[data-weekday-index]')];
   const blockWeekdayFields = [...document.querySelectorAll('.block-weekday-field')];
 
   function syncPlanningMode() {
     const selectedMode = planningModeInputs.find((input) => input.checked)?.value || "sequential";
     parallelConfig.hidden = selectedMode !== "parallel";
+    syncParallelRaWarning();
   }
 
   function syncParallelWeekdayAvailability() {
@@ -169,9 +176,31 @@
     });
   }
 
+  function syncParallelRaWarning() {
+    const selectedMode = planningModeInputs.find((input) => input.checked)?.value || "sequential";
+    const raCount = Number(raCountInput?.value || 0);
+    const shouldWarn = selectedMode === "parallel" && raCount <= 1;
+    parallelModeWarning.hidden = !shouldWarn;
+    if (shouldWarn) {
+      raCountInput.setCustomValidity("El mode per blocs en paral·lel requereix com a mínim 2 RAs.");
+    } else {
+      raCountInput.setCustomValidity("");
+    }
+    return shouldWarn;
+  }
+
   planningModeInputs.forEach((input) => input.addEventListener("change", syncPlanningMode));
   globalWeekdayInputs.forEach((input) => input.addEventListener("input", syncParallelWeekdayAvailability));
+  raCountInput?.addEventListener("input", syncParallelRaWarning);
+  planningForm?.addEventListener("submit", (event) => {
+    if (!syncParallelRaWarning()) {
+      return;
+    }
+    event.preventDefault();
+    raCountInput.reportValidity();
+  });
   syncPlanningMode();
   syncParallelWeekdayAvailability();
+  syncParallelRaWarning();
 </script>
 {% endblock %}

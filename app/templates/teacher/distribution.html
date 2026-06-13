@@ -241,8 +241,16 @@
         names[key] = name;
         hours[key] = hourValue;
         if (planningMode === "parallel") {
-          blocks[key] = list.dataset.blockKey;
-          assignedByBlock[list.dataset.blockKey] += hourValue;
+          const blockKey = list.dataset.blockKey;
+          const blockIndex = (planData.blocks || []).findIndex((block) => block.key === blockKey);
+          const moveBlockButton = row.querySelector('[data-action="move-block"]');
+          const moveBlockIcon = blockIndex <= 0 ? "→" : "←";
+          row.dataset.blockKey = blockKey;
+          blocks[key] = blockKey;
+          assignedByBlock[blockKey] += hourValue;
+          if (moveBlockButton) {
+            moveBlockButton.textContent = moveBlockIcon;
+          }
         }
         assigned += hourValue;
       });

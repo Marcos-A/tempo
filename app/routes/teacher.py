@@ -45,6 +45,17 @@ def _parse_planning_mode(form_data: dict[str, str]) -> str:
     return planning_mode
 
 
+def _validate_ra_count(form_data: dict[str, str], planning_mode: str) -> int:
+    """Validate the requested RA count, including mode-specific constraints."""
+
+    ra_count = int(form_data["ra_count"])
+    if ra_count < 1 or ra_count > MAX_RA_COUNT:
+        raise ValueError(f"El nombre de RAs ha d'estar entre 1 i {MAX_RA_COUNT}.")
+    if planning_mode == "parallel" and ra_count == 1:
+        raise ValueError("El mode per blocs en paral·lel requereix com a mínim 2 RAs.")
+    return ra_count
+
+
 def _parse_block_weekday_hours(form_data: dict[str, str], prefix: str) -> dict[int, int]:
     """Convert one block's weekday inputs into a Monday-Friday map."""
 
@@ -193,9 +204,7 @@ async def prepare_plan(request: Request, db: Session = Depends(get_db)):
         weekday_hours = _parse_weekday_hours(form_data)
         planning_mode = _parse_planning_mode(form_data)
         blocks = _build_block_plans(form_data, weekday_hours, planning_mode)
-        ra_count = int(form_data["ra_count"])
-        if ra_count < 1 or ra_count > MAX_RA_COUNT:
-            raise ValueError(f"El nombre de RAs ha d'estar entre 1 i {MAX_RA_COUNT}.")
+        ra_count = _validate_ra_count(form_data, planning_mode)
     except (KeyError, ValueError) as exc:
         return templates.TemplateResponse(
             request,
