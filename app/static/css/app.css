@@ -47,9 +47,21 @@ body {
 }
 
 .brand {
-  font-weight: 700;
+  display: inline-grid;
+  gap: 0.1rem;
   text-decoration: none;
   color: var(--accent);
+}
+
+.brand-name {
+  font-weight: 700;
+}
+
+.brand-school {
+  font-size: 0.82rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: var(--muted);
 }
 
 nav a {
