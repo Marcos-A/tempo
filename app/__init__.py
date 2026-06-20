@@ -1,1 +1,1 @@
-# Package marker.
+"""Curriculum Planner application package."""
