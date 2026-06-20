@@ -10,7 +10,6 @@ services:
     ports:
       - "127.0.0.1:${HOST_PORT:-8092}:8000"
     environment:
-      APP_NAME: ${APP_NAME:-Curriculum Planner Preview}
       DATABASE_URL: sqlite:///data/app.db
     volumes:
       - ${PREVIEW_DATA_DIR:-/srv/data/curriculum-planner}:/app/data
