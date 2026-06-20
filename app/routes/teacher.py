@@ -9,6 +9,7 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.config import get_settings
 from app.database import get_db
 from app.date_utils import format_display_date, parse_date_input
 from app.models import AcademicYearSetting, ExcludedPeriod
@@ -20,6 +21,9 @@ from app.services.export import build_workbook
 router = APIRouter(tags=["teacher"])
 templates = Jinja2Templates(directory="app/templates")
 templates.env.filters["date_display"] = format_display_date
+settings = get_settings()
+templates.env.globals["app_name"] = settings.app_name
+templates.env.globals["school_name"] = settings.school_name
 PLANNING_MODE_CHOICES = {"sequential", "parallel"}
 MAX_RA_COUNT = 24
 

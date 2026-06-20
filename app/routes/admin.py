@@ -9,6 +9,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.auth import verify_password
+from app.config import get_settings
 from app.database import get_db
 from app.date_utils import format_display_date, parse_date_input
 from app.dependencies import require_admin
@@ -18,6 +19,9 @@ from app.models import AcademicYearSetting, AdminUser, ExcludedPeriod
 router = APIRouter(prefix="/admin", tags=["admin"])
 templates = Jinja2Templates(directory="app/templates")
 templates.env.filters["date_display"] = format_display_date
+settings = get_settings()
+templates.env.globals["app_name"] = settings.app_name
+templates.env.globals["school_name"] = settings.school_name
 EXCLUDED_PERIODS_SECTION_ID = "excluded-periods"
 
 

@@ -10,7 +10,8 @@ from pydantic import BaseModel
 class Settings(BaseModel):
     """Small typed container for runtime configuration."""
 
-    app_name: str = "Curriculum Planner"
+    app_name: str = "Planificador curricular"
+    school_name: str = ""
     secret_key: str = "change-me"
     admin_username: str = "admin"
     admin_password: str = "admin123"
@@ -23,7 +24,8 @@ def get_settings() -> Settings:
     import os
 
     return Settings(
-        app_name=os.getenv("APP_NAME", "Curriculum Planner"),
+        app_name=os.getenv("APP_NAME", "Planificador curricular"),
+        school_name=os.getenv("SCHOOL_NAME", "").strip(),
         secret_key=os.getenv("SECRET_KEY", "change-me"),
         admin_username=os.getenv("ADMIN_USERNAME", "admin"),
         admin_password=os.getenv("ADMIN_PASSWORD", "admin123"),

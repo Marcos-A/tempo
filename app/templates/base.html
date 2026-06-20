@@ -3,14 +3,19 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>{{ title or "Planificador curricular" }}</title>
-    <link rel="stylesheet" href="{{ url_for('static', path='/css/app.css') }}?v=20260610a" />
+    <title>{{ (title or app_name) ~ (" | " ~ school_name if school_name else "") }}</title>
+    <link rel="stylesheet" href="{{ url_for('static', path='/css/app.css') }}?v=20260620a" />
   </head>
   <body>
     <!-- Shared layout used by both the teacher flow and the hidden admin area. -->
     <header class="site-header">
       <div class="container">
-        <a class="brand" href="/">Planificador curricular</a>
+        <a class="brand" href="/">
+          <span class="brand-name">{{ app_name }}</span>
+          {% if school_name %}
+          <span class="brand-school">{{ school_name }}</span>
+          {% endif %}
+        </a>
       </div>
     </header>
     <main class="container">
