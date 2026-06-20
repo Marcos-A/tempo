@@ -10,10 +10,10 @@ services:
       # HOST_PORT lets local machines choose a free host port without editing the app.
       - "${HOST_PORT:-8000}:8000"
     environment:
-      APP_NAME: Curriculum Planner
+      APP_NAME: Planificador curricular
       SECRET_KEY: change-this-in-production
       ADMIN_USERNAME: admin
-      ADMIN_PASSWORD: admin123
+      ADMIN_PASSWORD: change-this-before-sharing-admin-access
       DATABASE_URL: sqlite:///data/app.db
     volumes:
       # Development-only bind mounts. Revert before production.

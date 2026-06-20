@@ -14,7 +14,7 @@ class Settings(BaseModel):
     school_name: str = ""
     secret_key: str = "change-me"
     admin_username: str = "admin"
-    admin_password: str = "admin123"
+    admin_password: str = "change-me"
     database_url: str = "sqlite:///data/app.db"
 
 
@@ -28,6 +28,6 @@ def get_settings() -> Settings:
         school_name=os.getenv("SCHOOL_NAME", "").strip(),
         secret_key=os.getenv("SECRET_KEY", "change-me"),
         admin_username=os.getenv("ADMIN_USERNAME", "admin"),
-        admin_password=os.getenv("ADMIN_PASSWORD", "admin123"),
+        admin_password=os.getenv("ADMIN_PASSWORD", "change-me"),
         database_url=os.getenv("DATABASE_URL", "sqlite:///data/app.db"),
     )
