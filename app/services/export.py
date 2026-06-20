@@ -233,6 +233,7 @@ def build_workbook(
         
     calendar_sheet.freeze_panes = f"D{data_start_row}"
 
+    ra_column_by_key = {ra.key: 4 + index for index, ra in enumerate(ras)}
     started_ra_keys: set[str] = set()
     for row in calendar_rows:
         excel_row = [WEEKDAY_ABBREVIATIONS.get(row["weekday"], row["weekday"]), row["date"], row["total_hours"]]
@@ -243,8 +244,12 @@ def build_workbook(
         active_keys = _active_ra_keys(row, ras)
         newly_started_keys = [key for key in active_keys if key not in started_ra_keys]
         if newly_started_keys:
-            for cell in calendar_sheet[calendar_sheet.max_row]:
+            current_row = calendar_sheet.max_row
+            for cell in calendar_sheet[current_row]:
                 cell.fill = ROW_START_FILL
+            for key in newly_started_keys:
+                column_index = ra_column_by_key[key]
+                _apply_ra_fill(calendar_sheet.cell(row=current_row, column=column_index), column_index - 4)
         started_ra_keys.update(active_keys)
 
     summary_start_row = calendar_sheet.max_row + 1

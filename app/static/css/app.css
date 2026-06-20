@@ -694,20 +694,26 @@ th, td {
     flex-direction: column;
   }
 
-  .ra-row {
-    grid-template-columns: 36px 1fr;
-    grid-template-areas:
-      "handle key"
-      "name name"
-      "hours hours"
-      "actions actions";
-  }
-
   .ra-actions {
     justify-content: flex-start;
   }
 
   .ra-hours-field {
     max-width: 100%;
+  }
+}
+
+@media (hover: none), (pointer: coarse) {
+  .ra-row {
+    grid-template-columns: 1fr;
+    grid-template-areas:
+      "key"
+      "name"
+      "hours"
+      "actions";
+  }
+
+  .drag-handle {
+    display: none;
   }
 }

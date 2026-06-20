@@ -140,6 +140,7 @@
     3: "dj.",
     4: "dv.",
   };
+  const dragEnabledQuery = window.matchMedia("(hover: hover) and (pointer: fine)");
 
   planJsonInput.value = JSON.stringify(planData);
 
@@ -199,10 +200,32 @@
     });
   }
 
+  function desktopDragEnabled() {
+    return dragEnabledQuery.matches;
+  }
+
+  function armRowDragFromHandle(event) {
+    if (!desktopDragEnabled()) {
+      return;
+    }
+    const handle = event.target.closest(".drag-handle");
+    const row = handle?.closest(".ra-row");
+    if (!row) {
+      return;
+    }
+    row.dataset.dragArmed = "true";
+  }
+
+  function clearArmedRowDrag() {
+    document.querySelectorAll('.ra-row[data-drag-armed="true"]').forEach((row) => {
+      delete row.dataset.dragArmed;
+    });
+  }
+
   function createRow(key, blockKey) {
     const row = document.createElement("div");
     row.className = "ra-row";
-    row.draggable = true;
+    row.draggable = desktopDragEnabled();
     row.dataset.key = key;
     row.dataset.blockKey = blockKey;
     const nameValue = initialState.names?.[key] || key;
@@ -362,6 +385,11 @@
 
   blockLists.forEach((list) => {
     list.addEventListener("input", syncState);
+    list.addEventListener("pointerdown", armRowDragFromHandle);
+    list.addEventListener("mousedown", armRowDragFromHandle);
+    list.addEventListener("pointerup", clearArmedRowDrag);
+    list.addEventListener("mouseup", clearArmedRowDrag);
+    list.addEventListener("mouseleave", clearArmedRowDrag);
     list.addEventListener("click", (event) => {
       const button = event.target.closest(".ra-action-button");
       if (!button) return;
@@ -383,7 +411,7 @@
     list.addEventListener("dragstart", (event) => {
       const row = event.target.closest(".ra-row");
       if (!row) return;
-      if (!event.target.closest(".drag-handle")) {
+      if (!desktopDragEnabled() || row.dataset.dragArmed !== "true") {
         event.preventDefault();
         return;
       }
@@ -394,6 +422,7 @@
       const row = event.target.closest(".ra-row");
       if (!row) return;
       row.classList.remove("dragging");
+      delete row.dataset.dragArmed;
       draggedItem = null;
       syncState();
     });
@@ -413,6 +442,13 @@
         target.before(draggedItem);
       }
     });
+  });
+
+  dragEnabledQuery.addEventListener?.("change", () => {
+    document.querySelectorAll(".ra-row").forEach((row) => {
+      row.draggable = desktopDragEnabled();
+    });
+    clearArmedRowDrag();
   });
 
   buildItems();

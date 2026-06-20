@@ -436,10 +436,12 @@ def test_export_marks_new_ra_start_rows_with_light_fill():
     workbook = load_workbook(workbook_io)
     sheet = workbook["Calendari"]
     assert sheet["A7"].fill.fgColor.rgb == "00E9E9E9"
-    assert sheet["D7"].fill.fgColor.rgb == "00E9E9E9"
+    assert sheet["D7"].fill.fgColor.rgb == "00E7EFD8"
+    assert sheet["E7"].fill.fgColor.rgb == "00E9E9E9"
     assert sheet["F7"].fill.fgColor.rgb == "00E9E9E9"
     assert sheet["A8"].fill.fgColor.rgb == "00E9E9E9"
     assert sheet["D8"].fill.fgColor.rgb == "00E9E9E9"
+    assert sheet["E8"].fill.fgColor.rgb == "00D8EBF2"
     assert sheet["F8"].fill.fgColor.rgb == "00E9E9E9"
 
 
@@ -474,13 +476,15 @@ def test_export_parallel_mode_only_marks_rows_where_a_new_ra_first_appears():
     workbook = load_workbook(workbook_io)
     sheet = workbook["Calendari"]
     assert sheet["A7"].fill.fgColor.rgb == "00E9E9E9"
-    assert sheet["D7"].fill.fgColor.rgb == "00E9E9E9"
+    assert sheet["D7"].fill.fgColor.rgb == "00E7EFD8"
+    assert sheet["E7"].fill.fgColor.rgb == "00D8EBF2"
     assert sheet["G7"].fill.fgColor.rgb == "00E9E9E9"
     assert sheet["A8"].fill.patternType is None
     assert sheet["D8"].fill.patternType is None
+    assert sheet["E8"].fill.patternType is None
     assert sheet["G8"].fill.patternType is None
     assert sheet["A9"].fill.fgColor.rgb == "00E9E9E9"
-    assert sheet["F9"].fill.fgColor.rgb == "00E9E9E9"
+    assert sheet["F9"].fill.fgColor.rgb == "00F7E3D1"
     assert sheet["G9"].fill.fgColor.rgb == "00E9E9E9"
 
 
