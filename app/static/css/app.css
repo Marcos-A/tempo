@@ -476,22 +476,155 @@ button:disabled {
   font-weight: 700;
 }
 
+.block-theme {
+  --block-bg: #f7fbff;
+  --block-border: #c7d9ee;
+  --block-accent: #2d6ea3;
+  --block-accent-soft: #e7f0fb;
+  --block-list-bg: #f4f8fd;
+  --block-list-border: #c7d9ee;
+  --block-text-soft: #5a7188;
+}
+
+.block-theme-1 {
+  --block-bg: linear-gradient(180deg, #f8fbff 0%, #eef5fd 100%);
+  --block-border: #9ebfe3;
+  --block-accent: #174f7d;
+  --block-accent-soft: #d9e8f7;
+  --block-list-bg: #eef5fd;
+  --block-list-border: #9ebfe3;
+  --block-text-soft: #4e6880;
+}
+
+.block-theme-2 {
+  --block-bg: linear-gradient(180deg, #f5fbfb 0%, #e8f3f3 100%);
+  --block-border: #8fbfbe;
+  --block-accent: #1d6966;
+  --block-accent-soft: #d5ebea;
+  --block-list-bg: #eaf5f4;
+  --block-list-border: #8fbfbe;
+  --block-text-soft: #4f6f73;
+}
+
+.block-card.block-theme,
+.block-summary-card.block-theme {
+  background: var(--block-bg);
+  border-color: var(--block-border);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--block-border) 45%, white);
+}
+
+.block-card.block-theme h3,
+.block-summary-card.block-theme h3,
+.block-card.block-theme .block-weekday-label,
+.block-summary-card.block-theme strong {
+  color: var(--block-accent);
+}
+
+.block-card.block-theme .hint,
+.block-summary-card.block-theme p {
+  color: var(--block-text-soft);
+}
+
+.block-card.block-theme .pill,
+.block-summary-card.block-theme .pill,
+.planner-block.block-theme .pill {
+  background: var(--block-accent-soft);
+  border-color: var(--block-border);
+  color: var(--block-accent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--block-accent) 10%, white);
+}
+
+.block-card.block-theme .block-time-separator,
+.block-card.block-theme .block-pending-hours,
+.planner-block.block-theme .block-end-date {
+  color: var(--block-accent);
+}
+
+.block-card.block-theme .block-weekday-field.is-unavailable {
+  color: #7d8892;
+}
+
+.block-card.block-theme .block-weekday-field.is-unavailable select {
+  background: #e6e9ed;
+  border-color: #c6ccd3;
+  color: #7d8892;
+}
+
 .compact-grid label {
   font-size: 0.95rem;
+}
+
+.parallel-blocks-layout {
+  display: grid;
+  gap: 1rem;
+}
+
+.block-time-grid {
+  grid-template-columns: repeat(auto-fit, minmax(8.5rem, 1fr));
+  gap: 0.9rem;
+}
+
+.block-weekday-field {
+  align-items: start;
+  min-width: 0;
+}
+
+.block-weekday-label {
+  font-weight: 700;
+}
+
+.block-time-field {
+  display: grid;
+  grid-template-columns: minmax(4rem, 4rem) auto;
+  grid-template-areas:
+    "hours hours_label"
+    "minutes minutes_label";
+  gap: 0.35rem 0.45rem;
+  align-items: center;
+  justify-content: start;
+}
+
+.block-time-field select[data-block-time-part="hours"] {
+  grid-area: hours;
+}
+
+.block-time-field select[data-block-time-part="minutes"] {
+  grid-area: minutes;
+}
+
+.block-time-field .block-time-separator:first-of-type {
+  grid-area: hours_label;
+}
+
+.block-time-field .block-time-separator:last-of-type {
+  grid-area: minutes_label;
+}
+
+.block-time-field select {
+  width: 100%;
+  min-width: 0;
+  padding: 0.55rem 1.65rem 0.55rem 0.45rem;
+  text-align: center;
+}
+
+.block-time-separator {
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 700;
 }
 
 .block-weekday-field.is-unavailable {
   color: #7d8892;
 }
 
-.block-weekday-field.is-unavailable input {
+.block-weekday-field.is-unavailable select {
   background: #e6e9ed;
   border-color: #c6ccd3;
   color: #7d8892;
   cursor: not-allowed;
 }
 
-.block-weekday-field.is-unavailable input:disabled {
+.block-weekday-field.is-unavailable select:disabled {
   opacity: 1;
 }
 
@@ -607,10 +740,39 @@ button:disabled {
 
 .ra-hours-field {
   grid-area: hours;
-  max-width: 120px;
+  max-width: 250px;
 }
 
-.ra-hours-field.is-zero input {
+.ra-time-field {
+  display: grid;
+  grid-template-columns: minmax(4.75rem, 5.75rem) auto minmax(4.5rem, 5.5rem) auto;
+  gap: 0.4rem;
+  align-items: center;
+}
+
+.ra-time-field input,
+.ra-time-field select {
+  margin-top: 0.25rem;
+}
+
+.ra-time-field input {
+  width: 100%;
+  min-width: 0;
+  padding-right: 0.45rem;
+}
+
+.ra-time-field select {
+  width: 100%;
+}
+
+.ra-time-suffix {
+  color: var(--muted);
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.ra-hours-field.is-zero input,
+.ra-hours-field.is-zero select {
   color: #b33a36;
   font-weight: 700;
 }
@@ -661,8 +823,8 @@ button.secondary.ra-action-button:focus-visible {
   margin: 0;
   padding: 0.2rem;
   border-radius: 14px;
-  background: #f9f7f0;
-  border: 1px dashed #d3cab8;
+  background: var(--block-list-bg, #f9f7f0);
+  border: 1px dashed var(--block-list-border, #d3cab8);
 }
 
 #parallel-editor {
@@ -712,6 +874,10 @@ th, td {
 
   .ra-hours-field {
     max-width: 100%;
+  }
+
+  .ra-time-field {
+    grid-template-columns: minmax(4.4rem, 1fr) auto minmax(4.2rem, 1fr) auto;
   }
 }
 

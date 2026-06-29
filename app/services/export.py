@@ -293,12 +293,14 @@ def build_workbook(
         )
         comment_expected_cell.font = Font(bold=True)
         comment_expected_cell.alignment = Alignment(horizontal="center", vertical="center")
+        comment_expected_cell.number_format = "0.00"
 
         comment_actual_cell = calendar_sheet.cell(row=actual_row, column=comment_column_index)
         comment_actual_cell.value = (
             f"=SUM({first_ra_column_letter}{actual_row}:{last_ra_column_letter}{actual_row})"
         )
         comment_actual_cell.alignment = Alignment(horizontal="center", vertical="center")
+        comment_actual_cell.number_format = "0.00"
 
         comment_completion_cell = calendar_sheet.cell(row=completion_row, column=comment_column_index)
         comment_completion_cell.value = (
@@ -326,6 +328,8 @@ def build_workbook(
         calendar_sheet.column_dimensions[column_letter].width = RA_COLUMN_WIDTH
         for row in calendar_sheet.iter_rows(min_row=header_main_row, max_row=completion_row, min_col=4 + index, max_col=4 + index):
             row[0].alignment = Alignment(horizontal="center", vertical="center")
+            if data_start_row <= row[0].row < completion_row and row[0].value is not None:
+                row[0].number_format = "0.00"
 
     comment_column_letter = get_column_letter(comment_column_index)
     calendar_sheet.column_dimensions[comment_column_letter].width = RA_COLUMN_WIDTH * COMMENT_COLUMN_WIDTH_MULTIPLIER

@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from app.services.calendar import ScheduleDay
+from app.services.hours import MINUTES_PER_HOUR, minutes_to_hour_number
 
 
 @dataclass(frozen=True)
@@ -13,8 +14,9 @@ class RAPlan:
 
     key: str
     name: str
-    hours: int
+    hours: int | float
     block_key: str | None = None
+    minutes: int | None = None
 
 
 @dataclass(frozen=True)
@@ -23,30 +25,39 @@ class BlockPlan:
 
     key: str
     name: str
-    weekday_hours: dict[int, int]
+    weekday_minutes: dict[int, int]
 
 
-def validate_ra_distribution(total_available: int, ras: list[RAPlan]) -> None:
+def _ra_total_minutes(ra: RAPlan) -> int:
+    """Return the exact minutes assigned to one RA."""
+
+    if ra.minutes is not None:
+        return int(ra.minutes)
+    return int(ra.hours * MINUTES_PER_HOUR)
+
+
+def validate_ra_distribution(total_available: int, ras: list[RAPlan], *, use_minutes: bool = False) -> None:
     """Ensure the RA totals are complete and internally valid before export."""
 
-    total_assigned = sum(item.hours for item in ras)
+    assigned_values = [_ra_total_minutes(item) if use_minutes else item.hours for item in ras]
+    total_assigned = sum(assigned_values)
     if total_assigned != total_available:
         raise ValueError("Les hores assignades a les RAs han de coincidir exactament amb les hores disponibles.")
-    if any(item.hours < 0 for item in ras):
+    if any(value < 0 for value in assigned_values):
         raise ValueError("Les hores de les RAs no poden ser negatives.")
-    if any(item.hours == 0 for item in ras):
-        raise ValueError("Cada RA ha de tenir com a mínim 1 hora assignada abans d'exportar.")
+    if any(value == 0 for value in assigned_values):
+        raise ValueError("Cada RA ha de tenir temps assignat abans d'exportar.")
 
 
-def _allocate_block_hours(
-    capacity: int,
+def _allocate_block_minutes(
+    capacity_minutes: int,
     block_ras: list[RAPlan],
     state: dict[str, int],
-    row_hours: dict[str, int],
+    row_minutes: dict[str, int],
 ) -> int:
-    """Allocate one block's daily capacity and return any unconsumed hours."""
+    """Allocate one block's daily capacity in minutes and return any leftovers."""
 
-    remaining_capacity = capacity
+    remaining_capacity = capacity_minutes
     while remaining_capacity > 0 and state["index"] < len(block_ras):
         current_ra = block_ras[state["index"]]
         if state["remaining"] == 0:
@@ -54,10 +65,10 @@ def _allocate_block_hours(
             if state["index"] >= len(block_ras):
                 break
             current_ra = block_ras[state["index"]]
-            state["remaining"] = current_ra.hours
+            state["remaining"] = _ra_total_minutes(current_ra)
 
         allocated = min(remaining_capacity, state["remaining"])
-        row_hours[current_ra.key] += allocated
+        row_minutes[current_ra.key] += allocated
         remaining_capacity -= allocated
         state["remaining"] -= allocated
 
@@ -81,7 +92,7 @@ def allocate_ra_hours_by_blocks(
 ) -> list[dict[str, object]]:
     """Allocate hours across parallel blocks, auto-redistributing unused block hours."""
 
-    validate_ra_distribution(sum(day.hours for day in schedule), ras)
+    validate_ra_distribution(sum(day.hours for day in schedule) * MINUTES_PER_HOUR, ras, use_minutes=True)
     block_map = {block.key: block for block in blocks}
     invalid_blocks = sorted({ra.block_key for ra in ras if ra.block_key not in block_map})
     if invalid_blocks:
@@ -93,7 +104,7 @@ def allocate_ra_hours_by_blocks(
         ras_in_block = block_ras[block.key]
         block_states[block.key] = {
             "index": 0,
-            "remaining": ras_in_block[0].hours if ras_in_block else 0,
+            "remaining": _ra_total_minutes(ras_in_block[0]) if ras_in_block else 0,
         }
 
     rows: list[dict[str, object]] = []
@@ -104,36 +115,38 @@ def allocate_ra_hours_by_blocks(
             "total_hours": day.hours,
             "ra_hours": {ra.key: 0 for ra in ras},
         }
-        released_hours = 0
+        row_minutes = {ra.key: 0 for ra in ras}
+        released_minutes = 0
 
         for block in blocks:
-            capacity = block.weekday_hours.get(day.weekday_index, 0)
+            capacity = block.weekday_minutes.get(day.weekday_index, 0)
             if capacity == 0:
                 continue
 
-            remaining_capacity = _allocate_block_hours(
+            remaining_capacity = _allocate_block_minutes(
                 capacity,
                 block_ras[block.key],
                 block_states[block.key],
-                row["ra_hours"],
+                row_minutes,
             )
-            released_hours += remaining_capacity
+            released_minutes += remaining_capacity
 
-        if released_hours:
+        if released_minutes:
             for block in blocks:
                 if not _block_has_pending_hours(block_states[block.key], block_ras[block.key]):
                     continue
-                released_hours = _allocate_block_hours(
-                    released_hours,
+                released_minutes = _allocate_block_minutes(
+                    released_minutes,
                     block_ras[block.key],
                     block_states[block.key],
-                    row["ra_hours"],
+                    row_minutes,
                 )
-                if released_hours == 0:
+                if released_minutes == 0:
                     break
 
-        if released_hours != 0:
+        if released_minutes != 0:
             raise ValueError("L'assignació dels blocs ha deixat hores sense absorbir en un dia lectiu.")
+        row["ra_hours"] = {key: minutes_to_hour_number(minutes) for key, minutes in row_minutes.items()}
         rows.append(row)
 
     return rows
@@ -163,15 +176,12 @@ def allocate_ra_hours(schedule: list[ScheduleDay], ras: list[RAPlan]) -> list[di
 
         while remaining_on_day > 0 and ra_index < len(ras):
             if remaining_for_ra == 0:
-                # Move to the next RA as soon as the current one has consumed
-                # all of its assigned hours.
                 ra_index += 1
                 if ra_index >= len(ras):
                     break
                 remaining_for_ra = ras[ra_index].hours
                 continue
 
-            # Never allocate more than the day can hold or the RA still needs.
             allocated = min(remaining_on_day, remaining_for_ra)
             row["ra_hours"][ras[ra_index].key] += allocated
             remaining_on_day -= allocated

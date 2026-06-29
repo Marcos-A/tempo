@@ -14,6 +14,8 @@ from app.date_utils import format_display_date, parse_date_input
 from app.services.allocation import BlockPlan, RAPlan, allocate_ra_hours, allocate_ra_hours_by_blocks, validate_ra_distribution
 from app.services.calendar import build_schedule, expand_excluded_periods, total_available_hours
 from app.services.export import build_workbook
+from app.routes.teacher import _build_block_plans
+from app.services.hours import format_minutes_label, parse_hour_minute_pair
 
 
 def test_available_hours_calculation_uses_real_weekdays():
@@ -72,7 +74,7 @@ def test_distribution_validation_requires_exact_match():
 def test_distribution_validation_rejects_zero_hour_ras():
     """Every RA must keep at least one assigned hour before export."""
 
-    with pytest.raises(ValueError, match="com a mínim 1 hora"):
+    with pytest.raises(ValueError, match="temps assignat"):
         validate_ra_distribution(10, [RAPlan("RA1", "RA1", 10), RAPlan("RA2", "RA2", 0)])
 
 
@@ -92,8 +94,8 @@ def test_parallel_blocks_preserve_their_weekly_split_when_both_need_all_hours():
             RAPlan("RA2", "RA2", 6, block_key="block_2"),
         ],
         [
-            BlockPlan("block_1", "Bloc 1", {0: 1, 1: 0, 2: 0, 3: 0, 4: 0}),
-            BlockPlan("block_2", "Bloc 2", {0: 1, 1: 0, 2: 2, 3: 0, 4: 0}),
+            BlockPlan("block_1", "Bloc 1", {0: 60, 1: 0, 2: 0, 3: 0, 4: 0}),
+            BlockPlan("block_2", "Bloc 2", {0: 60, 1: 0, 2: 120, 3: 0, 4: 0}),
         ],
     )
     assert rows[0]["ra_hours"] == {"RA1": 0, "RA2": 2}
@@ -118,8 +120,8 @@ def test_parallel_blocks_automatically_transfer_unused_hours():
             RAPlan("RA2", "RA2", 7, block_key="block_2"),
         ],
         [
-            BlockPlan("block_1", "Bloc 1", {0: 1, 1: 0, 2: 0, 3: 0, 4: 0}),
-            BlockPlan("block_2", "Bloc 2", {0: 1, 1: 0, 2: 2, 3: 0, 4: 0}),
+            BlockPlan("block_1", "Bloc 1", {0: 60, 1: 0, 2: 0, 3: 0, 4: 0}),
+            BlockPlan("block_2", "Bloc 2", {0: 60, 1: 0, 2: 120, 3: 0, 4: 0}),
         ],
     )
     assert rows[0]["ra_hours"] == {"RA1": 0, "RA2": 2}
@@ -144,8 +146,8 @@ def test_parallel_blocks_can_transfer_unused_hours_in_reverse_direction():
             RAPlan("RA2", "RA2", 1, block_key="block_2"),
         ],
         [
-            BlockPlan("block_1", "Bloc 1", {0: 1, 1: 0, 2: 0, 3: 0, 4: 0}),
-            BlockPlan("block_2", "Bloc 2", {0: 1, 1: 0, 2: 2, 3: 0, 4: 0}),
+            BlockPlan("block_1", "Bloc 1", {0: 60, 1: 0, 2: 0, 3: 0, 4: 0}),
+            BlockPlan("block_2", "Bloc 2", {0: 60, 1: 0, 2: 120, 3: 0, 4: 0}),
         ],
     )
     assert rows[0]["ra_hours"] == {"RA1": 1, "RA2": 1}
@@ -516,3 +518,103 @@ def test_format_display_date_returns_dd_mm_yyyy():
     """Visible dates should always render in DD/MM/YYYY."""
 
     assert format_display_date(date(2026, 5, 27)) == "27/05/2026"
+
+
+def test_parse_hour_minute_pair_accepts_twenty_and_thirty_minute_blocks():
+    """Parallel block inputs should support minute-level splits in 5-minute steps."""
+
+    assert parse_hour_minute_pair("1", "20") == 80
+    assert parse_hour_minute_pair("0", "30") == 30
+
+
+def test_parse_hour_minute_pair_rejects_non_five_minute_blocks():
+    """Minute values outside 5-minute increments should fail validation."""
+
+    with pytest.raises(ValueError, match="5 minuts"):
+        parse_hour_minute_pair("1", "32")
+
+
+def test_format_minutes_label_uses_teacher_friendly_text():
+    """Block summaries should be easier to read than decimal hours."""
+
+    assert format_minutes_label(20) == "20 min"
+    assert format_minutes_label(80) == "1 h 20 min"
+
+
+def test_parallel_blocks_support_fractional_daily_capacities():
+    """Parallel allocation should honor exact minute capacities per block."""
+
+    schedule = build_schedule(
+        date(2026, 9, 6),
+        date(2026, 9, 9),
+        {0: 2, 1: 2, 2: 0, 3: 0, 4: 0},
+        set(),
+    )
+    rows = allocate_ra_hours_by_blocks(
+        schedule,
+        [
+            RAPlan("RA1", "RA1", 2, block_key="block_1"),
+            RAPlan("RA2", "RA2", 2, block_key="block_2"),
+        ],
+        [
+            BlockPlan("block_1", "Bloc 1", {0: 80, 1: 40, 2: 0, 3: 0, 4: 0}),
+            BlockPlan("block_2", "Bloc 2", {0: 40, 1: 80, 2: 0, 3: 0, 4: 0}),
+        ],
+    )
+
+    assert rows[0]["ra_hours"] == {"RA1": 1.33, "RA2": 0.67}
+    assert rows[1]["ra_hours"] == {"RA1": 0.67, "RA2": 1.33}
+
+
+def test_parallel_block_configuration_rejects_a_block_that_exceeds_the_day_total():
+    """A single block cannot claim more minutes than the calendar allows that day."""
+
+    with pytest.raises(ValueError, match="superar les hores del calendari"):
+        _build_block_plans(
+            {
+                "block_1_monday_hours": "2",
+                "block_1_monday_minutes": "30",
+                "block_2_monday_hours": "0",
+                "block_2_monday_minutes": "0",
+            },
+            {0: 2, 1: 0, 2: 0, 3: 0, 4: 0},
+            "parallel",
+        )
+
+
+def test_parallel_ra_distribution_accepts_exact_minutes():
+    """Parallel-mode RAs should validate against the full minute total, not just whole hours."""
+
+    validate_ra_distribution(
+        180,
+        [
+            RAPlan("RA1", "RA1", 0.67, block_key="block_1", minutes=40),
+            RAPlan("RA2", "RA2", 2.33, block_key="block_2", minutes=140),
+        ],
+        use_minutes=True,
+    )
+
+
+def test_parallel_block_allocation_uses_ra_minutes_exactly():
+    """Minute-based RA totals should flow through block allocation without rounding drift."""
+
+    schedule = build_schedule(
+        date(2026, 9, 6),
+        date(2026, 9, 9),
+        {0: 2, 1: 1, 2: 0, 3: 0, 4: 0},
+        set(),
+    )
+    rows = allocate_ra_hours_by_blocks(
+        schedule,
+        [
+            RAPlan("RA1", "RA1", 0.67, block_key="block_1", minutes=40),
+            RAPlan("RA2", "RA2", 2.33, block_key="block_2", minutes=140),
+        ],
+        [
+            BlockPlan("block_1", "Bloc 1", {0: 40, 1: 0, 2: 0, 3: 0, 4: 0}),
+            BlockPlan("block_2", "Bloc 2", {0: 80, 1: 60, 2: 0, 3: 0, 4: 0}),
+        ],
+    )
+
+    assert rows[0]["ra_hours"] == {"RA1": 0.67, "RA2": 1.33}
+    assert rows[1]["ra_hours"] == {"RA1": 0, "RA2": 1}

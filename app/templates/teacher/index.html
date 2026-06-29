@@ -114,34 +114,45 @@
       <div class="section-heading">
         <div>
           <h2>Configuració dels blocs</h2>
-          <p class="hint">La suma de les hores dels dos blocs ha de coincidir amb les hores del calendari per a cada dia.</p>
+          <p class="hint">Cada dia es reparteix en hores i minuts. Els minuts avancen en trams de 5, i la suma dels dos blocs ha de coincidir amb l'horari general.</p>
         </div>
         <span class="pill">MVP: 2 blocs</span>
       </div>
-      <div class="two-column">
-        <section class="block-card">
-          <h3>Bloc 1</h3>
+      <div class="parallel-blocks-layout">
+        {% for block_number in (1, 2) %}
+        <section class="block-card block-theme block-theme-{{ block_number }}">
+          <h3>Bloc {{ block_number }}</h3>
+          {% if block_number == 1 %}
           <p class="hint">Ideal per a una RA que conviu amb la resta només en una part de l'horari setmanal.</p>
-          <div class="weekday-grid compact-grid">
-            <label class="block-weekday-field">Dl. <input type="number" min="0" max="6" name="block_1_monday_hours" value="{{ form.get('block_1_monday_hours', '0') }}" data-weekday-index="0" /></label>
-            <label class="block-weekday-field">Dt. <input type="number" min="0" max="6" name="block_1_tuesday_hours" value="{{ form.get('block_1_tuesday_hours', '0') }}" data-weekday-index="1" /></label>
-            <label class="block-weekday-field">Dc. <input type="number" min="0" max="6" name="block_1_wednesday_hours" value="{{ form.get('block_1_wednesday_hours', '0') }}" data-weekday-index="2" /></label>
-            <label class="block-weekday-field">Dj. <input type="number" min="0" max="6" name="block_1_thursday_hours" value="{{ form.get('block_1_thursday_hours', '0') }}" data-weekday-index="3" /></label>
-            <label class="block-weekday-field">Dv. <input type="number" min="0" max="6" name="block_1_friday_hours" value="{{ form.get('block_1_friday_hours', '0') }}" data-weekday-index="4" /></label>
-          </div>
-          <p class="hint">Si aquest bloc no esgota totes les seves hores pròpies, la resta es redistribuirà automàticament a l'altre bloc.</p>
-        </section>
-        <section class="block-card">
-          <h3>Bloc 2</h3>
+          {% else %}
           <p class="hint">Rep la resta de les hores setmanals i continua com una seqüència pròpia de RAs.</p>
-          <div class="weekday-grid compact-grid">
-            <label class="block-weekday-field">Dl. <input type="number" min="0" max="6" name="block_2_monday_hours" value="{{ form.get('block_2_monday_hours', '0') }}" data-weekday-index="0" /></label>
-            <label class="block-weekday-field">Dt. <input type="number" min="0" max="6" name="block_2_tuesday_hours" value="{{ form.get('block_2_tuesday_hours', '0') }}" data-weekday-index="1" /></label>
-            <label class="block-weekday-field">Dc. <input type="number" min="0" max="6" name="block_2_wednesday_hours" value="{{ form.get('block_2_wednesday_hours', '0') }}" data-weekday-index="2" /></label>
-            <label class="block-weekday-field">Dj. <input type="number" min="0" max="6" name="block_2_thursday_hours" value="{{ form.get('block_2_thursday_hours', '0') }}" data-weekday-index="3" /></label>
-            <label class="block-weekday-field">Dv. <input type="number" min="0" max="6" name="block_2_friday_hours" value="{{ form.get('block_2_friday_hours', '0') }}" data-weekday-index="4" /></label>
+          {% endif %}
+          <div class="weekday-grid compact-grid block-time-grid">
+            {% for weekday_label, weekday_name, weekday_index in [('Dl.', 'monday', 0), ('Dt.', 'tuesday', 1), ('Dc.', 'wednesday', 2), ('Dj.', 'thursday', 3), ('Dv.', 'friday', 4)] %}
+            <label class="block-weekday-field">
+              <span class="block-weekday-label">{{ weekday_label }}</span>
+              <span class="block-time-field">
+                <select name="block_{{ block_number }}_{{ weekday_name }}_hours" data-weekday-index="{{ weekday_index }}" data-block-time-part="hours">
+                  {% for hour in range(0, 7) %}
+                  <option value="{{ hour }}" {% if form.get('block_' ~ block_number ~ '_' ~ weekday_name ~ '_hours', '0')|int == hour %}selected{% endif %}>{{ hour }}</option>
+                  {% endfor %}
+                </select>
+                <span class="block-time-separator">h</span>
+                <select name="block_{{ block_number }}_{{ weekday_name }}_minutes" data-weekday-index="{{ weekday_index }}" data-block-time-part="minutes">
+                  {% for minute in block_minute_choices %}
+                  <option value="{{ minute }}" {% if form.get('block_' ~ block_number ~ '_' ~ weekday_name ~ '_minutes', '0')|int == minute %}selected{% endif %}>{{ '%02d'|format(minute) }}</option>
+                  {% endfor %}
+                </select>
+                <span class="block-time-separator">min</span>
+              </span>
+            </label>
+            {% endfor %}
           </div>
+          {% if block_number == 1 %}
+          <p class="hint">Si aquest bloc no esgota totes les seves hores pròpies, la resta es redistribuirà automàticament a l'altre bloc.</p>
+          {% endif %}
         </section>
+        {% endfor %}
       </div>
     </section>
     <button type="submit">Calcula les hores disponibles</button>
@@ -153,8 +164,118 @@
   const raCountInput = document.querySelector('input[name="ra_count"]');
   const parallelConfig = document.getElementById("parallel-config");
   const parallelModeWarning = document.getElementById("parallel-mode-warning");
-  const globalWeekdayInputs = [...document.querySelectorAll('.weekday-grid.form-span input[data-weekday-index]')];
-  const blockWeekdayFields = [...document.querySelectorAll('.block-weekday-field')];
+  const globalWeekdayInputs = [...document.querySelectorAll(".weekday-grid.form-span input[data-weekday-index]")];
+  const blockWeekdayFields = [...document.querySelectorAll(".block-weekday-field")];
+  const blockTimeFields = [...document.querySelectorAll(".block-time-field")];
+
+  function getBlockTimeSelects(field) {
+    return {
+      hoursSelect: field.querySelector("select[data-block-time-part=hours]"),
+      minutesSelect: field.querySelector("select[data-block-time-part=minutes]"),
+    };
+  }
+
+  function getBlockFieldMinutes(field) {
+    const { hoursSelect, minutesSelect } = getBlockTimeSelects(field);
+    return (Number(hoursSelect?.value || 0) * 60) + Number(minutesSelect?.value || 0);
+  }
+
+  function setBlockFieldMinutes(field, totalMinutes) {
+    const { hoursSelect, minutesSelect } = getBlockTimeSelects(field);
+    const normalizedMinutes = Math.max(0, totalMinutes);
+    const hours = Math.floor(normalizedMinutes / 60);
+    const minutes = normalizedMinutes % 60;
+    hoursSelect.value = String(hours);
+    minutesSelect.value = String(minutes);
+  }
+
+  function applyBlockFieldLimit(field, maxMinutes) {
+    const { hoursSelect, minutesSelect } = getBlockTimeSelects(field);
+    if (!hoursSelect || !minutesSelect) {
+      return;
+    }
+
+    const normalizedLimit = Math.max(0, maxMinutes);
+    if (getBlockFieldMinutes(field) > normalizedLimit) {
+      setBlockFieldMinutes(field, normalizedLimit);
+    }
+
+    const maxHours = Math.floor(normalizedLimit / 60);
+    const maxRemainder = normalizedLimit % 60;
+    [...hoursSelect.options].forEach((option) => {
+      option.disabled = Number(option.value) > maxHours;
+    });
+
+    if (Number(hoursSelect.value || 0) > maxHours) {
+      hoursSelect.value = String(maxHours);
+    }
+
+    const selectedHours = Number(hoursSelect.value || 0);
+    [...minutesSelect.options].forEach((option) => {
+      const optionMinutes = Number(option.value);
+      option.disabled = selectedHours === maxHours && optionMinutes > maxRemainder;
+    });
+
+    if (selectedHours === maxHours && Number(minutesSelect.value || 0) > maxRemainder) {
+      minutesSelect.value = String(maxRemainder);
+    }
+  }
+
+  function syncParallelDayConstraints(changedField = null) {
+    const globalMinutesByDay = new Map(
+      globalWeekdayInputs.map((input) => [input.dataset.weekdayIndex, Number(input.value || 0) * 60]),
+    );
+    const blockFieldsByDay = new Map();
+
+    blockWeekdayFields.forEach((field) => {
+      const blockTimeField = field.querySelector(".block-time-field");
+      const { hoursSelect, minutesSelect } = getBlockTimeSelects(blockTimeField);
+      const dayIndex = hoursSelect?.dataset.weekdayIndex;
+      if (dayIndex === undefined) {
+        return;
+      }
+      if (!blockFieldsByDay.has(dayIndex)) {
+        blockFieldsByDay.set(dayIndex, []);
+      }
+      blockFieldsByDay.get(dayIndex).push({ wrapper: field, timeField: blockTimeField, hoursSelect, minutesSelect });
+    });
+
+    blockFieldsByDay.forEach((entries, dayIndex) => {
+      const totalMinutes = globalMinutesByDay.get(dayIndex) || 0;
+      const isUnavailable = totalMinutes === 0;
+
+      entries.forEach(({ wrapper, timeField, hoursSelect, minutesSelect }) => {
+        wrapper.classList.toggle("is-unavailable", isUnavailable);
+        if (isUnavailable) {
+          setBlockFieldMinutes(timeField, 0);
+        }
+        [hoursSelect, minutesSelect].forEach((select) => {
+          select.disabled = isUnavailable;
+          select.setAttribute("aria-disabled", String(isUnavailable));
+        });
+      });
+
+      if (isUnavailable || entries.length < 2) {
+        return;
+      }
+
+      const changedEntry = entries.find(({ timeField }) => timeField === changedField) || null;
+      if (changedEntry) {
+        const otherEntry = entries.find(({ timeField }) => timeField !== changedField) || null;
+        const otherMinutes = otherEntry ? getBlockFieldMinutes(otherEntry.timeField) : 0;
+        applyBlockFieldLimit(changedEntry.timeField, totalMinutes - otherMinutes);
+        const changedMinutes = getBlockFieldMinutes(changedEntry.timeField);
+        if (otherEntry) {
+          applyBlockFieldLimit(otherEntry.timeField, totalMinutes - changedMinutes);
+        }
+      } else {
+        const [firstEntry, secondEntry] = entries;
+        applyBlockFieldLimit(firstEntry.timeField, totalMinutes);
+        applyBlockFieldLimit(secondEntry.timeField, totalMinutes - getBlockFieldMinutes(firstEntry.timeField));
+        applyBlockFieldLimit(firstEntry.timeField, totalMinutes - getBlockFieldMinutes(secondEntry.timeField));
+      }
+    });
+  }
 
   function syncPlanningMode() {
     const selectedMode = planningModeInputs.find((input) => input.checked)?.value || "sequential";
@@ -162,18 +283,8 @@
     syncParallelRaWarning();
   }
 
-  function syncParallelWeekdayAvailability() {
-    const globalHoursByDay = new Map(
-      globalWeekdayInputs.map((input) => [input.dataset.weekdayIndex, Number(input.value || 0)]),
-    );
-
-    blockWeekdayFields.forEach((field) => {
-      const input = field.querySelector("input");
-      const isUnavailable = (globalHoursByDay.get(input.dataset.weekdayIndex) || 0) === 0;
-      field.classList.toggle("is-unavailable", isUnavailable);
-      input.disabled = isUnavailable;
-      input.setAttribute("aria-disabled", String(isUnavailable));
-    });
+  function syncParallelWeekdayAvailability(changedField = null) {
+    syncParallelDayConstraints(changedField);
   }
 
   function syncParallelRaWarning() {
@@ -190,9 +301,16 @@
   }
 
   planningModeInputs.forEach((input) => input.addEventListener("change", syncPlanningMode));
-  globalWeekdayInputs.forEach((input) => input.addEventListener("input", syncParallelWeekdayAvailability));
+  globalWeekdayInputs.forEach((input) => input.addEventListener("input", () => syncParallelWeekdayAvailability()));
+  blockTimeFields.forEach((field) => {
+    const { hoursSelect, minutesSelect } = getBlockTimeSelects(field);
+    [hoursSelect, minutesSelect].forEach((select) => {
+      select?.addEventListener("change", () => syncParallelWeekdayAvailability(field));
+    });
+  });
   raCountInput?.addEventListener("input", syncParallelRaWarning);
   planningForm?.addEventListener("submit", (event) => {
+    syncParallelWeekdayAvailability();
     if (!syncParallelRaWarning()) {
       return;
     }

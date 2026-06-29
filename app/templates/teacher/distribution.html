@@ -4,7 +4,7 @@
   <div class="summary-grid summary-grid-compact">
     <p><strong>Interval de dates:</strong> {{ summary.start_date_display or summary.start_date }} a {{ summary.end_date_display or summary.end_date }}</p>
     <p><strong>Nombre de RAs:</strong> {{ summary.ra_count }}</p>
-    <p><strong>Hores totals disponibles:</strong> <span id="total-available">{{ summary.total_available_hours }}</span></p>
+    <p><strong>{% if summary.planning_mode == "parallel" %}Temps total disponible{% else %}Hores totals disponibles{% endif %}:</strong> <span id="total-available">{{ summary.total_available_display if summary.planning_mode == "parallel" else summary.total_available_hours }}</span></p>
     <p><strong>Hores per dia:</strong> {{ summary.weekday_hours_display }}</p>
     <p><strong>Mode:</strong> {{ summary.planning_mode_label }}</p>
     <p><strong>Impacte dels períodes sense classe:</strong> {{ summary.excluded_teaching_days }} dies lectius, {{ summary.excluded_teaching_hours }} h</p>
@@ -12,10 +12,10 @@
   {% if summary.planning_mode == "parallel" %}
   <div class="block-summary-grid">
     {% for block in summary.blocks %}
-    <article class="block-summary-card">
+    <article class="block-summary-card block-theme block-theme-{{ loop.index }}">
       <h3>{{ block.name }}</h3>
       <p><strong>Setmana:</strong> {{ block.weekday_hours_display }}</p>
-      <p><strong>Hores pròpies:</strong> {{ block.available_hours }} h</p>
+      <p><strong>Temps propi:</strong> {{ block.available_hours_display }}</p>
     </article>
     {% endfor %}
   </div>
@@ -53,7 +53,7 @@
         <ul class="step-intro-list">
           {% if summary.planning_mode == "parallel" %}
           <li>Redistribueix i reordena els RAs d'acord amb l'ordre d'impartició.</li>
-          <li>Assigna les {{ summary.total_available_hours }} hores disponibles entre els RAs i els blocs.</li>
+          <li>Assigna {{ summary.total_available_display }} entre els RAs i els blocs amb hores i minuts.</li>
           <li>Si un bloc no esgota totes les seves hores pròpies, la resta s'assignarà automàticament a l'altre bloc.</li>
           <li>Opcionalment, afegeix un nom més clarificador als RAs, idealment breu (p.ex. «Excel» o «IVA»).</li>
           {% else %}
@@ -62,11 +62,15 @@
           <li>Opcionalment, afegeix un nom més clarificador als RAs, idealment breu (p.ex. «Excel» o «IVA»).</li>
           {% endif %}
         </ul>
-        <p class="step-intro-next">L'exportació només s'activa quan no queda cap hora pendent i totes les RAs tenen com a mínim 1 h assignada.</p>
+        <p class="step-intro-next">L'exportació només s'activa quan no queda cap {% if summary.planning_mode == "parallel" %}minut{% else %}hora{% endif %} pendent i totes les RAs tenen temps assignat.</p>
       </div>
     </div>
     <div class="remaining-box">
+      {% if summary.planning_mode == "parallel" %}
+      Temps pendent: <strong id="remaining-hours" class="block-pending-hours block-pending-open">{{ summary.total_available_display }}</strong>
+      {% else %}
       Hores pendents: <strong id="remaining-hours" class="block-pending-hours block-pending-open">{{ summary.total_available_hours }}</strong>
+      {% endif %}
     </div>
   </div>
 
@@ -75,17 +79,18 @@
     <input type="hidden" name="ra_order" id="ra-order" />
     <input type="hidden" name="ra_names" id="ra-names" />
     <input type="hidden" name="ra_hours" id="ra-hours" />
+    <input type="hidden" name="ra_minutes" id="ra-minutes" />
     <input type="hidden" name="ra_blocks" id="ra-blocks" />
 
     {% if summary.planning_mode == "parallel" %}
     <div class="block-editor-grid" id="parallel-editor">
       {% for block in summary.blocks %}
-      <section class="block-card planner-block">
+      <section class="block-card planner-block block-theme block-theme-{{ loop.index }}">
         <div class="block-card-header">
           <div>
             <h3>{{ block.name }}</h3>
             <p class="hint">{{ block.weekday_hours_display }}</p>
-            <p class="hint block-pending-hours" id="block-pending-{{ block.key }}">{{ block.available_hours }} h pendents de {{ block.available_hours }} h pròpies</p>
+            <p class="hint block-pending-hours" id="block-pending-{{ block.key }}">{{ block.available_hours_display }} pendents de {{ block.available_hours_display }} pròpies</p>
             <p class="block-end-date hint" id="block-end-{{ block.key }}"></p>
           </div>
           <span class="pill">{{ block.key|replace("_", " ") }}</span>
@@ -115,6 +120,8 @@
   const initialState = JSON.parse(document.getElementById("ra-initial-state").textContent);
   const planningMode = distributionForm.dataset.planningMode;
   const totalAvailable = Number(distributionForm.dataset.total);
+  const totalAvailableMinutes = Number(planData.total_available_minutes || (totalAvailable * 60));
+  const minuteChoices = Array.from({ length: 12 }, (_, index) => index * 5);
   const exportButton = document.getElementById("export-button");
   const planJsonInput = document.getElementById("plan-json-input");
   const remainingHoursEl = document.getElementById("remaining-hours");
@@ -127,6 +134,7 @@
   const raOrderInput = document.getElementById("ra-order");
   const raNamesInput = document.getElementById("ra-names");
   const raHoursInput = document.getElementById("ra-hours");
+  const raMinutesInput = document.getElementById("ra-minutes");
   const raBlocksInput = document.getElementById("ra-blocks");
   const blockTransferWarning = document.getElementById("block-transfer-warning");
   const blockLists = planningMode === "parallel"
@@ -150,19 +158,55 @@
     return weekdayLabel ? `${weekdayLabel} ${day}/${month}/${year}` : `${day}/${month}/${year}`;
   }
 
-  function calculateBlockEndDate(block, assignedHours) {
-    if (!block || assignedHours <= 0) {
+  function formatMinutes(minutes) {
+    const safeMinutes = Math.max(0, Math.round(minutes));
+    const hours = Math.floor(safeMinutes / 60);
+    const remainingMinutes = safeMinutes % 60;
+    if (hours && remainingMinutes) {
+      return `${hours} h ${String(remainingMinutes).padStart(2, "0")} min`;
+    }
+    if (hours) {
+      return `${hours} h`;
+    }
+    return `${remainingMinutes} min`;
+  }
+
+  function formatSignedMinutes(minutes) {
+    if (minutes < 0) {
+      return `-${formatMinutes(Math.abs(minutes))}`;
+    }
+    return formatMinutes(minutes);
+  }
+
+  function buildMinuteOptions(selectedMinutes) {
+    return minuteChoices.map((minute) => {
+      const selected = minute === selectedMinutes ? " selected" : "";
+      return `<option value="${minute}"${selected}>${String(minute).padStart(2, "0")}</option>`;
+    }).join("");
+  }
+
+  function getRowAssignedMinutes(row, key) {
+    if (planningMode !== "parallel") {
+      return Number(row.querySelector(`input[name="${key}_hours"]`).value || 0) * 60;
+    }
+    const wholeHours = Number(row.querySelector(`input[name="${key}_hours"]`).value || 0);
+    const minutes = Number(row.querySelector(`select[name="${key}_minutes"]`).value || 0);
+    return (wholeHours * 60) + minutes;
+  }
+
+  function calculateBlockEndDate(block, assignedMinutes) {
+    if (!block || assignedMinutes <= 0) {
       return null;
     }
 
-    let remainingHours = assignedHours;
+    let remainingMinutes = assignedMinutes;
     for (const day of planData.schedule || []) {
-      const blockHoursForDay = Number(block.weekday_hours?.[day.weekday_index] ?? block.weekday_hours?.[String(day.weekday_index)] ?? 0);
-      if (blockHoursForDay <= 0) {
+      const blockMinutesForDay = Number(block.weekday_minutes?.[day.weekday_index] ?? block.weekday_minutes?.[String(day.weekday_index)] ?? 0);
+      if (blockMinutesForDay <= 0) {
         continue;
       }
-      remainingHours -= blockHoursForDay;
-      if (remainingHours <= 0) {
+      remainingMinutes -= blockMinutesForDay;
+      if (remainingMinutes <= 0) {
         return day;
       }
     }
@@ -229,14 +273,19 @@
     row.dataset.key = key;
     row.dataset.blockKey = blockKey;
     const nameValue = initialState.names?.[key] || key;
-    const hoursValue = initialState.hours?.[key] ?? 0;
+    const initialMinutes = Number(initialState.minutes?.[key] ?? Math.round(Number(initialState.hours?.[key] || 0) * 60));
+    const wholeHours = Math.floor(initialMinutes / 60);
+    const remainingMinutes = initialMinutes % 60;
     const blockIndex = (planData.blocks || []).findIndex((block) => block.key === blockKey);
     const moveBlockIcon = blockIndex <= 0 ? "→" : "←";
+    const timeFieldMarkup = planningMode === "parallel"
+      ? `<div class="ra-time-field"><input type="number" min="0" step="1" name="${key}_hours" value="${wholeHours}" /><span class="ra-time-suffix">h</span><select name="${key}_minutes">${buildMinuteOptions(remainingMinutes)}</select><span class="ra-time-suffix">min</span></div>`
+      : `<input type="number" min="0" step="1" name="${key}_hours" value="${Math.round(Number(initialState.hours?.[key] ?? 0))}" />`;
     row.innerHTML = `
       <div class="drag-handle" aria-label="Arrossega per reordenar" title="Arrossega per reordenar">::</div>
       <div class="ra-key">${key}</div>
       <label class="ra-name-field">Nom de l'RA <span class="optional-label">Opcional</span><input type="text" name="${key}_name" value="${nameValue}" /></label>
-      <label class="ra-hours-field">Hores <input type="number" min="0" step="1" name="${key}_hours" value="${hoursValue}" /></label>
+      <label class="ra-hours-field">${planningMode === "parallel" ? "Temps" : "Hores"}${timeFieldMarkup}</label>
       <div class="ra-actions">
         <button type="button" class="secondary ra-action-button" data-action="move-up" aria-label="Puja la RA" title="Puja la RA">↑</button>
         <button type="button" class="secondary ra-action-button" data-action="move-down" aria-label="Baixa la RA" title="Baixa la RA">↓</button>
@@ -291,6 +340,7 @@
     const order = [];
     const names = {};
     const hours = {};
+    const minutes = {};
     const blocks = {};
     let assigned = 0;
     const assignedByBlock = Object.fromEntries((planData.blocks || []).map((block) => [block.key, 0]));
@@ -300,11 +350,13 @@
         const key = row.dataset.key;
         const name = row.querySelector(`input[name="${key}_name"]`).value.trim() || key;
         const hoursField = row.querySelector(".ra-hours-field");
-        const hourValue = Number(row.querySelector(`input[name="${key}_hours"]`).value || 0);
-        hoursField?.classList.toggle("is-zero", hourValue === 0);
+        const assignedMinutes = getRowAssignedMinutes(row, key);
+        const assignedHours = assignedMinutes / 60;
+        hoursField?.classList.toggle("is-zero", assignedMinutes === 0);
         order.push(key);
         names[key] = name;
-        hours[key] = hourValue;
+        hours[key] = Number(assignedHours.toFixed(2));
+        minutes[key] = assignedMinutes;
         if (planningMode === "parallel") {
           const blockKey = list.dataset.blockKey;
           const blockIndex = (planData.blocks || []).findIndex((block) => block.key === blockKey);
@@ -312,46 +364,46 @@
           const moveBlockIcon = blockIndex <= 0 ? "→" : "←";
           row.dataset.blockKey = blockKey;
           blocks[key] = blockKey;
-          assignedByBlock[blockKey] += hourValue;
+          assignedByBlock[blockKey] += assignedMinutes;
           if (moveBlockButton) {
             moveBlockButton.textContent = moveBlockIcon;
           }
         }
-        assigned += hourValue;
+        assigned += planningMode === "parallel" ? assignedMinutes : assignedHours;
       });
     });
 
-    const remaining = totalAvailable - assigned;
-    const hasZeroHourRa = Object.values(hours).some((value) => value === 0);
+    const remaining = (planningMode === "parallel" ? totalAvailableMinutes : totalAvailable) - assigned;
+    const hasEmptyRa = Object.values(planningMode === "parallel" ? minutes : hours).some((value) => value === 0);
     if (remainingHoursEl) {
-      remainingHoursEl.textContent = remaining;
+      remainingHoursEl.textContent = planningMode === "parallel" ? formatSignedMinutes(remaining) : remaining;
       remainingHoursEl.className = `block-pending-hours ${pendingHoursStatusClass(remaining)}`;
     }
     (planData.blocks || []).forEach((block) => {
       const blockKey = block.key;
       const blockRows = blockLists.find((list) => list.dataset.blockKey === blockKey)?.querySelectorAll(".ra-row") || [];
-      const assignedBlockHours = Number(assignedByBlock[blockKey] || 0);
+      const assignedBlockMinutes = Number(assignedByBlock[blockKey] || 0);
 
-      const remainingBlockHours = Number(block.available_hours || 0) - assignedBlockHours;
+      const remainingBlockMinutes = Number(block.available_minutes || 0) - assignedBlockMinutes;
       const pendingEl = blockPendingEls[blockKey];
       if (pendingEl) {
-        pendingEl.textContent = `${remainingBlockHours} h pendents de ${Number(block.available_hours || 0)} h pròpies`;
-        pendingEl.className = `block-pending-hours ${pendingHoursStatusClass(remainingBlockHours)}`;
+        pendingEl.textContent = `${formatMinutes(Math.abs(remainingBlockMinutes))} ${remainingBlockMinutes < 0 ? "de més" : "pendents"} de ${block.available_hours_display} pròpies`;
+        pendingEl.className = `block-pending-hours ${pendingHoursStatusClass(remainingBlockMinutes)}`;
       }
 
       const endDateEl = blockEndDateEls[blockKey];
       if (!endDateEl) return;
-      const hasAssignedRows = [...blockRows].some((row) => Number(row.querySelector(`input[name="${row.dataset.key}_hours"]`).value || 0) > 0);
-      const hasUnassignedRows = [...blockRows].some((row) => Number(row.querySelector(`input[name="${row.dataset.key}_hours"]`).value || 0) === 0);
-      if (assignedBlockHours <= 0) {
+      const hasAssignedRows = [...blockRows].some((row) => getRowAssignedMinutes(row, row.dataset.key) > 0);
+      const hasUnassignedRows = [...blockRows].some((row) => getRowAssignedMinutes(row, row.dataset.key) === 0);
+      if (assignedBlockMinutes <= 0) {
         endDateEl.textContent = "Sense hores assignades al bloc";
         return;
       }
       if (hasAssignedRows && hasUnassignedRows) {
-        endDateEl.textContent = "Hi han RA sense hores assignades";
+        endDateEl.textContent = "Hi ha RA sense temps assignat";
         return;
       }
-      const blockEndDate = calculateBlockEndDate(block, assignedBlockHours);
+      const blockEndDate = calculateBlockEndDate(block, assignedBlockMinutes);
       if (blockEndDate) {
         endDateEl.textContent = `El bloc finalitza el ${formatDisplayDate(blockEndDate.date, blockEndDate.weekday_index)}`;
         return;
@@ -360,31 +412,33 @@
     });
     if (blockTransferWarning) {
       const warningTarget = (planData.blocks || []).find((block) => {
-        const remainingBlockHours = Number(block.available_hours || 0) - Number(assignedByBlock[block.key] || 0);
-        return remainingBlockHours > 0;
+        const remainingBlockMinutes = Number(block.available_minutes || 0) - Number(assignedByBlock[block.key] || 0);
+        return remainingBlockMinutes > 0;
       });
       const receiverTarget = (planData.blocks || []).find((block) => {
-        const remainingBlockHours = Number(block.available_hours || 0) - Number(assignedByBlock[block.key] || 0);
-        return remainingBlockHours < 0;
+        const remainingBlockMinutes = Number(block.available_minutes || 0) - Number(assignedByBlock[block.key] || 0);
+        return remainingBlockMinutes < 0;
       });
       if (warningTarget && receiverTarget && remaining === 0) {
-        const transferHours = Number(warningTarget.available_hours || 0) - Number(assignedByBlock[warningTarget.key] || 0);
+        const transferMinutes = Number(warningTarget.available_minutes || 0) - Number(assignedByBlock[warningTarget.key] || 0);
         blockTransferWarning.hidden = false;
-        blockTransferWarning.textContent = `El ${formatBlockNameForSentence(warningTarget.name)} no esgota ${transferHours} h pròpies. Aquestes hores s'assignaran automàticament al ${formatBlockNameForSentence(receiverTarget.name)}.`;
+        blockTransferWarning.textContent = `El ${formatBlockNameForSentence(warningTarget.name)} no esgota ${formatMinutes(transferMinutes)} pròpies. Aquestes hores s'assignaran automàticament al ${formatBlockNameForSentence(receiverTarget.name)}.`;
       } else {
         blockTransferWarning.hidden = true;
         blockTransferWarning.textContent = "";
       }
     }
-    exportButton.disabled = remaining !== 0 || hasZeroHourRa;
+    exportButton.disabled = remaining !== 0 || hasEmptyRa;
     raOrderInput.value = JSON.stringify(order);
     raNamesInput.value = JSON.stringify(names);
     raHoursInput.value = JSON.stringify(hours);
+    raMinutesInput.value = JSON.stringify(minutes);
     raBlocksInput.value = JSON.stringify(blocks);
   }
 
   blockLists.forEach((list) => {
     list.addEventListener("input", syncState);
+    list.addEventListener("change", syncState);
     list.addEventListener("pointerdown", armRowDragFromHandle);
     list.addEventListener("mousedown", armRowDragFromHandle);
     list.addEventListener("pointerup", clearArmedRowDrag);
