@@ -60,8 +60,7 @@ SHEET_MAIN_NS = "http://schemas.openxmlformats.org/spreadsheetml/2006/main"
 COMMENT_COLUMN_WIDTH_MULTIPLIER = 3
 RA_COLUMN_WIDTH = 14
 INSTRUCTION_BANNER = (
-    "MODIFIQUEU EL NOMBRE D'HORES SI LES REALS DIFIEREIXEN DE LES PREVISTES PER TAL D'OBTENIR LA RÀTIO "
-    "D'ACOMPLIMENT DE LA PLANIFICACIÓ"
+    "MODIFIQUEU LES HORES D'UNA DATA CONCRETA PER RECALCULAR AUTOMÀTICAMENT LA RÀTIO D’ACOMPLIMENT"
 )
 
 
@@ -73,12 +72,47 @@ def _auto_width_for_column_values(values: list[object]) -> float:
     return max(longest + 2, 6)
 
 
+def _instruction_banner_chars_per_line(ra_count: int) -> int:
+    """Estimate how many visible characters fit per banner line."""
+
+    merged_width = (ra_count * RA_COLUMN_WIDTH) + (RA_COLUMN_WIDTH * COMMENT_COLUMN_WIDTH_MULTIPLIER)
+    return max(int(merged_width * 0.95), 24)
+
+
+def _instruction_banner_text(ra_count: int) -> str:
+    """Insert a balanced line break before Excel wraps the banner awkwardly."""
+
+    chars_per_line = _instruction_banner_chars_per_line(ra_count)
+    if "\n" in INSTRUCTION_BANNER or len(INSTRUCTION_BANNER) <= chars_per_line:
+        return INSTRUCTION_BANNER
+
+    words = INSTRUCTION_BANNER.split()
+    if len(words) < 2:
+        return INSTRUCTION_BANNER
+
+    best_left = INSTRUCTION_BANNER
+    best_right = ""
+    best_score = None
+    for index in range(1, len(words)):
+        left = " ".join(words[:index])
+        right = " ".join(words[index:])
+        score = (max(len(left), len(right)), abs(len(left) - len(right)))
+        if best_score is None or score < best_score:
+            best_left = left
+            best_right = right
+            best_score = score
+
+    return f"{best_left}\n{best_right}"
+
+
 def _instruction_banner_height(ra_count: int) -> float:
     """Estimate a readable row height for the wrapped banner text."""
 
-    merged_width = (ra_count * RA_COLUMN_WIDTH) + (RA_COLUMN_WIDTH * COMMENT_COLUMN_WIDTH_MULTIPLIER)
-    chars_per_line = max(int(merged_width * 0.95), 24)
-    line_count = max(1, ceil(len(INSTRUCTION_BANNER) / chars_per_line))
+    chars_per_line = _instruction_banner_chars_per_line(ra_count)
+    line_count = sum(
+        max(1, ceil(len(line) / chars_per_line))
+        for line in _instruction_banner_text(ra_count).splitlines()
+    )
     return max(24, line_count * 18)
 
 
@@ -164,7 +198,7 @@ def build_workbook(
 
     calendar_sheet.merge_cells(start_row=1, start_column=4, end_row=1, end_column=comment_column_index)
     instruction_cell = calendar_sheet.cell(row=1, column=4)
-    instruction_cell.value = INSTRUCTION_BANNER
+    instruction_cell.value = _instruction_banner_text(len(ras))
     instruction_cell.font = Font(bold=True, color="FFFFFF")
     instruction_cell.fill = PatternFill(fill_type="solid", fgColor="000000")
     instruction_cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)

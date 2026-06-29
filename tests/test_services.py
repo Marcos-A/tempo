@@ -180,7 +180,7 @@ def test_export_uses_blank_cells_for_zero_ra_hours():
     assert "A2:C2" in merged_ranges
     assert "A6:B6" in merged_ranges
     assert "A8:C8" in merged_ranges
-    assert sheet["D1"].value == "MODIFIQUEU EL NOMBRE D'HORES SI LES REALS DIFIEREIXEN DE LES PREVISTES PER TAL D'OBTENIR LA RÀTIO D'ACOMPLIMENT DE LA PLANIFICACIÓ"
+    assert sheet["D1"].value == "MODIFIQUEU LES HORES D'UNA DATA CONCRETA PER\nRECALCULAR AUTOMÀTICAMENT LA RÀTIO D’ACOMPLIMENT"
     assert sheet["D1"].alignment.horizontal == "center"
     assert sheet["D1"].font.bold is True
     assert sheet["D1"].font.color.rgb == "00FFFFFF"
