@@ -4,6 +4,10 @@ Curriculum Planner is a small FastAPI app to schedule a module across an academi
 
 The project is intentionally compact. Most business rules live in `app/services/`, while `app/routes/` handles HTTP requests and `app/templates/` renders the interface.
 
+## Development note
+
+This project was developed with human direction and review, with assistance from OpenAI Codex for parts of the implementation, refactoring, and deployment workflow documentation.
+
 ## Stack
 
 - FastAPI
