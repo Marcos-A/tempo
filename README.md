@@ -51,6 +51,61 @@ Then open `http://localhost:10080`.
 
 The SQLite database is stored in `./data/app.db` and persists through the bind mount.
 
+## Run a production-style container from the repo
+
+Use `docker-compose.production.yml` when you want a reproducible deployment without
+development bind mounts or `--reload`.
+
+1. Copy `.env.example` to a real env file and set strong credentials and a real `SECRET_KEY`.
+2. Choose where your persistent SQLite data should live.
+3. Start the production-style stack:
+
+```bash
+ENV_FILE=/absolute/path/to/.env.prod \
+DATA_DIR=/absolute/path/to/data \
+HOST_PORT=8091 \
+docker compose -f docker-compose.production.yml up -d --build
+```
+
+This matches the container shape used by the live deployment:
+
+- baked image build
+- `python -m app.server`
+- persistent `/app/data` bind mount
+- health check enabled
+- no source bind mounts
+
+You can also use the repo-native helper script:
+
+```bash
+ENV_FILE=/absolute/path/to/.env.prod \
+DATA_DIR=/absolute/path/to/data \
+HOST_PORT=8091 \
+bash scripts/deploy_production.sh
+```
+
+Default production-oriented variables:
+
+- `ENV_FILE=/srv/config/curriculum-planner/.env.prod`
+- `DATA_DIR=/srv/data/curriculum-planner`
+- `HOST_PORT=8091`
+- `CONTAINER_NAME=curriculum-planner-web`
+- `IMAGE_NAME=curriculum-planner-web:local`
+
+These defaults are convenient on this server, but every value can be overridden so another
+admin can deploy the same app elsewhere without editing the compose file.
+
+## Preview deployment
+
+`docker-compose.preview.yml` is the same production-style container shape, but intended for
+branch testing on a separate host port and container name.
+
+Deploy it with:
+
+```bash
+bash scripts/deploy_preview.sh
+```
+
 ## Environment variables
 
 - `APP_NAME`: main app name shown in the UI
@@ -151,8 +206,10 @@ README.md
 
 ## Deployment notes
 
+- `docker-compose.yml` is for local development.
+- `docker-compose.production.yml` is the repo-native production deployment file.
+- `docker-compose.preview.yml` is for branch preview deployments.
 - Replace `SECRET_KEY` and admin credentials with real environment variables.
-- Remove development bind mounts and the Uvicorn `--reload` flag before production.
 - Run the app behind HTTPS through a reverse proxy.
 - Back up the database file regularly if you keep using SQLite.
 - If admin writes or export traffic grow substantially, consider moving from SQLite to PostgreSQL and placing XLSX exports behind a small queue.
