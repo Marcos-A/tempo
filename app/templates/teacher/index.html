@@ -78,10 +78,12 @@
       <label>Hores dijous <input type="number" min="0" max="6" name="thursday_hours" value="{{ form.get('thursday_hours', '0') }}" data-weekday-index="3" required /></label>
       <label>Hores divendres <input type="number" min="0" max="6" name="friday_hours" value="{{ form.get('friday_hours', '0') }}" data-weekday-index="4" required /></label>
     </div>
-    <label>
-      Nombre de RAs
-      <input type="number" min="1" max="24" name="ra_count" value="{{ form.get('ra_count', '1') }}" required />
-    </label>
+    <div class="ra-count-shell form-span">
+      <label class="ra-count-card" for="ra-count-input">
+        <span class="ra-count-label">Nombre de RAs</span>
+        <input id="ra-count-input" type="number" min="1" max="24" name="ra_count" value="{{ form.get('ra_count', '1') }}" required />
+      </label>
+    </div>
     <div class="planning-mode card-panel form-span">
       <div class="section-heading">
         <div>
