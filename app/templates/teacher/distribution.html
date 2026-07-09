@@ -45,36 +45,51 @@
 </section>
 
 <section class="card">
-  <div class="page-header">
-    <div>
-      <h2>Assignació d'hores</h2>
-      <div class="card-panel step-intro">
-        <p class="step-intro-kicker">Pas 2 de 2</p>
-        <ul class="step-intro-list">
-          {% if summary.planning_mode == "parallel" %}
-          <li>Redistribueix i reordena els RAs d'acord amb l'ordre d'impartició.</li>
-          <li>Assigna {{ summary.total_available_display }} entre els RAs i els blocs amb hores i minuts.</li>
-          <li>Si un bloc no esgota totes les seves hores pròpies, la resta s'assignarà automàticament a l'altre bloc.</li>
-          <li>Opcionalment, afegeix un nom més clarificador als RAs, idealment breu (p.ex. «Excel» o «IVA»).</li>
-          {% else %}
-          <li>Reordena els RAs si cal d'acord amb l'ordre d'impartició.</li>
-          <li>Redistribueix les {{ summary.total_available_hours }} hores disponibles entre els RAs.</li>
-          <li>Opcionalment, afegeix un nom més clarificador als RAs, idealment breu (p.ex. «Excel» o «IVA»).</li>
-          {% endif %}
-        </ul>
-        <p class="step-intro-next">L'exportació només s'activa quan no queda cap {% if summary.planning_mode == "parallel" %}minut{% else %}hora{% endif %} pendent i totes les RAs tenen temps assignat.</p>
+  <div class="distribution-layout{% if summary.planning_mode == "parallel" %} distribution-layout-parallel{% endif %}">
+    <div class="distribution-main{% if summary.planning_mode == "parallel" %} distribution-main-parallel{% endif %}">
+      <div class="page-header distribution-header">
+        <div>
+          <h2>Assignació d'hores</h2>
+          <div class="card-panel step-intro">
+            <p class="step-intro-kicker">Pas 2 de 2</p>
+            <ul class="step-intro-list">
+              {% if summary.planning_mode == "parallel" %}
+              <li>Redistribueix i reordena els RAs d'acord amb l'ordre d'impartició.</li>
+              <li>Assigna {{ summary.total_available_display }} entre els RAs i els blocs amb hores i minuts.</li>
+              <li>Si un bloc no esgota totes les seves hores pròpies, la resta s'assignarà automàticament a l'altre bloc.</li>
+              <li>Opcionalment, afegeix un nom més clarificador als RAs, idealment breu (p.ex. «Excel» o «IVA»).</li>
+              {% else %}
+              <li>Reordena els RAs si cal d'acord amb l'ordre d'impartició.</li>
+              <li>Redistribueix les {{ summary.total_available_hours }} hores disponibles entre els RAs.</li>
+              <li>Opcionalment, afegeix un nom més clarificador als RAs, idealment breu (p.ex. «Excel» o «IVA»).</li>
+              {% endif %}
+            </ul>
+            <p class="step-intro-next">L'exportació només s'activa quan no queda cap {% if summary.planning_mode == "parallel" %}minut{% else %}hora{% endif %} pendent i totes les RAs tenen temps assignat.</p>
+          </div>
+        </div>
       </div>
-    </div>
-    <div class="remaining-box">
-      {% if summary.planning_mode == "parallel" %}
-      Temps pendent: <strong id="remaining-hours" class="block-pending-hours block-pending-open">{{ summary.total_available_display }}</strong>
-      {% else %}
-      Hores pendents: <strong id="remaining-hours" class="block-pending-hours block-pending-open">{{ summary.total_available_hours }}</strong>
-      {% endif %}
-    </div>
-  </div>
 
-  <form method="post" action="/export" id="distribution-form" data-planning-mode="{{ summary.planning_mode }}" data-total="{{ summary.total_available_hours }}" data-count="{{ summary.ra_count }}">
+      {% if summary.planning_mode == "parallel" %}
+      <aside class="remaining-box remaining-box-sticky remaining-box-sticky-inline" aria-live="polite">
+        <div class="remaining-box-inline-total">
+          <p class="remaining-box-label">Temps pendent</p>
+          <p class="remaining-box-value">
+            <strong id="remaining-hours" class="block-pending-hours block-pending-open">{{ summary.total_available_display }}</strong>
+          </p>
+        </div>
+        <div class="remaining-box-inline-blocks">
+          {% for block in summary.blocks %}
+          <div class="remaining-box-block remaining-box-block-theme-{{ loop.index }}">
+            <span class="remaining-box-block-name">{{ block.name }}</span>
+            <strong id="sticky-block-pending-{{ block.key }}" class="block-pending-hours block-pending-open">{{ block.available_hours_display }} pendents de {{ block.available_hours_display }} pròpies</strong>
+          </div>
+          {% endfor %}
+        </div>
+        <p id="sticky-transfer-note" class="remaining-box-note block-pending-hours" hidden></p>
+      </aside>
+      {% endif %}
+
+      <form method="post" action="/export" id="distribution-form" data-planning-mode="{{ summary.planning_mode }}" data-total="{{ summary.total_available_hours }}" data-count="{{ summary.ra_count }}">
     <input type="hidden" name="plan_json" id="plan-json-input" />
     <input type="hidden" name="ra_order" id="ra-order" />
     <input type="hidden" name="ra_names" id="ra-names" />
@@ -90,7 +105,6 @@
           <div>
             <h3>{{ block.name }}</h3>
             <p class="hint">{{ block.weekday_hours_display }}</p>
-            <p class="hint block-pending-hours" id="block-pending-{{ block.key }}">{{ block.available_hours_display }} pendents de {{ block.available_hours_display }} pròpies</p>
             <p class="block-end-date hint" id="block-end-{{ block.key }}"></p>
           </div>
           <span class="pill">{{ block.key|replace("_", " ") }}</span>
@@ -106,10 +120,20 @@
     <div class="export-actions">
       <button type="submit" id="export-button" disabled>Exporta l'XLSX</button>
       {% if summary.planning_mode == "parallel" %}
-      <p id="block-transfer-warning" class="transfer-note" hidden></p>
       {% endif %}
     </div>
-  </form>
+      </form>
+    </div>
+
+    {% if summary.planning_mode != "parallel" %}
+    <aside class="remaining-box remaining-box-sticky" aria-live="polite">
+      <p class="remaining-box-label">Hores pendents</p>
+      <p class="remaining-box-value">
+        <strong id="remaining-hours" class="block-pending-hours block-pending-open">{{ summary.total_available_hours }}</strong>
+      </p>
+    </aside>
+    {% endif %}
+  </div>
 </section>
 
 <script id="plan-data" type="application/json">{{ plan_json|safe }}</script>
@@ -131,12 +155,15 @@
   const blockPendingEls = Object.fromEntries(
     (planData.blocks || []).map((block) => [block.key, document.getElementById(`block-pending-${block.key}`)])
   );
+  const stickyBlockPendingEls = Object.fromEntries(
+    (planData.blocks || []).map((block) => [block.key, document.getElementById(`sticky-block-pending-${block.key}`)])
+  );
   const raOrderInput = document.getElementById("ra-order");
   const raNamesInput = document.getElementById("ra-names");
   const raHoursInput = document.getElementById("ra-hours");
   const raMinutesInput = document.getElementById("ra-minutes");
   const raBlocksInput = document.getElementById("ra-blocks");
-  const blockTransferWarning = document.getElementById("block-transfer-warning");
+  const stickyTransferNote = document.getElementById("sticky-transfer-note");
   const blockLists = planningMode === "parallel"
     ? [...document.querySelectorAll(".block-dropzone")]
     : [document.getElementById("ra-list")];
@@ -390,6 +417,15 @@
         pendingEl.textContent = `${formatMinutes(Math.abs(remainingBlockMinutes))} ${remainingBlockMinutes < 0 ? "de més" : "pendents"} de ${block.available_hours_display} pròpies`;
         pendingEl.className = `block-pending-hours ${pendingHoursStatusClass(remainingBlockMinutes)}`;
       }
+      const stickyPendingEl = stickyBlockPendingEls[blockKey];
+      if (stickyPendingEl) {
+        stickyPendingEl.textContent = remainingBlockMinutes < 0
+          ? `${formatMinutes(Math.abs(remainingBlockMinutes))} de més de ${block.available_hours_display} pròpies`
+          : remainingBlockMinutes === 0
+            ? `Quadrat respecte de ${block.available_hours_display} pròpies`
+            : `${formatMinutes(remainingBlockMinutes)} pendents de ${block.available_hours_display} pròpies`;
+        stickyPendingEl.className = `block-pending-hours ${pendingHoursStatusClass(remainingBlockMinutes)}`;
+      }
 
       const endDateEl = blockEndDateEls[blockKey];
       if (!endDateEl) return;
@@ -410,22 +446,32 @@
       }
       endDateEl.textContent = "El bloc no finalitza dins del calendari actual";
     });
-    if (blockTransferWarning) {
-      const warningTarget = (planData.blocks || []).find((block) => {
+    if (stickyTransferNote) {
+      const blockStatuses = (planData.blocks || []).map((block) => {
+        const listRows = blockLists.find((list) => list.dataset.blockKey === block.key)?.querySelectorAll(".ra-row") || [];
         const remainingBlockMinutes = Number(block.available_minutes || 0) - Number(assignedByBlock[block.key] || 0);
-        return remainingBlockMinutes > 0;
+        const allAssigned = [...listRows].length > 0 && [...listRows].every((row) => getRowAssignedMinutes(row, row.dataset.key) > 0);
+        return {
+          block,
+          remainingBlockMinutes,
+          allAssigned,
+        };
       });
-      const receiverTarget = (planData.blocks || []).find((block) => {
-        const remainingBlockMinutes = Number(block.available_minutes || 0) - Number(assignedByBlock[block.key] || 0);
-        return remainingBlockMinutes < 0;
-      });
-      if (warningTarget && receiverTarget && remaining === 0) {
-        const transferMinutes = Number(warningTarget.available_minutes || 0) - Number(assignedByBlock[warningTarget.key] || 0);
-        blockTransferWarning.hidden = false;
-        blockTransferWarning.textContent = `El ${formatBlockNameForSentence(warningTarget.name)} no esgota ${formatMinutes(transferMinutes)} pròpies. Aquestes hores s'assignaran automàticament al ${formatBlockNameForSentence(receiverTarget.name)}.`;
+      const completedWithSpare = blockStatuses.filter((item) => item.allAssigned && item.remainingBlockMinutes > 0);
+      const overusedTarget = blockStatuses.find((item) => item.remainingBlockMinutes < 0);
+      if (completedWithSpare.length >= 2) {
+        stickyTransferNote.hidden = false;
+        stickyTransferNote.textContent = "Tots dos blocs encara tenen hores pròpies disponibles. Reparteix més temps entre les RAs per esgotar-les.";
+      } else if (completedWithSpare.length === 1) {
+        const warningTarget = completedWithSpare[0];
+        const receiverTarget = blockStatuses.find((item) => item.block.key !== warningTarget.block.key);
+        stickyTransferNote.hidden = false;
+        stickyTransferNote.textContent = overusedTarget && receiverTarget
+          ? `El ${formatBlockNameForSentence(warningTarget.block.name)} no esgota ${formatMinutes(warningTarget.remainingBlockMinutes)} pròpies. Aquestes hores s'assignaran automàticament al ${formatBlockNameForSentence(receiverTarget.block.name)}.`
+          : `Si el ${formatBlockNameForSentence(warningTarget.block.name)} no esgota les ${formatMinutes(warningTarget.remainingBlockMinutes)} pendents pròpies, aquestes quedaran disponibles per al ${formatBlockNameForSentence(receiverTarget?.block.name)}.`;
       } else {
-        blockTransferWarning.hidden = true;
-        blockTransferWarning.textContent = "";
+        stickyTransferNote.hidden = true;
+        stickyTransferNote.textContent = "";
       }
     }
     exportButton.disabled = remaining !== 0 || hasEmptyRa;
