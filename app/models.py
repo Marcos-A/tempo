@@ -2,7 +2,7 @@
 
 from datetime import date, datetime
 
-from sqlalchemy import Date, DateTime, String
+from sqlalchemy import Date, DateTime, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
@@ -40,3 +40,17 @@ class ExcludedPeriod(Base):
     end_date: Mapped[date] = mapped_column(Date, index=True)
     label: Mapped[str | None] = mapped_column(String(255), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class AcademicWeekNumber(Base):
+    """Admin-assigned week number for one Monday-to-Sunday calendar week.
+
+    Keyed by the Monday that starts the week, so a week's end is implicit
+    (six days later) and never needs to be kept in sync separately.
+    """
+
+    __tablename__ = "academic_week_numbers"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    week_start_date: Mapped[date] = mapped_column(Date, unique=True, index=True)
+    number: Mapped[int] = mapped_column(Integer)

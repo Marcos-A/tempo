@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="page-header">
+  <div>
+    <h1>Numeració de setmanes</h1>
+    <p>Assigna el número de setmana oficial segons la planificació de l'equip directiu.</p>
+  </div>
+  <a class="secondary button-link" href="/admin">&larr; Tornar</a>
+</section>
+
+{% if error %}
+<p class="error">{{ error }}</p>
+{% endif %}
+
+<form method="post" action="/admin/weeks">
+  {% for group in week_groups %}
+  <section class="card">
+    <h2>{{ group.label }}</h2>
+    <div class="week-grid">
+      {% for week in group.weeks %}
+      <label class="week-cell">
+        {{ week.start|date_display }} - {{ week.end|date_display }}
+        <input
+          type="number"
+          min="1"
+          step="1"
+          name="{{ week.field_name }}"
+          value="{{ week.number if week.number is not none else '' }}"
+          placeholder="-"
+        />
+      </label>
+      {% endfor %}
+    </div>
+  </section>
+  {% endfor %}
+  <button type="submit">Desa la numeració</button>
+</form>
+{% endblock %}

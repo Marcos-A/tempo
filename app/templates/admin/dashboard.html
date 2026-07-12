@@ -5,9 +5,12 @@
     <h1>Configuració d'administració</h1>
     <p>Gestiona el curs acadèmic per defecte i els períodes sense classe.</p>
   </div>
-  <form method="post" action="/admin/logout">
-    <button type="submit" class="secondary">Surt</button>
-  </form>
+  <div class="table-actions">
+    <a class="button-link secondary" href="/admin/weeks">Numeració de setmanes</a>
+    <form method="post" action="/admin/logout">
+      <button type="submit" class="secondary">Surt</button>
+    </form>
+  </div>
 </section>
 
 {% if error %}
