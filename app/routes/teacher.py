@@ -12,7 +12,8 @@ from sqlalchemy.orm import Session
 from app.config import get_settings
 from app.database import get_db
 from app.date_utils import format_display_date, parse_date_input
-from app.models import AcademicYearSetting, ExcludedPeriod
+from app.models import AcademicWeekNumber, AcademicYearSetting, ExcludedPeriod
+from app.services.academic_weeks import week_number_for_date
 from app.services.allocation import BlockPlan, RAPlan, allocate_ra_hours, allocate_ra_hours_by_blocks, validate_ra_distribution
 from app.services.calendar import ScheduleDay, build_schedule, expand_excluded_periods, total_available_hours
 from app.services.export import build_workbook
@@ -198,6 +199,22 @@ def _map_excluded_labels_by_date(periods: list[ExcludedPeriod]) -> dict[date, st
     return labels_by_date
 
 
+def _week_numbers_for_schedule(db: Session, schedule: list[ScheduleDay]) -> dict[str, int]:
+    """Map each schedule date (ISO string) to its admin-assigned week number.
+
+    Only dates whose week actually has a saved number are included, so
+    unassigned weeks stay blank instead of surfacing a stray zero or null.
+    """
+
+    saved_numbers = {row.week_start_date: row.number for row in db.scalars(select(AcademicWeekNumber)).all()}
+    week_numbers: dict[str, int] = {}
+    for day in schedule:
+        number = week_number_for_date(day.date, saved_numbers)
+        if number is not None:
+            week_numbers[day.date.isoformat()] = number
+    return week_numbers
+
+
 def _default_ra_state(ra_count: int, planning_mode: str) -> dict[str, object]:
     """Prepare the browser state used to render the RA editor."""
 
@@ -286,6 +303,18 @@ async def prepare_plan(request: Request, db: Session = Depends(get_db)):
             status_code=status.HTTP_400_BAD_REQUEST,
         )
 
+    # Week numbers come from the school's official academic-year calendar, so
+    # they only make sense when the teacher is planning against that exact
+    # window, and only when the admin has opted in on /admin/weeks. A custom
+    # start/end date has no guaranteed relationship to the school's published
+    # week numbering, so the column is left out entirely regardless of the toggle.
+    include_week_numbers = (
+        settings.include_week_numbers_in_export
+        and start_date == settings.default_start_date
+        and end_date == settings.default_end_date
+    )
+    week_numbers_by_date = _week_numbers_for_schedule(db, schedule) if include_week_numbers else {}
+
     plan_payload = {
         "training_cycle": form_data.get("training_cycle", "").strip(),
         "group_name": form_data.get("group_name", "").strip(),
@@ -303,8 +332,15 @@ async def prepare_plan(request: Request, db: Session = Depends(get_db)):
         "excluded_teaching_days": excluded_teaching_days,
         "excluded_teaching_hours": excluded_teaching_hours,
         "excluded_teaching_dates": excluded_teaching_dates,
+        "include_week_numbers": include_week_numbers,
         "schedule": [
-            {"date": day.date.isoformat(), "weekday_index": day.weekday_index, "weekday_name": day.weekday_name, "hours": day.hours}
+            {
+                "date": day.date.isoformat(),
+                "weekday_index": day.weekday_index,
+                "weekday_name": day.weekday_name,
+                "hours": day.hours,
+                "week_number": week_numbers_by_date.get(day.date.isoformat()),
+            }
             for day in schedule
         ],
         "total_available_hours": total_hours,
@@ -426,7 +462,16 @@ async def export_plan(request: Request):
     }
     if plan_data.get("planning_mode") == "parallel":
         summary["Blocs"] = _format_blocks_summary(plan_data.get("blocks", []), ra_order, ra_names, ra_blocks)
-    workbook = build_workbook(rows, ras, summary)
+
+    include_week_numbers = bool(plan_data.get("include_week_numbers"))
+    if include_week_numbers:
+        week_numbers_by_date = {
+            date.fromisoformat(item["date"]): item.get("week_number") for item in plan_data["schedule"]
+        }
+        for row in rows:
+            row["week_number"] = week_numbers_by_date.get(row["date"])
+
+    workbook = build_workbook(rows, ras, summary, include_week_numbers=include_week_numbers)
     group_name = (plan_data.get('group_name') or '').strip()
     subject_code = (plan_data.get('subject_code') or '').strip()
     filename_stem = f"{group_name}-{subject_code}-temporitzacio" if group_name and subject_code else "temporitzacio"

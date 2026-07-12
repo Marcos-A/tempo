@@ -4,13 +4,21 @@ These tests avoid the full web stack and instead verify the calculations that
 most directly affect the teacher's exported planning file.
 """
 
-from datetime import date
+from datetime import date, timedelta
 from zipfile import ZipFile
 
 import pytest
 from openpyxl import load_workbook
 
-from app.date_utils import format_display_date, parse_date_input
+from app.date_utils import format_display_date, format_month_label, parse_date_input
+from app.services.academic_weeks import (
+    is_vacation_week,
+    iter_week_starts,
+    suggest_week_numbers,
+    week_has_teaching_potential,
+    week_number_for_date,
+    week_start,
+)
 from app.services.allocation import BlockPlan, RAPlan, allocate_ra_hours, allocate_ra_hours_by_blocks, validate_ra_distribution
 from app.services.calendar import build_schedule, expand_excluded_periods, total_available_hours
 from app.services.export import build_workbook
@@ -618,3 +626,161 @@ def test_parallel_block_allocation_uses_ra_minutes_exactly():
 
     assert rows[0]["ra_hours"] == {"RA1": 0.67, "RA2": 1.33}
     assert rows[1]["ra_hours"] == {"RA1": 0, "RA2": 1}
+
+
+def test_week_start_returns_the_monday_of_the_containing_week():
+    """Any weekday should resolve to the Monday that starts its calendar week."""
+
+    assert week_start(date(2026, 9, 9)) == date(2026, 9, 7)
+    assert week_start(date(2026, 9, 7)) == date(2026, 9, 7)
+    assert week_start(date(2026, 9, 13)) == date(2026, 9, 7)
+
+
+def test_iter_week_starts_covers_every_overlapping_week():
+    """The week list should include the Mondays of both the first and last week."""
+
+    assert iter_week_starts(date(2026, 9, 8), date(2026, 9, 21)) == [
+        date(2026, 9, 7),
+        date(2026, 9, 14),
+        date(2026, 9, 21),
+    ]
+
+
+def test_week_has_teaching_potential_is_false_for_a_fully_excluded_week():
+    """A week only counts as numbered if at least one weekday survives exclusions."""
+
+    monday = date(2026, 9, 7)
+    fully_excluded = {monday + timedelta(days=offset) for offset in range(5)}
+    assert week_has_teaching_potential(monday, fully_excluded) is False
+
+    partially_excluded = fully_excluded - {monday}
+    assert week_has_teaching_potential(monday, partially_excluded) is True
+
+
+def test_suggest_week_numbers_skips_fully_excluded_weeks():
+    """Vacation weeks should not consume a sequential number."""
+
+    week_starts = [date(2026, 9, 7), date(2026, 9, 14), date(2026, 9, 21)]
+    excluded_dates = {date(2026, 9, 14) + timedelta(days=offset) for offset in range(5)}
+    suggestions = suggest_week_numbers(week_starts, excluded_dates)
+    assert suggestions == {date(2026, 9, 7): 1, date(2026, 9, 21): 2}
+
+
+def test_week_number_for_date_looks_up_by_week_start():
+    """Any date within a numbered week should resolve to that week's number."""
+
+    saved_numbers = {date(2026, 9, 7): 3}
+    assert week_number_for_date(date(2026, 9, 9), saved_numbers) == 3
+    assert week_number_for_date(date(2026, 9, 21), saved_numbers) is None
+
+
+def test_is_vacation_week_is_true_for_a_blank_fully_excluded_week():
+    """An unnumbered week with zero teaching potential should read as a vacation week."""
+
+    monday = date(2026, 12, 21)
+    fully_excluded = {monday + timedelta(days=offset) for offset in range(5)}
+    assert is_vacation_week(None, monday, fully_excluded) is True
+
+
+def test_is_vacation_week_is_false_when_a_number_was_explicitly_assigned():
+    """An admin-assigned number always wins, even on an otherwise fully excluded week."""
+
+    monday = date(2026, 12, 21)
+    fully_excluded = {monday + timedelta(days=offset) for offset in range(5)}
+    assert is_vacation_week(7, monday, fully_excluded) is False
+
+
+def test_is_vacation_week_is_false_when_the_week_still_has_teaching_potential():
+    """A blank week that could still be taught is a real gap, not a vacation week."""
+
+    monday = date(2026, 9, 7)
+    assert is_vacation_week(None, monday, set()) is False
+
+
+def test_format_month_label_uses_catalan_month_names():
+    """Month grouping in the admin grid should render in Catalan."""
+
+    assert format_month_label(date(2026, 9, 7)) == "Setembre 2026"
+
+
+def test_export_adds_leading_week_column_when_requested():
+    """Passing include_week_numbers should insert a Set. column before the date."""
+
+    workbook_io = build_workbook(
+        [
+            {
+                "date": date(2026, 9, 1),
+                "weekday": "Dimarts",
+                "total_hours": 4,
+                "ra_hours": {"RA1": 4},
+                "week_number": 5,
+            }
+        ],
+        [RAPlan("RA1", "RA1", 4)],
+        {"Camp": "Valor"},
+        include_week_numbers=True,
+    )
+    workbook = load_workbook(workbook_io)
+    sheet = workbook["Calendari"]
+    merged_ranges = [str(range_ref) for range_ref in sheet.merged_cells.ranges]
+
+    assert sheet.freeze_panes == "E7"
+    assert "B6:C6" in merged_ranges
+    assert sheet["A6"].value == "Set."
+    assert sheet["B6"].value == "Data"
+    assert sheet["D6"].value == "Hores"
+    assert sheet["E6"].value == "RA1"
+    assert sheet["F6"].value == "Comentaris"
+    assert sheet["A7"].value == 5
+    assert sheet["B7"].value == "dt."
+    assert sheet["C7"].value.date().isoformat() == "2026-09-01"
+    assert sheet["E7"].value == 4
+
+
+def test_export_leaves_week_cell_blank_when_that_week_has_no_saved_number():
+    """A row with no assigned week number should render a blank cell, not zero."""
+
+    workbook_io = build_workbook(
+        [
+            {
+                "date": date(2026, 9, 1),
+                "weekday": "Dimarts",
+                "total_hours": 4,
+                "ra_hours": {"RA1": 4},
+                "week_number": None,
+            }
+        ],
+        [RAPlan("RA1", "RA1", 4)],
+        {"Camp": "Valor"},
+        include_week_numbers=True,
+    )
+    workbook = load_workbook(workbook_io)
+    sheet = workbook["Calendari"]
+    assert sheet["A7"].value is None
+
+
+def test_export_week_column_merges_across_both_header_rows_with_optional_names():
+    """The Set. header should span both header rows, like the other fixed columns."""
+
+    workbook_io = build_workbook(
+        [
+            {
+                "date": date(2026, 9, 1),
+                "weekday": "Dimarts",
+                "total_hours": 4,
+                "ra_hours": {"RA1": 4},
+                "week_number": 1,
+            }
+        ],
+        [RAPlan("RA1", "Opcional", 4)],
+        {"Camp": "Valor"},
+        include_week_numbers=True,
+    )
+    workbook = load_workbook(workbook_io)
+    sheet = workbook["Calendari"]
+    merged_ranges = [str(range_ref) for range_ref in sheet.merged_cells.ranges]
+
+    assert "A6:A7" in merged_ranges
+    assert "B6:C7" in merged_ranges
+    assert sheet["A6"].value == "Set."
+    assert sheet["A8"].value == 1

@@ -180,24 +180,35 @@ def build_workbook(
     calendar_rows: list[dict[str, object]],
     ras: list[RAPlan],
     summary: dict[str, object],
+    *,
+    include_week_numbers: bool = False,
 ) -> BytesIO:
     """Create the two-sheet workbook returned to the teacher.
 
     Zero values in RA cells are written as empty cells so the resulting calendar
-    is easier to scan visually.
+    is easier to scan visually. When `include_week_numbers` is set, each row's
+    `week_number` key (if present) is rendered as a leading "Set." column;
+    callers should only pass it when the admin's official week numbering
+    actually applies to the planned date range.
     """
 
     workbook = Workbook()
     calendar_sheet = workbook.active
     calendar_sheet.title = "Calendari"
-    comment_column_index = 4 + len(ras)
+    column_offset = 1 if include_week_numbers else 0
+    week_column = 1
+    weekday_column = 1 + column_offset
+    date_column = 2 + column_offset
+    hours_column = 3 + column_offset
+    first_ra_column = 4 + column_offset
+    comment_column_index = first_ra_column + len(ras)
     has_optional_ra_names = any((ra.name or "").strip() != ra.key for ra in ras)
     header_main_row = CALENDAR_HEADER_ROW
     header_sub_row = CALENDAR_HEADER_ROW + 1 if has_optional_ra_names else None
     data_start_row = CALENDAR_DATA_START_ROW + (1 if has_optional_ra_names else 0)
 
-    calendar_sheet.merge_cells(start_row=1, start_column=4, end_row=1, end_column=comment_column_index)
-    instruction_cell = calendar_sheet.cell(row=1, column=4)
+    calendar_sheet.merge_cells(start_row=1, start_column=first_ra_column, end_row=1, end_column=comment_column_index)
+    instruction_cell = calendar_sheet.cell(row=1, column=first_ra_column)
     instruction_cell.value = _instruction_banner_text(len(ras))
     instruction_cell.font = Font(bold=True, color="FFFFFF")
     instruction_cell.fill = PatternFill(fill_type="solid", fgColor="000000")
@@ -205,18 +216,26 @@ def build_workbook(
     calendar_sheet.row_dimensions[1].height = _instruction_banner_height(len(ras))
 
     for row_index, field_name in enumerate(CALENDAR_METADATA_FIELDS, start=2):
-        calendar_sheet.merge_cells(start_row=row_index, start_column=1, end_row=row_index, end_column=3)
+        calendar_sheet.merge_cells(start_row=row_index, start_column=1, end_row=row_index, end_column=hours_column)
         label_cell = calendar_sheet.cell(row=row_index, column=1)
         label_cell.value = f"{field_name}:"
         label_cell.font = Font(bold=True)
         label_cell.alignment = Alignment(horizontal="left", vertical="center")
-        value_cell = calendar_sheet.cell(row=row_index, column=4)
+        value_cell = calendar_sheet.cell(row=row_index, column=first_ra_column)
         value_cell.value = _calendar_metadata_value(summary, field_name)
         value_cell.alignment = Alignment(horizontal="left", vertical="center")
 
     if has_optional_ra_names:
-        calendar_sheet.merge_cells(start_row=header_main_row, start_column=1, end_row=header_sub_row, end_column=2)
-        calendar_sheet.merge_cells(start_row=header_main_row, start_column=3, end_row=header_sub_row, end_column=3)
+        calendar_sheet.merge_cells(
+            start_row=header_main_row, start_column=weekday_column, end_row=header_sub_row, end_column=date_column
+        )
+        calendar_sheet.merge_cells(
+            start_row=header_main_row, start_column=hours_column, end_row=header_sub_row, end_column=hours_column
+        )
+        if include_week_numbers:
+            calendar_sheet.merge_cells(
+                start_row=header_main_row, start_column=week_column, end_row=header_sub_row, end_column=week_column
+            )
         calendar_sheet.merge_cells(
             start_row=header_main_row,
             start_column=comment_column_index,
@@ -224,14 +243,22 @@ def build_workbook(
             end_column=comment_column_index,
         )
     else:
-        calendar_sheet.merge_cells(start_row=header_main_row, start_column=1, end_row=header_main_row, end_column=2)
+        calendar_sheet.merge_cells(
+            start_row=header_main_row, start_column=weekday_column, end_row=header_main_row, end_column=date_column
+        )
 
-    data_header_cell = calendar_sheet.cell(row=header_main_row, column=1)
+    if include_week_numbers:
+        week_header_cell = calendar_sheet.cell(row=header_main_row, column=week_column)
+        week_header_cell.value = "Set."
+        week_header_cell.font = Font(bold=True)
+        week_header_cell.alignment = Alignment(horizontal="center", vertical="center")
+
+    data_header_cell = calendar_sheet.cell(row=header_main_row, column=weekday_column)
     data_header_cell.value = "Data"
     data_header_cell.alignment = Alignment(horizontal="left", vertical="center")
     data_header_cell.font = Font(bold=True)
 
-    hours_header_cell = calendar_sheet.cell(row=header_main_row, column=3)
+    hours_header_cell = calendar_sheet.cell(row=header_main_row, column=hours_column)
     hours_header_cell.value = "Hores"
     hours_header_cell.alignment = Alignment(horizontal="center", vertical="center")
     hours_header_cell.font = Font(bold=True)
@@ -242,7 +269,7 @@ def build_workbook(
     comment_header_cell.font = Font(bold=True)
 
     for index, ra in enumerate(ras):
-        column_index = 4 + index
+        column_index = first_ra_column + index
         key_cell = calendar_sheet.cell(row=header_main_row, column=column_index)
         key_cell.value = ra.key
         key_cell.font = Font(bold=True)
@@ -264,13 +291,16 @@ def build_workbook(
                     end_row=header_sub_row,
                     end_column=column_index,
                 )
-        
-    calendar_sheet.freeze_panes = f"D{data_start_row}"
 
-    ra_column_by_key = {ra.key: 4 + index for index, ra in enumerate(ras)}
+    calendar_sheet.freeze_panes = f"{get_column_letter(first_ra_column)}{data_start_row}"
+
+    ra_column_by_key = {ra.key: first_ra_column + index for index, ra in enumerate(ras)}
     started_ra_keys: set[str] = set()
     for row in calendar_rows:
-        excel_row = [WEEKDAY_ABBREVIATIONS.get(row["weekday"], row["weekday"]), row["date"], row["total_hours"]]
+        excel_row = []
+        if include_week_numbers:
+            excel_row.append(row.get("week_number"))
+        excel_row.extend([WEEKDAY_ABBREVIATIONS.get(row["weekday"], row["weekday"]), row["date"], row["total_hours"]])
         ra_hours = row["ra_hours"]
         excel_row.extend(ra_hours[ra.key] or None for ra in ras)
         excel_row.append(None)
@@ -283,7 +313,7 @@ def build_workbook(
                 cell.fill = ROW_START_FILL
             for key in newly_started_keys:
                 column_index = ra_column_by_key[key]
-                _apply_ra_fill(calendar_sheet.cell(row=current_row, column=column_index), column_index - 4)
+                _apply_ra_fill(calendar_sheet.cell(row=current_row, column=column_index), column_index - first_ra_column)
         started_ra_keys.update(active_keys)
 
     summary_start_row = calendar_sheet.max_row + 1
@@ -292,14 +322,14 @@ def build_workbook(
         calendar_sheet.cell(row=row_number, column=1).value = label
         calendar_sheet.cell(row=row_number, column=1).font = Font(bold=True)
         calendar_sheet.cell(row=row_number, column=1).alignment = Alignment(horizontal="left", vertical="center")
-        calendar_sheet.merge_cells(start_row=row_number, start_column=1, end_row=row_number, end_column=3)
+        calendar_sheet.merge_cells(start_row=row_number, start_column=1, end_row=row_number, end_column=hours_column)
 
     data_end_row = summary_start_row - 1
     expected_row = summary_start_row
     actual_row = summary_start_row + 1
     completion_row = summary_start_row + 2
     for index, ra in enumerate(ras):
-        column_index = 4 + index
+        column_index = first_ra_column + index
         column_letter = get_column_letter(column_index)
         expected_cell = calendar_sheet.cell(row=expected_row, column=column_index)
         expected_cell.value = ra.hours
@@ -317,8 +347,8 @@ def build_workbook(
         completion_cell.alignment = Alignment(horizontal="center", vertical="center")
 
     if ras:
-        first_ra_column_letter = get_column_letter(4)
-        last_ra_column_letter = get_column_letter(3 + len(ras))
+        first_ra_column_letter = get_column_letter(first_ra_column)
+        last_ra_column_letter = get_column_letter(first_ra_column - 1 + len(ras))
         comment_column_letter = get_column_letter(comment_column_index)
 
         comment_expected_cell = calendar_sheet.cell(row=expected_row, column=comment_column_index)
@@ -343,24 +373,33 @@ def build_workbook(
         comment_completion_cell.number_format = "0%"
         comment_completion_cell.alignment = Alignment(horizontal="center", vertical="center")
 
-    for row in calendar_sheet.iter_rows(min_row=data_start_row, max_row=data_end_row, min_col=2, max_col=2):
+    for row in calendar_sheet.iter_rows(min_row=data_start_row, max_row=data_end_row, min_col=date_column, max_col=date_column):
         row[0].number_format = "DD/MM/YYYY"
 
-    weekday_values = [calendar_sheet[f"A{row_index}"].value for row_index in range(data_start_row, data_end_row + 1)]
-    date_values = [calendar_sheet[f"B{row_index}"].value.strftime("%d/%m/%Y") for row_index in range(data_start_row, data_end_row + 1)]
-    hour_values = [calendar_sheet[f"C{row_index}"].value for row_index in range(header_main_row, data_end_row + 1)]
-    calendar_sheet.column_dimensions["A"].width = _auto_width_for_column_values(weekday_values)
-    calendar_sheet.column_dimensions["B"].width = _auto_width_for_column_values(date_values)
-    calendar_sheet.column_dimensions["C"].width = _auto_width_for_column_values(hour_values)
-    for row in calendar_sheet.iter_rows(min_row=data_start_row, max_row=data_end_row, min_col=1, max_col=2):
+    weekday_letter = get_column_letter(weekday_column)
+    date_letter = get_column_letter(date_column)
+    hours_letter = get_column_letter(hours_column)
+    weekday_values = [calendar_sheet[f"{weekday_letter}{row_index}"].value for row_index in range(data_start_row, data_end_row + 1)]
+    date_values = [calendar_sheet[f"{date_letter}{row_index}"].value.strftime("%d/%m/%Y") for row_index in range(data_start_row, data_end_row + 1)]
+    hour_values = [calendar_sheet[f"{hours_letter}{row_index}"].value for row_index in range(header_main_row, data_end_row + 1)]
+    calendar_sheet.column_dimensions[weekday_letter].width = _auto_width_for_column_values(weekday_values)
+    calendar_sheet.column_dimensions[date_letter].width = _auto_width_for_column_values(date_values)
+    calendar_sheet.column_dimensions[hours_letter].width = _auto_width_for_column_values(hour_values)
+    if include_week_numbers:
+        week_letter = get_column_letter(week_column)
+        week_values = [calendar_sheet[f"{week_letter}{row_index}"].value for row_index in range(header_main_row, data_end_row + 1)]
+        calendar_sheet.column_dimensions[week_letter].width = _auto_width_for_column_values(week_values)
+    for row in calendar_sheet.iter_rows(min_row=data_start_row, max_row=data_end_row, min_col=1, max_col=date_column):
         for cell in row:
             cell.alignment = Alignment(horizontal="center", vertical="center")
-    for row in calendar_sheet.iter_rows(min_row=header_main_row, max_row=completion_row, min_col=3, max_col=3):
+    for row in calendar_sheet.iter_rows(min_row=header_main_row, max_row=completion_row, min_col=hours_column, max_col=hours_column):
         row[0].alignment = Alignment(horizontal="center", vertical="center")
     for index in range(len(ras)):
-        column_letter = get_column_letter(4 + index)
+        column_letter = get_column_letter(first_ra_column + index)
         calendar_sheet.column_dimensions[column_letter].width = RA_COLUMN_WIDTH
-        for row in calendar_sheet.iter_rows(min_row=header_main_row, max_row=completion_row, min_col=4 + index, max_col=4 + index):
+        for row in calendar_sheet.iter_rows(
+            min_row=header_main_row, max_row=completion_row, min_col=first_ra_column + index, max_col=first_ra_column + index
+        ):
             row[0].alignment = Alignment(horizontal="center", vertical="center")
             if data_start_row <= row[0].row < completion_row and row[0].value is not None:
                 row[0].number_format = "0.00"
@@ -384,7 +423,7 @@ def build_workbook(
             optional_name = (ra.name or "").strip()
             if optional_name == ra.key:
                 continue
-            column_index = 4 + index
+            column_index = first_ra_column + index
             key_cell = calendar_sheet.cell(row=header_main_row, column=column_index)
             name_cell = calendar_sheet.cell(row=header_sub_row, column=column_index)
             key_cell.border = Border(
@@ -404,8 +443,8 @@ def build_workbook(
         for row in calendar_sheet.iter_rows(
             min_row=expected_row,
             max_row=completion_row,
-            min_col=4,
-            max_col=3 + len(ras),
+            min_col=first_ra_column,
+            max_col=first_ra_column - 1 + len(ras),
         ):
             for cell in row:
                 cell.border = THIN_BORDER
@@ -427,7 +466,7 @@ def build_workbook(
     output.seek(0)
 
     if ras:
-        start_column = get_column_letter(4)
+        start_column = get_column_letter(first_ra_column)
         ignored_ranges = [
             f"{start_column}{actual_row}:{comment_column_letter}{actual_row}",
             f"{start_column}{completion_row}:{comment_column_letter}{completion_row}",

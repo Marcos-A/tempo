@@ -22,6 +22,17 @@ def bootstrap_database(db: Session) -> None:
             db.execute(text("ALTER TABLE excluded_periods ADD COLUMN label VARCHAR(255)"))
             db.commit()
 
+    if "academic_year_settings" in inspector.get_table_names():
+        academic_year_columns = {column["name"] for column in inspector.get_columns("academic_year_settings")}
+        if "include_week_numbers_in_export" not in academic_year_columns:
+            db.execute(
+                text(
+                    "ALTER TABLE academic_year_settings "
+                    "ADD COLUMN include_week_numbers_in_export BOOLEAN NOT NULL DEFAULT 0"
+                )
+            )
+            db.commit()
+
     admin = db.scalar(select(AdminUser).where(AdminUser.username == settings.admin_username))
     if admin is None:
         db.add(AdminUser(username=settings.admin_username, password_hash=hash_password(settings.admin_password)))

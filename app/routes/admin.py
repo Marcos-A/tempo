@@ -1,5 +1,6 @@
 """Routes for the protected admin area."""
 
+from datetime import timedelta
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Form, Request, status
@@ -11,9 +12,11 @@ from sqlalchemy.orm import Session
 from app.auth import verify_password
 from app.config import get_settings
 from app.database import get_db
-from app.date_utils import format_display_date, parse_date_input
+from app.date_utils import format_display_date, format_month_label, parse_date_input
 from app.dependencies import require_admin
-from app.models import AcademicYearSetting, AdminUser, ExcludedPeriod
+from app.models import AcademicWeekNumber, AcademicYearSetting, AdminUser, ExcludedPeriod
+from app.services.academic_weeks import is_vacation_week, iter_week_starts, suggest_week_numbers
+from app.services.calendar import expand_excluded_periods
 
 
 router = APIRouter(prefix="/admin", tags=["admin"])
@@ -23,6 +26,7 @@ settings = get_settings()
 templates.env.globals["app_name"] = settings.app_name
 templates.env.globals["school_name"] = settings.school_name
 EXCLUDED_PERIODS_SECTION_ID = "excluded-periods"
+WEEK_FIELD_PREFIX = "week_"
 
 
 def _render_dashboard(
@@ -263,3 +267,102 @@ def delete_period(period_id: int, db: Session = Depends(get_db), _: AdminUser = 
         db.delete(period)
         db.commit()
     return RedirectResponse(url="/admin", status_code=status.HTTP_303_SEE_OTHER)
+
+
+def _build_week_groups(db: Session, settings: AcademicYearSetting) -> list[dict[str, object]]:
+    """Prepare the week grid, grouped by month, for the admin template.
+
+    Weeks already saved in the database keep their stored number. Weeks with
+    no saved number get an editable auto-suggested one, so the admin starts
+    from a full grid instead of a blank one and only has to hand-correct the
+    weeks the school merges or skips.
+    """
+
+    week_starts = iter_week_starts(settings.default_start_date, settings.default_end_date)
+    periods = db.scalars(select(ExcludedPeriod)).all()
+    excluded_dates = expand_excluded_periods([(period.start_date, period.end_date) for period in periods])
+    suggestions = suggest_week_numbers(week_starts, excluded_dates)
+    saved_numbers = {
+        row.week_start_date: row.number for row in db.scalars(select(AcademicWeekNumber)).all()
+    }
+
+    groups: list[dict[str, object]] = []
+    groups_by_month: dict[str, dict[str, object]] = {}
+    for monday in week_starts:
+        month_label = format_month_label(monday)
+        group = groups_by_month.get(month_label)
+        if group is None:
+            group = {"label": month_label, "weeks": []}
+            groups_by_month[month_label] = group
+            groups.append(group)
+        number = saved_numbers.get(monday, suggestions.get(monday))
+        group["weeks"].append(
+            {
+                "field_name": f"{WEEK_FIELD_PREFIX}{monday.isoformat()}",
+                "start": monday,
+                "end": monday + timedelta(days=6),
+                "number": number,
+                "is_vacation_week": is_vacation_week(number, monday, excluded_dates),
+            }
+        )
+    return groups
+
+
+@router.get("/weeks")
+def weeks_page(request: Request, db: Session = Depends(get_db), _: AdminUser = Depends(require_admin)):
+    """Show the week-numbering grid for the current academic year."""
+
+    settings = db.get(AcademicYearSetting, 1)
+    return templates.TemplateResponse(
+        request,
+        "admin/weeks.html",
+        {
+            "week_groups": _build_week_groups(db, settings),
+            "include_week_numbers_in_export": settings.include_week_numbers_in_export,
+            "error": None,
+        },
+    )
+
+
+@router.post("/weeks")
+async def update_weeks(request: Request, db: Session = Depends(get_db), _: AdminUser = Depends(require_admin)):
+    """Bulk-save the week-numbering grid and export toggle submitted from the admin page."""
+
+    settings = db.get(AcademicYearSetting, 1)
+    form_data = dict(await request.form())
+    week_starts = iter_week_starts(settings.default_start_date, settings.default_end_date)
+    existing_rows = {row.week_start_date: row for row in db.scalars(select(AcademicWeekNumber)).all()}
+
+    for monday in week_starts:
+        raw_value = (form_data.get(f"{WEEK_FIELD_PREFIX}{monday.isoformat()}") or "").strip()
+        existing_row = existing_rows.get(monday)
+
+        if not raw_value:
+            if existing_row is not None:
+                db.delete(existing_row)
+            continue
+
+        try:
+            number = int(raw_value)
+            if number <= 0:
+                raise ValueError
+        except ValueError:
+            return templates.TemplateResponse(
+                request,
+                "admin/weeks.html",
+                {
+                    "week_groups": _build_week_groups(db, settings),
+                    "include_week_numbers_in_export": settings.include_week_numbers_in_export,
+                    "error": f"El número de la setmana del {format_display_date(monday)} no és vàlid.",
+                },
+                status_code=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if existing_row is not None:
+            existing_row.number = number
+        else:
+            db.add(AcademicWeekNumber(week_start_date=monday, number=number))
+
+    settings.include_week_numbers_in_export = "include_week_numbers_in_export" in form_data
+    db.commit()
+    return RedirectResponse(url="/admin/weeks", status_code=status.HTTP_303_SEE_OTHER)

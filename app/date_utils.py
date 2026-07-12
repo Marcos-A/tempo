@@ -5,12 +5,22 @@ from datetime import date, datetime
 
 
 DISPLAY_DATE_FORMAT = "%d/%m/%Y"
+CATALAN_MONTH_NAMES = [
+    "Gener", "Febrer", "Març", "Abril", "Maig", "Juny",
+    "Juliol", "Agost", "Setembre", "Octubre", "Novembre", "Desembre",
+]
 
 
 def format_display_date(value: date) -> str:
     """Return a calendar date in the UI's fixed DD/MM/YYYY format."""
 
     return value.strftime(DISPLAY_DATE_FORMAT)
+
+
+def format_month_label(value: date) -> str:
+    """Return a Catalan 'Month YYYY' label for grouping dates by month."""
+
+    return f"{CATALAN_MONTH_NAMES[value.month - 1]} {value.year}"
 
 
 def parse_date_input(value: str) -> date:

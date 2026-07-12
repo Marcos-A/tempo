@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="page-header">
+  <div>
+    <h1>Numeració de setmanes</h1>
+    <p>Assigna el número de setmana oficial segons la planificació de l'equip directiu.</p>
+  </div>
+  <a class="secondary button-link" href="/admin">&larr; Tornar</a>
+</section>
+
+<p class="inline-note">Les setmanes sense cap dia lectiu (vacances) es mostren atenuades i sense número per defecte. Encara pots assignar-los-en un si el calendari oficial ho fa.</p>
+
+{% if error %}
+<p class="error">{{ error }}</p>
+{% endif %}
+
+<form method="post" action="/admin/weeks">
+  <section class="card">
+    <label class="checkbox-label">
+      <input type="checkbox" name="include_week_numbers_in_export" {{ "checked" if include_week_numbers_in_export }} />
+      Inclou el número de setmana al full exportat
+    </label>
+    <p class="inline-note">
+      Només s'inclourà quan el professor planifiqui amb les dates per defecte del curs acadèmic (secció "Curs acadèmic").
+      Si les modifica, la columna no apareixerà.
+    </p>
+  </section>
+  {% for group in week_groups %}
+  <section class="card">
+    <h2>{{ group.label }}</h2>
+    <div class="week-grid">
+      {% for week in group.weeks %}
+      <label class="week-cell{{ ' week-cell--vacation' if week.is_vacation_week else '' }}">
+        {{ week.start|date_display }} - {{ week.end|date_display }}
+        <input
+          type="number"
+          min="1"
+          step="1"
+          name="{{ week.field_name }}"
+          value="{{ week.number if week.number is not none else '' }}"
+          placeholder="{{ 'Vacances' if week.is_vacation_week else '-' }}"
+        />
+      </label>
+      {% endfor %}
+    </div>
+  </section>
+  {% endfor %}
+  <button type="submit">Desa la numeració</button>
+</form>
+{% endblock %}
