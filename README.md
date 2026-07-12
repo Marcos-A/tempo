@@ -6,7 +6,7 @@ The project is intentionally compact. Most business rules live in `app/services/
 
 ## Development note
 
-This project was developed with human direction and review, with assistance from OpenAI Codex for parts of the implementation, refactoring, and deployment workflow documentation.
+This project was developed with human direction and review, with assistance from OpenAI Codex and Anthropic Claude for parts of the implementation, refactoring, and deployment workflow documentation.
 
 ## Stack
 
