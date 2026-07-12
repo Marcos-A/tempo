@@ -58,3 +58,16 @@ def week_number_for_date(value: date, saved_numbers: dict[date, int]) -> int | N
     """Look up the admin-assigned number for the week containing this date."""
 
     return saved_numbers.get(week_start(value))
+
+
+def is_vacation_week(number: int | None, monday: date, excluded_dates: set[date]) -> bool:
+    """Tell whether a blank grid cell represents a deliberate no-class week.
+
+    Used by the admin grid to visually distinguish a week that is blank
+    because it has no teaching potential (expected, harmless) from a week an
+    admin still needs to number. A week the admin has explicitly numbered is
+    never treated as a vacation week, even if it also has no teaching
+    potential, since an explicit number is presumably intentional.
+    """
+
+    return number is None and not week_has_teaching_potential(monday, excluded_dates)

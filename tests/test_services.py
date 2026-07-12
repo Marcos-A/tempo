@@ -12,6 +12,7 @@ from openpyxl import load_workbook
 
 from app.date_utils import format_display_date, format_month_label, parse_date_input
 from app.services.academic_weeks import (
+    is_vacation_week,
     iter_week_starts,
     suggest_week_numbers,
     week_has_teaching_potential,
@@ -671,6 +672,29 @@ def test_week_number_for_date_looks_up_by_week_start():
     saved_numbers = {date(2026, 9, 7): 3}
     assert week_number_for_date(date(2026, 9, 9), saved_numbers) == 3
     assert week_number_for_date(date(2026, 9, 21), saved_numbers) is None
+
+
+def test_is_vacation_week_is_true_for_a_blank_fully_excluded_week():
+    """An unnumbered week with zero teaching potential should read as a vacation week."""
+
+    monday = date(2026, 12, 21)
+    fully_excluded = {monday + timedelta(days=offset) for offset in range(5)}
+    assert is_vacation_week(None, monday, fully_excluded) is True
+
+
+def test_is_vacation_week_is_false_when_a_number_was_explicitly_assigned():
+    """An admin-assigned number always wins, even on an otherwise fully excluded week."""
+
+    monday = date(2026, 12, 21)
+    fully_excluded = {monday + timedelta(days=offset) for offset in range(5)}
+    assert is_vacation_week(7, monday, fully_excluded) is False
+
+
+def test_is_vacation_week_is_false_when_the_week_still_has_teaching_potential():
+    """A blank week that could still be taught is a real gap, not a vacation week."""
+
+    monday = date(2026, 9, 7)
+    assert is_vacation_week(None, monday, set()) is False
 
 
 def test_format_month_label_uses_catalan_month_names():

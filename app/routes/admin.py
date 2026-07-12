@@ -15,7 +15,7 @@ from app.database import get_db
 from app.date_utils import format_display_date, format_month_label, parse_date_input
 from app.dependencies import require_admin
 from app.models import AcademicWeekNumber, AcademicYearSetting, AdminUser, ExcludedPeriod
-from app.services.academic_weeks import iter_week_starts, suggest_week_numbers
+from app.services.academic_weeks import is_vacation_week, iter_week_starts, suggest_week_numbers
 from app.services.calendar import expand_excluded_periods
 
 
@@ -295,12 +295,14 @@ def _build_week_groups(db: Session, settings: AcademicYearSetting) -> list[dict[
             group = {"label": month_label, "weeks": []}
             groups_by_month[month_label] = group
             groups.append(group)
+        number = saved_numbers.get(monday, suggestions.get(monday))
         group["weeks"].append(
             {
                 "field_name": f"{WEEK_FIELD_PREFIX}{monday.isoformat()}",
                 "start": monday,
                 "end": monday + timedelta(days=6),
-                "number": saved_numbers.get(monday, suggestions.get(monday)),
+                "number": number,
+                "is_vacation_week": is_vacation_week(number, monday, excluded_dates),
             }
         )
     return groups

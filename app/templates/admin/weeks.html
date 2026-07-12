@@ -8,6 +8,8 @@
   <a class="secondary button-link" href="/admin">&larr; Tornar</a>
 </section>
 
+<p class="inline-note">Les setmanes sense cap dia lectiu (vacances) es mostren atenuades i sense número per defecte. Encara pots assignar-los-en un si el calendari oficial ho fa.</p>
+
 {% if error %}
 <p class="error">{{ error }}</p>
 {% endif %}
@@ -18,7 +20,7 @@
     <h2>{{ group.label }}</h2>
     <div class="week-grid">
       {% for week in group.weeks %}
-      <label class="week-cell">
+      <label class="week-cell{{ ' week-cell--vacation' if week.is_vacation_week else '' }}">
         {{ week.start|date_display }} - {{ week.end|date_display }}
         <input
           type="number"
@@ -26,7 +28,7 @@
           step="1"
           name="{{ week.field_name }}"
           value="{{ week.number if week.number is not none else '' }}"
-          placeholder="-"
+          placeholder="{{ 'Vacances' if week.is_vacation_week else '-' }}"
         />
       </label>
       {% endfor %}

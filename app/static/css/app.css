@@ -123,6 +123,14 @@ main.container {
   text-align: center;
 }
 
+.week-cell--vacation {
+  opacity: 0.55;
+}
+
+.week-cell--vacation input::placeholder {
+  font-style: italic;
+}
+
 label {
   display: grid;
   gap: 0.35rem;
