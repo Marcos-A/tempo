@@ -14,6 +14,9 @@
     </ul>
     <p class="step-intro-next">Al pas 2 podràs repartir les hores entre les RAs i preparar l'exportació final.</p>
   </div>
+  {% if notice %}
+  <p class="hint">{{ notice }}</p>
+  {% endif %}
   {% if error %}
   <p class="error">{{ error }}</p>
   {% endif %}

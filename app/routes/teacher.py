@@ -4,7 +4,7 @@ import json
 from datetime import date
 
 from fastapi import APIRouter, Depends, Request, status
-from fastapi.responses import StreamingResponse
+from fastapi.responses import RedirectResponse, StreamingResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -241,6 +241,9 @@ def _format_blocks_summary(blocks: list[dict[str, object]], ra_order: list[str],
     return " | ".join(parts)
 
 
+STRAY_ENTRY_NOTICE = "Comença una planificació nova des d'aquí."
+
+
 @router.get("/")
 def index(request: Request, db: Session = Depends(get_db)):
     """Render the first planning step with default academic-year dates."""
@@ -249,11 +252,25 @@ def index(request: Request, db: Session = Depends(get_db)):
     form = {
         "planning_mode": "sequential",
     }
+    notice = STRAY_ENTRY_NOTICE if request.query_params.get("notice") == "start-here" else None
     return templates.TemplateResponse(
         request,
         "teacher/index.html",
-        {"settings": settings, "error": None, "form": form},
+        {"settings": settings, "error": None, "notice": notice, "form": form},
     )
+
+
+@router.get("/plan")
+@router.get("/export")
+def redirect_stray_step_access():
+    """Send direct visits to the step-2/export URLs back to the start of the flow.
+
+    Both routes only accept POST with data produced by the previous step, so a
+    bookmark, page refresh, or shared link that hits them with a plain GET
+    would otherwise surface a raw "Method Not Allowed" response.
+    """
+
+    return RedirectResponse(url="/?notice=start-here", status_code=status.HTTP_303_SEE_OTHER)
 
 
 @router.post("/plan")
