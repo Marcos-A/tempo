@@ -59,6 +59,10 @@ SUMMARY_LABELS = (
 SHEET_MAIN_NS = "http://schemas.openxmlformats.org/spreadsheetml/2006/main"
 COMMENT_COLUMN_WIDTH_MULTIPLIER = 3
 RA_COLUMN_WIDTH = 14
+# Sequential-mode hours are always whole numbers; parallel-mode hours can carry
+# up to two decimal places (see hours.DISPLAY_HOUR_QUANTUM). "0.##" shows only
+# the decimal digits a value actually needs instead of always padding to X.00.
+HOUR_NUMBER_FORMAT = "0.##"
 INSTRUCTION_BANNER = (
     "MODIFIQUEU LES HORES D'UNA DATA CONCRETA PER RECALCULAR AUTOMÀTICAMENT LA RÀTIO D’ACOMPLIMENT"
 )
@@ -357,14 +361,14 @@ def build_workbook(
         )
         comment_expected_cell.font = Font(bold=True)
         comment_expected_cell.alignment = Alignment(horizontal="center", vertical="center")
-        comment_expected_cell.number_format = "0.00"
+        comment_expected_cell.number_format = HOUR_NUMBER_FORMAT
 
         comment_actual_cell = calendar_sheet.cell(row=actual_row, column=comment_column_index)
         comment_actual_cell.value = (
             f"=SUM({first_ra_column_letter}{actual_row}:{last_ra_column_letter}{actual_row})"
         )
         comment_actual_cell.alignment = Alignment(horizontal="center", vertical="center")
-        comment_actual_cell.number_format = "0.00"
+        comment_actual_cell.number_format = HOUR_NUMBER_FORMAT
 
         comment_completion_cell = calendar_sheet.cell(row=completion_row, column=comment_column_index)
         comment_completion_cell.value = (
@@ -402,7 +406,7 @@ def build_workbook(
         ):
             row[0].alignment = Alignment(horizontal="center", vertical="center")
             if data_start_row <= row[0].row < completion_row and row[0].value is not None:
-                row[0].number_format = "0.00"
+                row[0].number_format = HOUR_NUMBER_FORMAT
 
     comment_column_letter = get_column_letter(comment_column_index)
     calendar_sheet.column_dimensions[comment_column_letter].width = RA_COLUMN_WIDTH * COMMENT_COLUMN_WIDTH_MULTIPLIER

@@ -164,6 +164,52 @@ def test_parallel_blocks_can_transfer_unused_hours_in_reverse_direction():
     assert rows[3]["ra_hours"] == {"RA1": 2, "RA2": 0}
 
 
+def test_export_hour_cells_hide_decimals_for_whole_numbers_but_keep_them_for_fractions():
+    """Whole-hour values should render without decimals; fractional ones keep them.
+
+    Sequential-mode hours are always whole numbers, but parallel-mode block
+    splits can land on fractions like 1.33h. Both should share one column, so
+    the number format itself (not the underlying value) must adapt per cell.
+    """
+
+    workbook_io = build_workbook(
+        [
+            {
+                "date": date(2026, 9, 1),
+                "weekday": "Dimarts",
+                "total_hours": 2,
+                "ra_hours": {"RA1": 1.33, "RA2": 0.67},
+            }
+        ],
+        [RAPlan("RA1", "RA1", 1.33), RAPlan("RA2", "RA2", 0.67)],
+        {"Camp": "Valor"},
+    )
+    workbook = load_workbook(workbook_io)
+    sheet = workbook["Calendari"]
+
+    assert sheet["D7"].value == 1.33
+    assert sheet["D7"].number_format == "0.##"
+    assert sheet["D8"].value == 1.33
+    assert sheet["D8"].number_format == "0.##"
+    assert sheet["F8"].number_format == "0.##"
+
+    whole_workbook_io = build_workbook(
+        [
+            {
+                "date": date(2026, 9, 1),
+                "weekday": "Dimarts",
+                "total_hours": 4,
+                "ra_hours": {"RA1": 4},
+            }
+        ],
+        [RAPlan("RA1", "RA1", 4)],
+        {"Camp": "Valor"},
+    )
+    whole_sheet = load_workbook(whole_workbook_io)["Calendari"]
+    assert whole_sheet["D7"].value == 4
+    assert whole_sheet["D7"].number_format == "0.##"
+
+
 def test_export_uses_blank_cells_for_zero_ra_hours():
     """Zero-hour RA cells should stay visually empty in the spreadsheet."""
 
