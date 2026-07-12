@@ -15,6 +15,16 @@
 {% endif %}
 
 <form method="post" action="/admin/weeks">
+  <section class="card">
+    <label class="checkbox-label">
+      <input type="checkbox" name="include_week_numbers_in_export" {{ "checked" if include_week_numbers_in_export }} />
+      Inclou el número de setmana al full exportat
+    </label>
+    <p class="inline-note">
+      Només s'inclourà quan el professor planifiqui amb les dates per defecte del curs acadèmic (secció "Curs acadèmic").
+      Si les modifica, la columna no apareixerà.
+    </p>
+  </section>
   {% for group in week_groups %}
   <section class="card">
     <h2>{{ group.label }}</h2>

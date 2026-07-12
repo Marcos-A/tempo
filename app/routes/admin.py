@@ -316,13 +316,17 @@ def weeks_page(request: Request, db: Session = Depends(get_db), _: AdminUser = D
     return templates.TemplateResponse(
         request,
         "admin/weeks.html",
-        {"week_groups": _build_week_groups(db, settings), "error": None},
+        {
+            "week_groups": _build_week_groups(db, settings),
+            "include_week_numbers_in_export": settings.include_week_numbers_in_export,
+            "error": None,
+        },
     )
 
 
 @router.post("/weeks")
 async def update_weeks(request: Request, db: Session = Depends(get_db), _: AdminUser = Depends(require_admin)):
-    """Bulk-save the week-numbering grid submitted from the admin page."""
+    """Bulk-save the week-numbering grid and export toggle submitted from the admin page."""
 
     settings = db.get(AcademicYearSetting, 1)
     form_data = dict(await request.form())
@@ -348,6 +352,7 @@ async def update_weeks(request: Request, db: Session = Depends(get_db), _: Admin
                 "admin/weeks.html",
                 {
                     "week_groups": _build_week_groups(db, settings),
+                    "include_week_numbers_in_export": settings.include_week_numbers_in_export,
                     "error": f"El número de la setmana del {format_display_date(monday)} no és vàlid.",
                 },
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -358,5 +363,6 @@ async def update_weeks(request: Request, db: Session = Depends(get_db), _: Admin
         else:
             db.add(AcademicWeekNumber(week_start_date=monday, number=number))
 
+    settings.include_week_numbers_in_export = "include_week_numbers_in_export" in form_data
     db.commit()
     return RedirectResponse(url="/admin/weeks", status_code=status.HTTP_303_SEE_OTHER)

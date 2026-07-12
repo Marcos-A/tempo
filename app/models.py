@@ -2,7 +2,7 @@
 
 from datetime import date, datetime
 
-from sqlalchemy import Date, DateTime, Integer, String
+from sqlalchemy import Boolean, Date, DateTime, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
@@ -27,6 +27,7 @@ class AcademicYearSetting(Base):
     id: Mapped[int] = mapped_column(primary_key=True, default=1)
     default_start_date: Mapped[date] = mapped_column(Date)
     default_end_date: Mapped[date] = mapped_column(Date)
+    include_week_numbers_in_export: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 

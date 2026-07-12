@@ -305,9 +305,14 @@ async def prepare_plan(request: Request, db: Session = Depends(get_db)):
 
     # Week numbers come from the school's official academic-year calendar, so
     # they only make sense when the teacher is planning against that exact
-    # window. A custom start/end date has no guaranteed relationship to the
-    # school's published week numbering, so the column is left out entirely.
-    include_week_numbers = start_date == settings.default_start_date and end_date == settings.default_end_date
+    # window, and only when the admin has opted in on /admin/weeks. A custom
+    # start/end date has no guaranteed relationship to the school's published
+    # week numbering, so the column is left out entirely regardless of the toggle.
+    include_week_numbers = (
+        settings.include_week_numbers_in_export
+        and start_date == settings.default_start_date
+        and end_date == settings.default_end_date
+    )
     week_numbers_by_date = _week_numbers_for_schedule(db, schedule) if include_week_numbers else {}
 
     plan_payload = {
