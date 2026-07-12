@@ -164,12 +164,14 @@ def test_parallel_blocks_can_transfer_unused_hours_in_reverse_direction():
     assert rows[3]["ra_hours"] == {"RA1": 2, "RA2": 0}
 
 
-def test_export_hour_cells_hide_decimals_for_whole_numbers_but_keep_them_for_fractions():
-    """Whole-hour values should render without decimals; fractional ones keep them.
+def test_export_hour_cells_use_general_format_so_whole_numbers_show_no_decimals():
+    """Hour cells should use Excel's "General" format, not a custom decimal mask.
 
     Sequential-mode hours are always whole numbers, but parallel-mode block
-    splits can land on fractions like 1.33h. Both should share one column, so
-    the number format itself (not the underlying value) must adapt per cell.
+    splits can land on fractions like 1.33h. A custom format such as "0.##"
+    looks fine in Excel but some readers (e.g. Google Sheets) render a
+    whole-number result as "2." with a dangling decimal separator, so
+    "General" is used instead: it always renders a value's natural form.
     """
 
     workbook_io = build_workbook(
@@ -188,10 +190,10 @@ def test_export_hour_cells_hide_decimals_for_whole_numbers_but_keep_them_for_fra
     sheet = workbook["Calendari"]
 
     assert sheet["D7"].value == 1.33
-    assert sheet["D7"].number_format == "0.##"
+    assert sheet["D7"].number_format == "General"
     assert sheet["D8"].value == 1.33
-    assert sheet["D8"].number_format == "0.##"
-    assert sheet["F8"].number_format == "0.##"
+    assert sheet["D8"].number_format == "General"
+    assert sheet["F8"].number_format == "General"
 
     whole_workbook_io = build_workbook(
         [
@@ -207,7 +209,7 @@ def test_export_hour_cells_hide_decimals_for_whole_numbers_but_keep_them_for_fra
     )
     whole_sheet = load_workbook(whole_workbook_io)["Calendari"]
     assert whole_sheet["D7"].value == 4
-    assert whole_sheet["D7"].number_format == "0.##"
+    assert whole_sheet["D7"].number_format == "General"
 
 
 def test_export_uses_blank_cells_for_zero_ra_hours():
@@ -277,14 +279,14 @@ def test_export_uses_blank_cells_for_zero_ra_hours():
     assert sheet["D8"].border.left.style == "thin"
     assert sheet["D8"].value == 4
     assert sheet["E8"].value == 0
-    assert sheet["F8"].value == "=SUM(D8:E8)"
+    assert sheet["F8"].value == "=ROUND(SUM(D8:E8),2)"
     assert sheet["F8"].alignment.horizontal == "center"
     assert sheet["F8"].font.bold is True
     assert sheet["D8"].fill.fgColor.rgb == "00E7EFD8"
     assert sheet["E8"].fill.fgColor.rgb == "00D8EBF2"
-    assert sheet["D9"].value == "=SUM(D7:D7)"
-    assert sheet["E9"].value == "=SUM(E7:E7)"
-    assert sheet["F9"].value == "=SUM(D9:E9)"
+    assert sheet["D9"].value == "=ROUND(SUM(D7:D7),2)"
+    assert sheet["E9"].value == "=ROUND(SUM(E7:E7),2)"
+    assert sheet["F9"].value == "=ROUND(SUM(D9:E9),2)"
     assert sheet["F9"].alignment.horizontal == "center"
     assert sheet["D10"].value == '=IFERROR(D9/D8,"")'
     assert sheet["E10"].value == '=IFERROR(E9/E8,"")'
@@ -320,10 +322,10 @@ def test_export_summary_rows_use_formulas_for_real_and_completion_hours():
     sheet = workbook["Calendari"]
     assert sheet["D9"].value == 3
     assert sheet["E9"].value == 2
-    assert sheet["F9"].value == "=SUM(D9:E9)"
-    assert sheet["D10"].value == "=SUM(D7:D8)"
-    assert sheet["E10"].value == "=SUM(E7:E8)"
-    assert sheet["F10"].value == "=SUM(D10:E10)"
+    assert sheet["F9"].value == "=ROUND(SUM(D9:E9),2)"
+    assert sheet["D10"].value == "=ROUND(SUM(D7:D8),2)"
+    assert sheet["E10"].value == "=ROUND(SUM(E7:E8),2)"
+    assert sheet["F10"].value == "=ROUND(SUM(D10:E10),2)"
     assert sheet["D11"].value == '=IFERROR(D10/D9,"")'
     assert sheet["E11"].value == '=IFERROR(E10/E9,"")'
     assert sheet["F11"].value == '=IFERROR(F10/F9,"")'

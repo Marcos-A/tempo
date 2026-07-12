@@ -60,9 +60,13 @@ SHEET_MAIN_NS = "http://schemas.openxmlformats.org/spreadsheetml/2006/main"
 COMMENT_COLUMN_WIDTH_MULTIPLIER = 3
 RA_COLUMN_WIDTH = 14
 # Sequential-mode hours are always whole numbers; parallel-mode hours can carry
-# up to two decimal places (see hours.DISPLAY_HOUR_QUANTUM). "0.##" shows only
-# the decimal digits a value actually needs instead of always padding to X.00.
-HOUR_NUMBER_FORMAT = "0.##"
+# up to two decimal places (see hours.DISPLAY_HOUR_QUANTUM). "General" shows a
+# value using its natural representation instead of padding to a fixed decimal
+# count. A custom format like "0.##" looks equivalent in Excel, but some readers
+# (e.g. Google Sheets) render a whole-number result as "2." with a dangling
+# decimal separator, so "General" is the one format that renders consistently
+# everywhere.
+HOUR_NUMBER_FORMAT = "General"
 INSTRUCTION_BANNER = (
     "MODIFIQUEU LES HORES D'UNA DATA CONCRETA PER RECALCULAR AUTOMÀTICAMENT LA RÀTIO D’ACOMPLIMENT"
 )
@@ -342,7 +346,7 @@ def build_workbook(
         _apply_ra_fill(expected_cell, index)
 
         actual_cell = calendar_sheet.cell(row=actual_row, column=column_index)
-        actual_cell.value = f"=SUM({column_letter}{data_start_row}:{column_letter}{data_end_row})"
+        actual_cell.value = f"=ROUND(SUM({column_letter}{data_start_row}:{column_letter}{data_end_row}),2)"
         actual_cell.alignment = Alignment(horizontal="center", vertical="center")
 
         completion_cell = calendar_sheet.cell(row=completion_row, column=column_index)
@@ -357,7 +361,7 @@ def build_workbook(
 
         comment_expected_cell = calendar_sheet.cell(row=expected_row, column=comment_column_index)
         comment_expected_cell.value = (
-            f"=SUM({first_ra_column_letter}{expected_row}:{last_ra_column_letter}{expected_row})"
+            f"=ROUND(SUM({first_ra_column_letter}{expected_row}:{last_ra_column_letter}{expected_row}),2)"
         )
         comment_expected_cell.font = Font(bold=True)
         comment_expected_cell.alignment = Alignment(horizontal="center", vertical="center")
@@ -365,7 +369,7 @@ def build_workbook(
 
         comment_actual_cell = calendar_sheet.cell(row=actual_row, column=comment_column_index)
         comment_actual_cell.value = (
-            f"=SUM({first_ra_column_letter}{actual_row}:{last_ra_column_letter}{actual_row})"
+            f"=ROUND(SUM({first_ra_column_letter}{actual_row}:{last_ra_column_letter}{actual_row}),2)"
         )
         comment_actual_cell.alignment = Alignment(horizontal="center", vertical="center")
         comment_actual_cell.number_format = HOUR_NUMBER_FORMAT
