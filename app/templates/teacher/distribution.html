@@ -485,11 +485,17 @@
             : `Hi ha ${emptyRaCount} RAs sense hores assignades.`
         );
       }
-      if (remaining !== 0) {
+      if (remaining > 0) {
         blockedReasons.push(
           planningMode === "parallel"
             ? "Encara queda temps pendent d'assignar."
             : "Encara queden hores pendents d'assignar."
+        );
+      } else if (remaining < 0) {
+        blockedReasons.push(
+          planningMode === "parallel"
+            ? `S'ha assignat ${formatMinutes(Math.abs(remaining))} de més del temps disponible.`
+            : `S'han assignat ${Math.abs(remaining)} h de més de les disponibles.`
         );
       }
       exportBlockedNote.hidden = blockedReasons.length === 0;
