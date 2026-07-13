@@ -34,6 +34,7 @@ def _render_dashboard(
     settings: AcademicYearSetting,
     periods: list[ExcludedPeriod],
     archived_years: list[AcademicYearArchive],
+    viewing_archive: AcademicYearArchive | None = None,
     error: str | None = None,
     focus_section: str | None = None,
     status_code: int = status.HTTP_200_OK,
@@ -47,6 +48,7 @@ def _render_dashboard(
             "settings": settings,
             "periods": periods,
             "archived_years": archived_years,
+            "viewing_archive": viewing_archive,
             "error": error,
             "focus_section": focus_section,
         },
@@ -60,6 +62,22 @@ def _suggest_year_label(start_date, end_date) -> str:
     if start_date.year == end_date.year:
         return str(start_date.year)
     return f"{start_date.year}-{end_date.year % 100:02d}"
+
+
+def _periods_in_range(db: Session, start_date, end_date) -> list[ExcludedPeriod]:
+    """Excluded periods that overlap the given date range.
+
+    Used to show only the active academic year's exclusions by default
+    (there's no year foreign key on ExcludedPeriod; scoping is purely by
+    date overlap, which also lets a past AcademicYearArchive's own
+    start/end date be reused to "load" that year's periods on demand).
+    """
+
+    return db.scalars(
+        select(ExcludedPeriod)
+        .where(ExcludedPeriod.start_date <= end_date, ExcludedPeriod.end_date >= start_date)
+        .order_by(ExcludedPeriod.start_date, ExcludedPeriod.end_date)
+    ).all()
 
 
 @router.get("/login")
@@ -96,19 +114,42 @@ def logout(request: Request):
 
 @router.get("")
 def admin_dashboard(request: Request, db: Session = Depends(get_db), _: AdminUser = Depends(require_admin)):
-    """Show the settings page for dates and excluded periods."""
+    """Show the settings page for dates and excluded periods.
+
+    By default only shows exclusions overlapping the active academic year.
+    Passing ?view_year=<archive id> switches to a read-only view of a past
+    year's exclusions instead, using that archive's own date range.
+    """
 
     settings = db.get(AcademicYearSetting, 1)
-    periods = db.scalars(select(ExcludedPeriod).order_by(ExcludedPeriod.start_date, ExcludedPeriod.end_date)).all()
     archived_years = db.scalars(
         select(AcademicYearArchive).order_by(AcademicYearArchive.start_date.desc())
     ).all()
+
+    viewing_archive = None
+    view_year_raw = request.query_params.get("view_year")
+    if view_year_raw and view_year_raw.isdigit():
+        viewing_archive = db.get(AcademicYearArchive, int(view_year_raw))
+
+    if viewing_archive is not None:
+        periods = _periods_in_range(db, viewing_archive.start_date, viewing_archive.end_date)
+    else:
+        periods = _periods_in_range(db, settings.default_start_date, settings.default_end_date)
+
     error = None
     focus_section = None
     if request.query_params.get("error") == "invalid-period":
         error = "La data de fi no pot ser anterior a la data d'inici."
         focus_section = EXCLUDED_PERIODS_SECTION_ID
-    return _render_dashboard(request, settings, periods, archived_years, error=error, focus_section=focus_section)
+    return _render_dashboard(
+        request,
+        settings,
+        periods,
+        archived_years,
+        viewing_archive=viewing_archive,
+        error=error,
+        focus_section=focus_section,
+    )
 
 
 @router.post("/settings")
@@ -128,7 +169,7 @@ def update_settings(
     """
 
     settings = db.get(AcademicYearSetting, 1)
-    periods = db.scalars(select(ExcludedPeriod).order_by(ExcludedPeriod.start_date, ExcludedPeriod.end_date)).all()
+    periods = _periods_in_range(db, settings.default_start_date, settings.default_end_date)
     archived_years = db.scalars(
         select(AcademicYearArchive).order_by(AcademicYearArchive.start_date.desc())
     ).all()
@@ -196,7 +237,7 @@ def add_period(
     """
 
     settings = db.get(AcademicYearSetting, 1)
-    periods = db.scalars(select(ExcludedPeriod).order_by(ExcludedPeriod.start_date, ExcludedPeriod.end_date)).all()
+    periods = _periods_in_range(db, settings.default_start_date, settings.default_end_date)
     archived_years = db.scalars(
         select(AcademicYearArchive).order_by(AcademicYearArchive.start_date.desc())
     ).all()
@@ -258,7 +299,7 @@ def update_period(
     """Edit one previously saved excluded period."""
 
     settings = db.get(AcademicYearSetting, 1)
-    periods = db.scalars(select(ExcludedPeriod).order_by(ExcludedPeriod.start_date, ExcludedPeriod.end_date)).all()
+    periods = _periods_in_range(db, settings.default_start_date, settings.default_end_date)
     archived_years = db.scalars(
         select(AcademicYearArchive).order_by(AcademicYearArchive.start_date.desc())
     ).all()
