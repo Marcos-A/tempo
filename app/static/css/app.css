@@ -509,7 +509,10 @@ button:disabled {
 .ra-count-card input {
   width: 100%;
   max-width: 5.5rem;
-  padding: 0.7rem 0.75rem;
+  /* Extra left padding compensates for the native number-spinner gutter
+     the browser reserves on the right, so the digit centers visually
+     within the whole box instead of the box minus that gutter. */
+  padding: 0.7rem 0.75rem 0.7rem calc(0.75rem + 20px);
   text-align: center;
   font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
