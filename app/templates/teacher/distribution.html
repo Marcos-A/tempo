@@ -401,7 +401,8 @@
     });
 
     const remaining = (planningMode === "parallel" ? totalAvailableMinutes : totalAvailable) - assigned;
-    const hasEmptyRa = Object.values(planningMode === "parallel" ? minutes : hours).some((value) => value === 0);
+    const emptyRaCount = Object.values(planningMode === "parallel" ? minutes : hours).filter((value) => value === 0).length;
+    const hasEmptyRa = emptyRaCount > 0;
     if (remainingHoursEl) {
       remainingHoursEl.textContent = planningMode === "parallel" ? formatSignedMinutes(remaining) : remaining;
       remainingHoursEl.className = `block-pending-hours ${pendingHoursStatusClass(remaining)}`;
@@ -476,18 +477,23 @@
     }
     exportButton.disabled = remaining !== 0 || hasEmptyRa;
     if (exportBlockedNote) {
+      const blockedReasons = [];
       if (hasEmptyRa) {
-        exportBlockedNote.textContent = "Hi ha una RA sense hores assignades.";
-        exportBlockedNote.hidden = false;
-      } else if (remaining !== 0) {
-        exportBlockedNote.textContent = planningMode === "parallel"
-          ? "Encara queda temps pendent d'assignar."
-          : "Encara queden hores pendents d'assignar.";
-        exportBlockedNote.hidden = false;
-      } else {
-        exportBlockedNote.hidden = true;
-        exportBlockedNote.textContent = "";
+        blockedReasons.push(
+          emptyRaCount === 1
+            ? "Hi ha una RA sense hores assignades."
+            : `Hi ha ${emptyRaCount} RAs sense hores assignades.`
+        );
       }
+      if (remaining !== 0) {
+        blockedReasons.push(
+          planningMode === "parallel"
+            ? "Encara queda temps pendent d'assignar."
+            : "Encara queden hores pendents d'assignar."
+        );
+      }
+      exportBlockedNote.hidden = blockedReasons.length === 0;
+      exportBlockedNote.textContent = blockedReasons.join(" ");
     }
     raOrderInput.value = JSON.stringify(order);
     raNamesInput.value = JSON.stringify(names);
