@@ -14,7 +14,7 @@ from app.config import get_settings
 from app.database import get_db
 from app.date_utils import format_display_date, format_month_label, parse_date_input
 from app.dependencies import require_admin
-from app.models import AcademicWeekNumber, AcademicYearSetting, AdminUser, ExcludedPeriod
+from app.models import AcademicWeekNumber, AcademicYearArchive, AcademicYearSetting, AdminUser, ExcludedPeriod
 from app.services.academic_weeks import is_vacation_week, iter_week_starts, suggest_week_numbers
 from app.services.calendar import expand_excluded_periods
 
@@ -33,6 +33,7 @@ def _render_dashboard(
     request: Request,
     settings: AcademicYearSetting,
     periods: list[ExcludedPeriod],
+    archived_years: list[AcademicYearArchive],
     error: str | None = None,
     focus_section: str | None = None,
     status_code: int = status.HTTP_200_OK,
@@ -42,9 +43,23 @@ def _render_dashboard(
     return templates.TemplateResponse(
         request,
         "admin/dashboard.html",
-        {"settings": settings, "periods": periods, "error": error, "focus_section": focus_section},
+        {
+            "settings": settings,
+            "periods": periods,
+            "archived_years": archived_years,
+            "error": error,
+            "focus_section": focus_section,
+        },
         status_code=status_code,
     )
+
+
+def _suggest_year_label(start_date, end_date) -> str:
+    """Derive a "2026-27"-style label from a date range when the admin leaves it blank."""
+
+    if start_date.year == end_date.year:
+        return str(start_date.year)
+    return f"{start_date.year}-{end_date.year % 100:02d}"
 
 
 @router.get("/login")
@@ -85,12 +100,15 @@ def admin_dashboard(request: Request, db: Session = Depends(get_db), _: AdminUse
 
     settings = db.get(AcademicYearSetting, 1)
     periods = db.scalars(select(ExcludedPeriod).order_by(ExcludedPeriod.start_date, ExcludedPeriod.end_date)).all()
+    archived_years = db.scalars(
+        select(AcademicYearArchive).order_by(AcademicYearArchive.start_date.desc())
+    ).all()
     error = None
     focus_section = None
     if request.query_params.get("error") == "invalid-period":
         error = "La data de fi no pot ser anterior a la data d'inici."
         focus_section = EXCLUDED_PERIODS_SECTION_ID
-    return _render_dashboard(request, settings, periods, error=error, focus_section=focus_section)
+    return _render_dashboard(request, settings, periods, archived_years, error=error, focus_section=focus_section)
 
 
 @router.post("/settings")
@@ -98,13 +116,22 @@ def update_settings(
     request: Request,
     default_start_date_raw: str = Form(..., alias="default_start_date"),
     default_end_date_raw: str = Form(..., alias="default_end_date"),
+    year_label_raw: str = Form("", alias="year_label"),
     db: Session = Depends(get_db),
     _: AdminUser = Depends(require_admin),
 ):
-    """Update the default planning window used by the teacher form."""
+    """Update the default planning window used by the teacher form.
+
+    Archives the outgoing dates first whenever they're actually changing, so
+    switching to a new academic year automatically leaves the previous one
+    behind for reference instead of requiring a separate "archive" step.
+    """
 
     settings = db.get(AcademicYearSetting, 1)
     periods = db.scalars(select(ExcludedPeriod).order_by(ExcludedPeriod.start_date, ExcludedPeriod.end_date)).all()
+    archived_years = db.scalars(
+        select(AcademicYearArchive).order_by(AcademicYearArchive.start_date.desc())
+    ).all()
 
     try:
         default_start_date = parse_date_input(default_start_date_raw)
@@ -114,6 +141,7 @@ def update_settings(
             request,
             settings,
             periods,
+            archived_years,
             error=str(exc),
             focus_section=EXCLUDED_PERIODS_SECTION_ID,
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -124,10 +152,28 @@ def update_settings(
             request,
             settings,
             periods,
+            archived_years,
             error="La data de fi no pot ser anterior a la data d'inici.",
             status_code=status.HTTP_400_BAD_REQUEST,
         )
 
+    dates_changed = (
+        settings.default_start_date != default_start_date or settings.default_end_date != default_end_date
+    )
+    # Only archive when the outgoing row was itself a real, previously-saved
+    # year (settings.label is unset for the bootstrap placeholder), so the
+    # very first admin save doesn't create a bogus "previous year" entry.
+    if dates_changed and settings.label:
+        db.add(
+            AcademicYearArchive(
+                label=settings.label,
+                start_date=settings.default_start_date,
+                end_date=settings.default_end_date,
+            )
+        )
+
+    year_label = year_label_raw.strip() or _suggest_year_label(default_start_date, default_end_date)
+    settings.label = year_label
     settings.default_start_date = default_start_date
     settings.default_end_date = default_end_date
     db.commit()
@@ -151,6 +197,9 @@ def add_period(
 
     settings = db.get(AcademicYearSetting, 1)
     periods = db.scalars(select(ExcludedPeriod).order_by(ExcludedPeriod.start_date, ExcludedPeriod.end_date)).all()
+    archived_years = db.scalars(
+        select(AcademicYearArchive).order_by(AcademicYearArchive.start_date.desc())
+    ).all()
 
     try:
         start_date = parse_date_input(start_date_raw)
@@ -160,6 +209,7 @@ def add_period(
             request,
             settings,
             periods,
+            archived_years,
             error=str(exc),
             focus_section=EXCLUDED_PERIODS_SECTION_ID,
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -184,6 +234,7 @@ def add_period(
             request,
             settings,
             periods,
+            archived_years,
             error=error_message,
             focus_section=EXCLUDED_PERIODS_SECTION_ID,
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -208,6 +259,9 @@ def update_period(
 
     settings = db.get(AcademicYearSetting, 1)
     periods = db.scalars(select(ExcludedPeriod).order_by(ExcludedPeriod.start_date, ExcludedPeriod.end_date)).all()
+    archived_years = db.scalars(
+        select(AcademicYearArchive).order_by(AcademicYearArchive.start_date.desc())
+    ).all()
     period = db.get(ExcludedPeriod, period_id)
 
     if period is None:
@@ -221,6 +275,7 @@ def update_period(
             request,
             settings,
             periods,
+            archived_years,
             error=str(exc),
             focus_section=EXCLUDED_PERIODS_SECTION_ID,
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -246,6 +301,7 @@ def update_period(
             request,
             settings,
             periods,
+            archived_years,
             error=error_message,
             focus_section=EXCLUDED_PERIODS_SECTION_ID,
             status_code=status.HTTP_400_BAD_REQUEST,

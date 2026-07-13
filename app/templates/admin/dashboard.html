@@ -19,8 +19,13 @@
 
 <div class="two-column">
   <section class="card">
-    <h2>Curs acadèmic</h2>
+    <h2>Curs acadèmic{% if settings.label %} — {{ settings.label }}{% endif %}</h2>
     <form method="post" action="/admin/settings" class="form-grid">
+      <label>
+        Curs
+        <span class="optional-label">Opcional; si es deixa buit es dedueix de les dates</span>
+        <input type="text" name="year_label" value="{{ settings.label or '' }}" placeholder="P.ex. 2026-27" maxlength="50" />
+      </label>
       <label>
         Data d'inici per defecte
         <input class="date-input" type="text" name="default_start_date" value="{{ settings.default_start_date|date_display }}" placeholder="DD/MM/AAAA" inputmode="numeric" pattern="\d{1,2}/\d{1,2}/\d{2,4}" required />
@@ -31,6 +36,22 @@
       </label>
       <button type="submit">Desa la configuració</button>
     </form>
+    {% if archived_years %}
+    <details class="summary-disclosure">
+      <summary>
+        <span>Cursos anteriors</span>
+        <small>{{ archived_years|length }}</small>
+      </summary>
+      <div class="summary-disclosure-table" role="table" aria-label="Cursos acadèmics anteriors">
+        {% for year in archived_years %}
+        <div class="summary-disclosure-row" role="row">
+          <div class="summary-disclosure-date" role="cell">{{ year.label }}</div>
+          <div class="summary-disclosure-hours" role="cell">{{ year.start_date|date_display }} – {{ year.end_date|date_display }}</div>
+        </div>
+        {% endfor %}
+      </div>
+    </details>
+    {% endif %}
   </section>
 
   <section class="card" id="excluded-periods">

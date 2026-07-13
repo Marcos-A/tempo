@@ -25,10 +25,28 @@ class AcademicYearSetting(Base):
     __tablename__ = "academic_year_settings"
 
     id: Mapped[int] = mapped_column(primary_key=True, default=1)
+    label: Mapped[str | None] = mapped_column(String(50), nullable=True)
     default_start_date: Mapped[date] = mapped_column(Date)
     default_end_date: Mapped[date] = mapped_column(Date)
     include_week_numbers_in_export: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class AcademicYearArchive(Base):
+    """Read-only snapshot of a previous academic year's default planning window.
+
+    Written automatically when the admin changes the active dates in
+    AcademicYearSetting, so past years stay consultable without the
+    singleton settings row needing to track more than "the current one".
+    """
+
+    __tablename__ = "academic_year_archive"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    label: Mapped[str] = mapped_column(String(50))
+    start_date: Mapped[date] = mapped_column(Date)
+    end_date: Mapped[date] = mapped_column(Date)
+    archived_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
 
 class ExcludedPeriod(Base):

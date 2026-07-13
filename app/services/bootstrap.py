@@ -32,6 +32,9 @@ def bootstrap_database(db: Session) -> None:
                 )
             )
             db.commit()
+        if "label" not in academic_year_columns:
+            db.execute(text("ALTER TABLE academic_year_settings ADD COLUMN label VARCHAR(50)"))
+            db.commit()
 
     admin = db.scalar(select(AdminUser).where(AdminUser.username == settings.admin_username))
     if admin is None:
