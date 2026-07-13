@@ -27,7 +27,7 @@
 {% if not viewing_archive %}
 <div class="two-column">
   <section class="card">
-    <h2>Curs acadèmic{% if settings.label %} — {{ settings.label }}{% endif %}</h2>
+    <h2>Curs acadèmic{% if settings.label %} {{ settings.label }}{% endif %}</h2>
     <form method="post" action="/admin/settings" class="form-grid">
       <label>
         Curs
