@@ -17,10 +17,23 @@
 <p class="error">{{ error }}</p>
 {% endif %}
 
+{% if viewing_archive %}
+<p class="remaining-box-note">
+  Mostrant les exclusions del curs {{ viewing_archive.label }} ({{ viewing_archive.start_date|date_display }} – {{ viewing_archive.end_date|date_display }}), només lectura.
+  <a href="/admin">Torna al curs actual</a>
+</p>
+{% endif %}
+
+{% if not viewing_archive %}
 <div class="two-column">
   <section class="card">
-    <h2>Curs acadèmic</h2>
+    <h2>Curs acadèmic{% if settings.label %} {{ settings.label }}{% endif %}</h2>
     <form method="post" action="/admin/settings" class="form-grid">
+      <label>
+        Curs
+        <span class="optional-label">Opcional; si es deixa buit es dedueix de les dates</span>
+        <input type="text" name="year_label" value="{{ settings.label or '' }}" placeholder="P.ex. 2026-27" maxlength="50" />
+      </label>
       <label>
         Data d'inici per defecte
         <input class="date-input" type="text" name="default_start_date" value="{{ settings.default_start_date|date_display }}" placeholder="DD/MM/AAAA" inputmode="numeric" pattern="\d{1,2}/\d{1,2}/\d{2,4}" required />
@@ -31,6 +44,25 @@
       </label>
       <button type="submit">Desa la configuració</button>
     </form>
+    {% if archived_years %}
+    <details class="summary-disclosure">
+      <summary>
+        <span>Cursos anteriors</span>
+        <small>{{ archived_years|length }}</small>
+      </summary>
+      <div class="summary-disclosure-table" role="table" aria-label="Cursos acadèmics anteriors">
+        {% for year in archived_years %}
+        <div class="summary-disclosure-row" role="row">
+          <div class="summary-disclosure-date" role="cell">{{ year.label }}</div>
+          <div class="summary-disclosure-hours" role="cell">
+            {{ year.start_date|date_display }} – {{ year.end_date|date_display }}
+            <a href="/admin?view_year={{ year.id }}">Consulta</a>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </details>
+    {% endif %}
   </section>
 
   <section class="card" id="excluded-periods">
@@ -55,10 +87,33 @@
     </form>
   </section>
 </div>
+{% endif %}
 
 <section class="card">
-  <h2>Exclusions existents</h2>
+  <h2>Exclusions {% if viewing_archive %}del curs {{ viewing_archive.label }}{% else %}existents{% endif %}</h2>
   {% if periods %}
+  {% if viewing_archive %}
+  <table>
+    <thead>
+      <tr>
+        <th>Data d'inici</th>
+        <th>Data de fi</th>
+        <th>Nom</th>
+        <th>Tipus</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for period in periods %}
+      <tr>
+        <td>{{ period.start_date|date_display }}</td>
+        <td>{{ period.end_date|date_display }}</td>
+        <td>{{ period.label or '' }}</td>
+        <td>{{ "Data única" if period.start_date == period.end_date else "Interval" }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
   <table>
     <thead>
       <tr>
@@ -130,8 +185,9 @@
       {% endfor %}
     </tbody>
   </table>
+  {% endif %}
   {% else %}
-  <p>No hi ha exclusions configurades.</p>
+  <p>No hi ha exclusions {% if viewing_archive %}registrades per aquest curs{% else %}configurades{% endif %}.</p>
   {% endif %}
 </section>
 {% if focus_section %}
