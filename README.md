@@ -1,6 +1,6 @@
 # Curriculum Planner MVP
 
-Curriculum Planner is a small FastAPI app to schedule a module across an academic year, exclude no-class dates, distribute Resultats d'Aprenentatge (RAs), and export an XLSX planning workbook.
+Curriculum Planner is a small FastAPI app to schedule a module across an academic year, exclude no-class dates, distribute Resultats d'Aprenentatge (RAs), and export an XLSX planning workbook. Branded and deployed as **Tempo**.
 
 The project is intentionally compact. Most business rules live in `app/services/`, while `app/routes/` handles HTTP requests and `app/templates/` renders the interface.
 
@@ -110,6 +110,12 @@ Deploy it with:
 bash scripts/deploy_preview.sh
 ```
 
+## Design assets
+
+- `design/tempo-brand-guide.md`: logo usage, color palette, and wordmark typography reference.
+- `app/static/img/`: the logo SVGs described in the brand guide (marks, wordmarks, lockups, app icon, favicon).
+- `app/static/fonts/`: self-hosted Inter (latin subset), matching the wordmark's typeface, used for headings and body text.
+
 ## Environment variables
 
 - `APP_NAME`: main app name shown in the UI
@@ -200,7 +206,11 @@ app/
   routes/
   services/
   static/
+    css/
+    fonts/
+    img/
   templates/
+design/
 scripts/
 tests/
 Dockerfile

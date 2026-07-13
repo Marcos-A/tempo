@@ -119,8 +119,7 @@
 
     <div class="export-actions">
       <button type="submit" id="export-button" disabled>Exporta l'XLSX</button>
-      {% if summary.planning_mode == "parallel" %}
-      {% endif %}
+      <p id="export-blocked-note" class="error" hidden></p>
     </div>
       </form>
     </div>
@@ -147,6 +146,7 @@
   const totalAvailableMinutes = Number(planData.total_available_minutes || (totalAvailable * 60));
   const minuteChoices = Array.from({ length: 12 }, (_, index) => index * 5);
   const exportButton = document.getElementById("export-button");
+  const exportBlockedNote = document.getElementById("export-blocked-note");
   const planJsonInput = document.getElementById("plan-json-input");
   const remainingHoursEl = document.getElementById("remaining-hours");
   const blockEndDateEls = Object.fromEntries(
@@ -401,7 +401,8 @@
     });
 
     const remaining = (planningMode === "parallel" ? totalAvailableMinutes : totalAvailable) - assigned;
-    const hasEmptyRa = Object.values(planningMode === "parallel" ? minutes : hours).some((value) => value === 0);
+    const emptyRaCount = Object.values(planningMode === "parallel" ? minutes : hours).filter((value) => value === 0).length;
+    const hasEmptyRa = emptyRaCount > 0;
     if (remainingHoursEl) {
       remainingHoursEl.textContent = planningMode === "parallel" ? formatSignedMinutes(remaining) : remaining;
       remainingHoursEl.className = `block-pending-hours ${pendingHoursStatusClass(remaining)}`;
@@ -475,6 +476,31 @@
       }
     }
     exportButton.disabled = remaining !== 0 || hasEmptyRa;
+    if (exportBlockedNote) {
+      const blockedReasons = [];
+      if (hasEmptyRa) {
+        blockedReasons.push(
+          emptyRaCount === 1
+            ? "Hi ha una RA sense hores assignades."
+            : `Hi ha ${emptyRaCount} RAs sense hores assignades.`
+        );
+      }
+      if (remaining > 0) {
+        blockedReasons.push(
+          planningMode === "parallel"
+            ? "Encara queda temps pendent d'assignar."
+            : "Encara queden hores pendents d'assignar."
+        );
+      } else if (remaining < 0) {
+        blockedReasons.push(
+          planningMode === "parallel"
+            ? `S'ha assignat ${formatMinutes(Math.abs(remaining))} de més del temps disponible.`
+            : `S'han assignat ${Math.abs(remaining)} h de més de les disponibles.`
+        );
+      }
+      exportBlockedNote.hidden = blockedReasons.length === 0;
+      exportBlockedNote.textContent = blockedReasons.join(" ");
+    }
     raOrderInput.value = JSON.stringify(order);
     raNamesInput.value = JSON.stringify(names);
     raHoursInput.value = JSON.stringify(hours);

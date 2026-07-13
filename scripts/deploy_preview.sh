@@ -11,7 +11,7 @@ export APP_NAME="${APP_NAME:-Curriculum Planner Preview}"
 
 echo "Deploying preview from: $repo_root"
 echo "Branch: $(git branch --show-current 2>/dev/null || echo detached)"
-echo "Preview URL: https://planner-preview.marcos-a.com/"
+echo "Preview URL: https://tempo-preview.marcos-a.com/"
 echo "Preview data dir: $PREVIEW_DATA_DIR"
 echo "Preview env file: $PREVIEW_ENV_FILE"
 
