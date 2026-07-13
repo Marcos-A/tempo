@@ -119,8 +119,7 @@
 
     <div class="export-actions">
       <button type="submit" id="export-button" disabled>Exporta l'XLSX</button>
-      {% if summary.planning_mode == "parallel" %}
-      {% endif %}
+      <p id="export-blocked-note" class="error" hidden></p>
     </div>
       </form>
     </div>
@@ -147,6 +146,7 @@
   const totalAvailableMinutes = Number(planData.total_available_minutes || (totalAvailable * 60));
   const minuteChoices = Array.from({ length: 12 }, (_, index) => index * 5);
   const exportButton = document.getElementById("export-button");
+  const exportBlockedNote = document.getElementById("export-blocked-note");
   const planJsonInput = document.getElementById("plan-json-input");
   const remainingHoursEl = document.getElementById("remaining-hours");
   const blockEndDateEls = Object.fromEntries(
@@ -475,6 +475,20 @@
       }
     }
     exportButton.disabled = remaining !== 0 || hasEmptyRa;
+    if (exportBlockedNote) {
+      if (hasEmptyRa) {
+        exportBlockedNote.textContent = "Hi ha una RA sense hores assignades.";
+        exportBlockedNote.hidden = false;
+      } else if (remaining !== 0) {
+        exportBlockedNote.textContent = planningMode === "parallel"
+          ? "Encara queda temps pendent d'assignar."
+          : "Encara queden hores pendents d'assignar.";
+        exportBlockedNote.hidden = false;
+      } else {
+        exportBlockedNote.hidden = true;
+        exportBlockedNote.textContent = "";
+      }
+    }
     raOrderInput.value = JSON.stringify(order);
     raNamesInput.value = JSON.stringify(names);
     raHoursInput.value = JSON.stringify(hours);

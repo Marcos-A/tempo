@@ -973,6 +973,11 @@ button:disabled {
   opacity: 0.55;
 }
 
+.ra-row:has(.ra-hours-field.is-zero) {
+  border-color: var(--danger);
+  border-left-color: var(--danger);
+}
+
 .drag-handle {
   grid-area: handle;
   text-align: center;
