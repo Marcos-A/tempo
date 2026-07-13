@@ -65,23 +65,23 @@ body {
 }
 
 .site-header .container {
-  padding: 1rem 0;
+  padding: 1.15rem 0;
 }
 
 .brand {
   display: inline-grid;
-  gap: 0.3rem;
+  gap: 0.4rem;
   text-decoration: none;
   color: var(--text);
 }
 
 .brand-mark {
   display: block;
-  height: 34px;
+  height: 48px;
   width: auto;
 }
 
-.brand-school {
+.brand-tagline {
   font-size: 0.72rem;
   font-weight: 600;
   letter-spacing: 0.08em;
