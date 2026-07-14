@@ -11,5 +11,6 @@ services:
       - "127.0.0.1:${HOST_PORT:-8092}:8000"
     environment:
       DATABASE_URL: sqlite:///data/app.db
+      WEB_CONCURRENCY: "1"
     volumes:
       - ${PREVIEW_DATA_DIR:-/srv/data/curriculum-planner-preview}:/app/data
