@@ -26,8 +26,9 @@
     <div class="week-grid">
       {% for week in group.weeks %}
       <label class="week-cell{{ ' week-cell--vacation' if week.is_vacation_week else '' }}">
-        {{ week.start|date_display }} - {{ week.end|date_display }}
+        <span class="week-date-range">{{ week.start|date_display }} - {{ week.end|date_display }}</span>
         <input
+          class="week-number-input"
           type="number"
           min="1"
           step="1"
@@ -42,4 +43,23 @@
   {% endfor %}
   <button type="submit">Desa la numeració</button>
 </form>
+<script>
+  document.querySelectorAll(".week-number-input").forEach((input, inputIndex, inputs) => {
+    input.addEventListener("change", () => {
+      const startNumber = Number.parseInt(input.value, 10);
+      if (!Number.isInteger(startNumber) || startNumber < 1) {
+        return;
+      }
+
+      let nextNumber = startNumber + 1;
+      for (const nextInput of Array.from(inputs).slice(inputIndex + 1)) {
+        if (!nextInput.value.trim()) {
+          continue;
+        }
+        nextInput.value = String(nextNumber);
+        nextNumber += 1;
+      }
+    });
+  });
+</script>
 {% endblock %}
