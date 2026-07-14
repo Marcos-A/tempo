@@ -37,7 +37,7 @@
           <th>Curs</th>
           <th>Dates</th>
           <th>Estat</th>
-          <th>Contingut</th>
+          <th>Exclusions</th>
           <th></th>
         </tr>
       </thead>
@@ -49,7 +49,7 @@
           <td>
             <span class="status-pill{{ ' status-pill--active' if row.year.is_active else '' }}">{{ 'Actiu' if row.year.is_active else 'Preparat' }}</span>
           </td>
-          <td class="year-table-meta">{{ row.period_count }} exclusions · {{ row.week_count }} setmanes</td>
+          <td class="year-table-meta">{{ row.period_count }} exclusions</td>
           <td>
             <div class="table-actions year-table-actions">
               <a class="button-link secondary" href="/admin?year_id={{ row.year.id }}#academic-year-detail">Gestiona</a>
