@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="page-header">
+  <div>
+    <h1>Tots els cursos</h1>
+    <p>Consulta o activa cursos menys freqüents sense carregar la pantalla principal d'operativa.</p>
+  </div>
+  <a class="button-link secondary" href="/admin">&larr; Torna al curs actiu</a>
+</section>
+
+{% if status_message %}
+<p class="status-banner{{ ' status-banner--ok' if status_tone == 'ok' else '' }}">{{ status_message }}</p>
+{% endif %}
+
+<section class="card">
+  <div class="section-heading">
+    <div>
+      <p class="panel-kicker">Curs actualment visible</p>
+      <h2>{{ active_year.label }}</h2>
+      <p class="inline-note">{{ active_year.default_start_date|date_display }} – {{ active_year.default_end_date|date_display }}</p>
+    </div>
+    <span class="status-pill status-pill--active">Actiu</span>
+  </div>
+</section>
+
+<section class="card">
+  <div class="section-heading">
+    <div>
+      <h2>Índex de cursos</h2>
+      <p class="inline-note">Obre un curs per editar-lo o activa'l quan el professorat hagi de començar a treballar-hi.</p>
+    </div>
+  </div>
+  <div class="year-table-shell">
+    <table class="year-table">
+      <thead>
+        <tr>
+          <th>Curs</th>
+          <th>Dates</th>
+          <th>Estat</th>
+          <th>Contingut</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in academic_year_rows %}
+        <tr>
+          <td><strong>{{ row.year.label }}</strong></td>
+          <td class="year-table-dates">{{ row.year.default_start_date|date_display }} – {{ row.year.default_end_date|date_display }}</td>
+          <td>
+            <span class="status-pill{{ ' status-pill--active' if row.year.is_active else '' }}">{{ 'Actiu' if row.year.is_active else 'Preparat' }}</span>
+          </td>
+          <td class="year-table-meta">{{ row.period_count }} exclusions · {{ row.week_count }} setmanes</td>
+          <td>
+            <div class="table-actions year-table-actions">
+              <a class="button-link secondary" href="/admin?year_id={{ row.year.id }}#academic-year-detail">Gestiona</a>
+              {% if not row.year.is_active %}
+              <form method="post" action="/admin/years/{{ row.year.id }}/activate">
+                <button type="submit">Activa</button>
+              </form>
+              {% endif %}
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endblock %}

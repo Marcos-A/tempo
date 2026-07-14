@@ -12,9 +12,10 @@ from sqlalchemy.orm import Session
 from app.config import get_settings
 from app.database import get_db
 from app.date_utils import format_display_date, parse_date_input
-from app.models import AcademicWeekNumber, AcademicYearSetting, ExcludedPeriod
+from app.models import AcademicWeekNumber, ExcludedPeriod
 from app.services.academic_weeks import week_number_for_date
 from app.services.allocation import BlockPlan, RAPlan, allocate_ra_hours, allocate_ra_hours_by_blocks, validate_ra_distribution
+from app.services.academic_years import get_active_academic_year
 from app.services.calendar import ScheduleDay, build_schedule, expand_excluded_periods, total_available_hours
 from app.services.export import build_workbook
 from app.services.hours import BLOCK_MINUTE_CHOICES, MINUTES_PER_HOUR, format_minutes_label, minutes_to_hour_number, parse_hour_minute_pair
@@ -199,14 +200,17 @@ def _map_excluded_labels_by_date(periods: list[ExcludedPeriod]) -> dict[date, st
     return labels_by_date
 
 
-def _week_numbers_for_schedule(db: Session, schedule: list[ScheduleDay]) -> dict[str, int]:
+def _week_numbers_for_schedule(db: Session, academic_year_id: int, schedule: list[ScheduleDay]) -> dict[str, int]:
     """Map each schedule date (ISO string) to its admin-assigned week number.
 
     Only dates whose week actually has a saved number are included, so
     unassigned weeks stay blank instead of surfacing a stray zero or null.
     """
 
-    saved_numbers = {row.week_start_date: row.number for row in db.scalars(select(AcademicWeekNumber)).all()}
+    saved_numbers = {
+        row.week_start_date: row.number
+        for row in db.scalars(select(AcademicWeekNumber).where(AcademicWeekNumber.academic_year_id == academic_year_id)).all()
+    }
     week_numbers: dict[str, int] = {}
     for day in schedule:
         number = week_number_for_date(day.date, saved_numbers)
@@ -248,7 +252,7 @@ STRAY_ENTRY_NOTICE = "Comença una planificació nova des d'aquí."
 def index(request: Request, db: Session = Depends(get_db)):
     """Render the first planning step with default academic-year dates."""
 
-    settings = db.get(AcademicYearSetting, 1)
+    settings = get_active_academic_year(db)
     form = {
         "planning_mode": "sequential",
     }
@@ -279,7 +283,7 @@ async def prepare_plan(request: Request, db: Session = Depends(get_db)):
 
     form = await request.form()
     form_data = dict(form)
-    settings = db.get(AcademicYearSetting, 1)
+    settings = get_active_academic_year(db)
 
     try:
         start_date = parse_date_input(form_data["start_date"])
@@ -298,7 +302,7 @@ async def prepare_plan(request: Request, db: Session = Depends(get_db)):
             status_code=status.HTTP_400_BAD_REQUEST,
         )
 
-    periods = db.scalars(select(ExcludedPeriod)).all()
+    periods = db.scalars(select(ExcludedPeriod).where(ExcludedPeriod.academic_year_id == settings.id)).all()
     excluded_dates = expand_excluded_periods([(period.start_date, period.end_date) for period in periods])
     excluded_labels_by_date = _map_excluded_labels_by_date(periods)
     schedule = build_schedule(start_date, end_date, weekday_hours, excluded_dates)
@@ -330,7 +334,7 @@ async def prepare_plan(request: Request, db: Session = Depends(get_db)):
         and start_date == settings.default_start_date
         and end_date == settings.default_end_date
     )
-    week_numbers_by_date = _week_numbers_for_schedule(db, schedule) if include_week_numbers else {}
+    week_numbers_by_date = _week_numbers_for_schedule(db, settings.id, schedule) if include_week_numbers else {}
 
     plan_payload = {
         "training_cycle": form_data.get("training_cycle", "").strip(),

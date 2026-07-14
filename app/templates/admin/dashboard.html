@@ -3,71 +3,106 @@
 <section class="page-header">
   <div>
     <h1>Configuració d'administració</h1>
-    <p>Gestiona el curs acadèmic per defecte i els períodes sense classe.</p>
+    <p>Gestiona quin curs veu el professorat i mantén cada curs amb les seves pròpies exclusions i setmanes.</p>
   </div>
   <div class="table-actions">
-    <a class="button-link secondary" href="/admin/weeks">Numeració de setmanes</a>
     <form method="post" action="/admin/logout">
       <button type="submit" class="secondary">Surt</button>
     </form>
   </div>
 </section>
 
+{% if status_message %}
+<p class="status-banner{{ ' status-banner--ok' if status_tone == 'ok' else '' }}">{{ status_message }}</p>
+{% endif %}
 {% if error %}
 <p class="error">{{ error }}</p>
 {% endif %}
 
-{% if viewing_archive %}
-<p class="remaining-box-note">
-  Mostrant les exclusions del curs {{ viewing_archive.label }} ({{ viewing_archive.start_date|date_display }} – {{ viewing_archive.end_date|date_display }}), només lectura.
-  <a href="/admin">Torna al curs actual</a>
-</p>
-{% endif %}
+<div class="admin-panel-grid">
+  <section class="card admin-panel-card active-year-card">
+    <div class="section-heading">
+      <div>
+        <p class="panel-kicker">Curs visible per al professorat</p>
+        <h2>{{ active_year.label }}</h2>
+        <p class="inline-note">{{ active_year.default_start_date|date_display }} – {{ active_year.default_end_date|date_display }}</p>
+      </div>
+      <span class="status-pill status-pill--active">Actiu</span>
+    </div>
+    <div class="active-year-summary">
+      <div class="table-actions active-year-actions">
+        <a class="button-link secondary" href="/admin?year_id={{ active_year.id }}#academic-year-detail">Gestiona el curs actiu</a>
+        <a class="button-link secondary" href="/admin/years">Gestiona altres cursos</a>
+      </div>
+    </div>
+  </section>
 
-{% if not viewing_archive %}
-<div class="two-column">
-  <section class="card">
-    <h2>Curs acadèmic{% if settings.label %} {{ settings.label }}{% endif %}</h2>
-    <form method="post" action="/admin/settings" class="form-grid">
+  <section class="card admin-panel-card">
+    <h2>Nou curs acadèmic</h2>
+    <form method="post" action="/admin/years" class="form-grid compact-form-grid">
       <label>
         Curs
         <span class="optional-label">Opcional; si es deixa buit es dedueix de les dates</span>
-        <input type="text" name="year_label" value="{{ settings.label or '' }}" placeholder="P.ex. 2026-27" maxlength="50" />
+        <input type="text" name="year_label" value="{{ new_year_form.year_label }}" placeholder="P.ex. 2027-28" maxlength="50" />
       </label>
       <label>
         Data d'inici per defecte
-        <input class="date-input" type="text" name="default_start_date" value="{{ settings.default_start_date|date_display }}" placeholder="DD/MM/AAAA" inputmode="numeric" pattern="\d{1,2}/\d{1,2}/\d{2,4}" required />
+        <input class="date-input" type="text" name="default_start_date" value="{{ new_year_form.default_start_date }}" placeholder="DD/MM/AAAA" inputmode="numeric" pattern="\d{1,2}/\d{1,2}/\d{2,4}" required />
       </label>
       <label>
         Data de fi per defecte
-        <input class="date-input" type="text" name="default_end_date" value="{{ settings.default_end_date|date_display }}" placeholder="DD/MM/AAAA" inputmode="numeric" pattern="\d{1,2}/\d{1,2}/\d{2,4}" required />
+        <input class="date-input" type="text" name="default_end_date" value="{{ new_year_form.default_end_date }}" placeholder="DD/MM/AAAA" inputmode="numeric" pattern="\d{1,2}/\d{1,2}/\d{2,4}" required />
       </label>
-      <button type="submit">Desa la configuració</button>
+      <button type="submit">Crea el curs</button>
     </form>
-    {% if archived_years %}
-    <details class="summary-disclosure">
-      <summary>
-        <span>Cursos anteriors</span>
-        <small>{{ archived_years|length }}</small>
-      </summary>
-      <div class="summary-disclosure-table" role="table" aria-label="Cursos acadèmics anteriors">
-        {% for year in archived_years %}
-        <div class="summary-disclosure-row" role="row">
-          <div class="summary-disclosure-date" role="cell">{{ year.label }}</div>
-          <div class="summary-disclosure-hours" role="cell">
-            {{ year.start_date|date_display }} – {{ year.end_date|date_display }}
-            <a href="/admin?view_year={{ year.id }}">Consulta</a>
-          </div>
-        </div>
-        {% endfor %}
-      </div>
-    </details>
-    {% endif %}
   </section>
 
-  <section class="card" id="excluded-periods">
+  <section class="card admin-panel-card admin-balanced-card" id="academic-year-detail">
+    <div class="section-heading">
+      <div>
+        <p class="panel-kicker">Curs en edició</p>
+        <h2>{{ selected_year.label }}</h2>
+        <p class="inline-note">{{ selected_year.default_start_date|date_display }} – {{ selected_year.default_end_date|date_display }}</p>
+      </div>
+      <div class="table-actions">
+        <span class="status-pill{{ ' status-pill--active' if selected_year.is_active else '' }}">{{ 'Curs actiu' if selected_year.is_active else 'Curs no actiu' }}</span>
+      </div>
+    </div>
+
+    {% if not selected_year.is_active %}
+    <p class="remaining-box-note">Els canvis d'aquest curs no afectaran el professorat fins que l'activis.</p>
+    {% endif %}
+
+    <form method="post" action="/admin/years/{{ selected_year.id }}" class="form-grid compact-form-grid admin-panel-form admin-detail-form">
+      <label>
+        Curs
+        <input type="text" name="year_label" value="{{ selected_year.label }}" maxlength="50" />
+      </label>
+      <label>
+        Data d'inici per defecte
+        <input class="date-input" type="text" name="default_start_date" value="{{ selected_year.default_start_date|date_display }}" placeholder="DD/MM/AAAA" inputmode="numeric" pattern="\d{1,2}/\d{1,2}/\d{2,4}" required />
+      </label>
+      <label>
+        Data de fi per defecte
+        <input class="date-input" type="text" name="default_end_date" value="{{ selected_year.default_end_date|date_display }}" placeholder="DD/MM/AAAA" inputmode="numeric" pattern="\d{1,2}/\d{1,2}/\d{2,4}" required />
+      </label>
+      <label class="checkbox-label form-span">
+        <input type="checkbox" name="include_week_numbers_in_export" {{ 'checked' if selected_year.include_week_numbers_in_export }} />
+        Mostra el número de setmana a l'exportació
+      </label>
+      <div class="table-actions admin-detail-actions">
+        <a class="button-link secondary" href="/admin/years/{{ selected_year.id }}/weeks">Numeració de setmanes</a>
+        {% if not selected_year.is_active %}
+        <button type="submit" formaction="/admin/years/{{ selected_year.id }}/activate">Activa per al professorat</button>
+        {% endif %}
+        <button type="submit">Desa la configuració</button>
+      </div>
+    </form>
+  </section>
+
+  <section class="card admin-panel-card admin-balanced-card" id="excluded-periods">
     <h2>Afegeix un període sense classe</h2>
-    <form method="post" action="/admin/periods" class="form-grid">
+    <form method="post" action="/admin/years/{{ selected_year.id }}/periods" class="form-grid compact-form-grid admin-panel-form admin-period-form">
       <label>
         Data d'inici
         <span class="optional-label">Si només és un dia, n'hi ha prou amb indicar aquesta data</span>
@@ -83,37 +118,14 @@
         <span class="optional-label">Opcional</span>
         <input type="text" name="label" placeholder="P.ex. Vacances de Nadal" />
       </label>
-      <button type="submit">Afegeix el període</button>
+      <button type="submit" class="admin-panel-submit">Afegeix el període</button>
     </form>
   </section>
 </div>
-{% endif %}
 
-<section class="card">
-  <h2>Exclusions {% if viewing_archive %}del curs {{ viewing_archive.label }}{% else %}existents{% endif %}</h2>
+<section class="card exclusions-card">
+  <h2>Exclusions</h2>
   {% if periods %}
-  {% if viewing_archive %}
-  <table>
-    <thead>
-      <tr>
-        <th>Data d'inici</th>
-        <th>Data de fi</th>
-        <th>Nom</th>
-        <th>Tipus</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for period in periods %}
-      <tr>
-        <td>{{ period.start_date|date_display }}</td>
-        <td>{{ period.end_date|date_display }}</td>
-        <td>{{ period.label or '' }}</td>
-        <td>{{ "Data única" if period.start_date == period.end_date else "Interval" }}</td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
-  {% else %}
   <table>
     <thead>
       <tr>
@@ -128,55 +140,23 @@
       {% for period in periods %}
       <tr>
         <td>
-          <input
-            id="period-start-{{ period.id }}"
-            class="date-input"
-            type="text"
-            name="start_date"
-            value="{{ period.start_date|date_display }}"
-            placeholder="DD/MM/AAAA"
-            inputmode="numeric"
-            pattern="\d{1,2}/\d{1,2}/\d{2,4}"
-            required
-            form="period-edit-{{ period.id }}"
-          />
+          <input id="period-start-{{ period.id }}" class="date-input" type="text" name="start_date" value="{{ period.start_date|date_display }}" placeholder="DD/MM/AAAA" inputmode="numeric" pattern="\d{1,2}/\d{1,2}/\d{2,4}" required form="period-edit-{{ period.id }}" />
         </td>
         <td>
-          <input
-            id="period-end-{{ period.id }}"
-            class="date-input"
-            type="text"
-            name="end_date"
-            value="{{ period.end_date|date_display }}"
-            placeholder="DD/MM/AAAA"
-            inputmode="numeric"
-            pattern="\d{1,2}/\d{1,2}/\d{2,4}"
-            required
-            form="period-edit-{{ period.id }}"
-          />
+          <input id="period-end-{{ period.id }}" class="date-input" type="text" name="end_date" value="{{ period.end_date|date_display }}" placeholder="DD/MM/AAAA" inputmode="numeric" pattern="\d{1,2}/\d{1,2}/\d{2,4}" required form="period-edit-{{ period.id }}" />
         </td>
         <td>
-          <input
-            type="text"
-            name="label"
-            value="{{ period.label or '' }}"
-            placeholder="Nom opcional"
-            form="period-edit-{{ period.id }}"
-          />
+          <input type="text" name="label" value="{{ period.label or '' }}" placeholder="Nom opcional" form="period-edit-{{ period.id }}" />
         </td>
         <td>
-          <span
-            class="period-type"
-            data-start-input-id="period-start-{{ period.id }}"
-            data-end-input-id="period-end-{{ period.id }}"
-          >{{ "Data única" if period.start_date == period.end_date else "Interval" }}</span>
+          <span class="period-type" data-start-input-id="period-start-{{ period.id }}" data-end-input-id="period-end-{{ period.id }}">{{ 'Data única' if period.start_date == period.end_date else 'Interval' }}</span>
         </td>
         <td>
           <div class="table-actions">
-            <form method="post" action="/admin/periods/{{ period.id }}" id="period-edit-{{ period.id }}">
+            <form method="post" action="/admin/years/{{ selected_year.id }}/periods/{{ period.id }}" id="period-edit-{{ period.id }}">
               <button type="submit">Desa</button>
             </form>
-            <form method="post" action="/admin/periods/{{ period.id }}/delete">
+            <form method="post" action="/admin/years/{{ selected_year.id }}/periods/{{ period.id }}/delete">
               <button type="submit" class="secondary">Suprimeix</button>
             </form>
           </div>
@@ -185,11 +165,27 @@
       {% endfor %}
     </tbody>
   </table>
-  {% endif %}
   {% else %}
-  <p>No hi ha exclusions {% if viewing_archive %}registrades per aquest curs{% else %}configurades{% endif %}.</p>
+  <p>No hi ha exclusions configurades per a aquest curs.</p>
   {% endif %}
 </section>
+
+<section class="card delete-course-card" id="danger-zone">
+  <h2>Suprimeix el curs</h2>
+  <p class="warning-box">Suprimir un curs també eliminarà les seves exclusions i la seva numeració de setmanes.</p>
+  {% if selected_year.is_active %}
+  <p class="error-text">No es pot suprimir mentre sigui el curs actiu per al professorat.</p>
+  {% else %}
+  <form method="post" action="/admin/years/{{ selected_year.id }}/delete" class="form-grid" onsubmit="return confirm('Atenció: se suprimirà aquest curs acadèmic i tots els seus registres associats. Vols continuar?');">
+    <label class="checkbox-label">
+      <input type="checkbox" name="confirm_delete" required />
+      Entenc que aquesta acció és irreversible.
+    </label>
+    <button type="submit" class="danger-button">Suprimeix aquest curs</button>
+  </form>
+  {% endif %}
+</section>
+
 {% if focus_section %}
 <script>
   document.getElementById({{ focus_section|tojson }})?.scrollIntoView({ behavior: "auto", block: "start" });

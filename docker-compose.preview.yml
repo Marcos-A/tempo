@@ -6,10 +6,10 @@ services:
     build: .
     command: python -m app.server
     env_file:
-      - ${PREVIEW_ENV_FILE:-/srv/config/curriculum-planner/.env.prod}
+      - ${PREVIEW_ENV_FILE:-/srv/config/curriculum-planner/.env.preview}
     ports:
       - "127.0.0.1:${HOST_PORT:-8092}:8000"
     environment:
       DATABASE_URL: sqlite:///data/app.db
     volumes:
-      - ${PREVIEW_DATA_DIR:-/srv/data/curriculum-planner}:/app/data
+      - ${PREVIEW_DATA_DIR:-/srv/data/curriculum-planner-preview}:/app/data

@@ -1221,3 +1221,221 @@ th {
     display: none;
   }
 }
+
+
+.status-banner {
+  margin: 0 0 1rem;
+  padding: 0.85rem 1rem;
+  border: 1px solid var(--line-strong);
+  border-radius: 4px;
+  background: var(--card);
+  color: var(--muted);
+  font-weight: 700;
+}
+
+.status-banner--ok {
+  border-color: rgba(30, 58, 45, 0.18);
+  background: rgba(51, 96, 76, 0.08);
+  color: var(--accent-dark);
+}
+
+.section-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.panel-kicker {
+  margin: 0 0 0.35rem;
+  font-family: var(--font-mono);
+  font-size: 0.76rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent-dark);
+}
+
+.admin-panel-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+  margin-bottom: 1rem;
+  align-items: start;
+}
+
+.admin-panel-card {
+  align-self: start;
+}
+
+.admin-balanced-card {
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
+}
+
+.compact-form-grid {
+  gap: 0.85rem;
+}
+
+.active-year-card {
+  background: linear-gradient(180deg, rgba(51, 96, 76, 0.06), rgba(51, 96, 76, 0.02));
+  border-color: rgba(51, 96, 76, 0.26);
+}
+
+.active-year-summary {
+  display: grid;
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.active-year-actions,
+.admin-detail-actions {
+  justify-content: flex-start;
+  flex-wrap: wrap;
+}
+
+.admin-detail-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.6rem;
+}
+
+.admin-detail-actions > * {
+  min-width: 0;
+}
+
+.admin-detail-actions > *:last-child:nth-child(odd) {
+  grid-column: 1 / -1;
+}
+
+.admin-detail-actions .button-link,
+.admin-detail-actions button {
+  display: flex;
+  width: 100%;
+  justify-content: center;
+  align-items: center;
+}
+
+.admin-detail-actions form {
+  display: flex;
+  margin: 0;
+}
+
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.35rem 0.65rem;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  background: var(--card);
+  color: var(--muted);
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.status-pill--active {
+  border-color: rgba(51, 96, 76, 0.24);
+  background: rgba(51, 96, 76, 0.1);
+  color: var(--accent-dark);
+}
+
+.admin-panel-form {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+.admin-detail-form {
+  margin-top: 1rem;
+}
+
+.admin-balanced-card .admin-detail-form,
+.admin-period-form {
+  flex: 1;
+}
+
+.admin-balanced-card .admin-detail-actions,
+.admin-panel-submit {
+  margin-top: auto;
+}
+
+.exclusions-card {
+  margin-bottom: 1rem;
+}
+
+.warning-box {
+  margin: 0 0 0.75rem;
+  padding: 0.85rem 1rem;
+  border: 1px solid rgba(156, 107, 22, 0.3);
+  border-radius: 4px;
+  background: rgba(156, 107, 22, 0.08);
+  color: #6e4a08;
+  font-weight: 700;
+  line-height: 1.45;
+}
+
+.delete-course-card {
+  border-color: rgba(168, 64, 44, 0.28);
+}
+
+.danger-button {
+  border-color: var(--danger);
+  background: var(--danger);
+  color: var(--card);
+}
+
+.year-table-shell {
+  overflow-x: auto;
+}
+
+.year-table {
+  min-width: 760px;
+}
+
+.year-table td {
+  vertical-align: middle;
+}
+
+.year-table-dates {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.year-table-meta {
+  color: var(--muted-faint);
+}
+
+.year-table-actions {
+  justify-content: flex-end;
+  flex-wrap: nowrap;
+}
+
+@media (max-width: 900px) {
+  .admin-panel-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .section-heading {
+    align-items: stretch;
+  }
+
+  .year-table {
+    min-width: 640px;
+  }
+
+  .year-table-actions {
+    flex-wrap: wrap;
+  }
+
+  .admin-detail-actions {
+    grid-template-columns: 1fr;
+  }
+}

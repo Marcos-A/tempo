@@ -1,5 +1,6 @@
 """Routes for the protected admin area."""
 
+from collections import Counter
 from datetime import timedelta
 from typing import Annotated
 
@@ -14,8 +15,9 @@ from app.config import get_settings
 from app.database import get_db
 from app.date_utils import format_display_date, format_month_label, parse_date_input
 from app.dependencies import require_admin
-from app.models import AcademicWeekNumber, AcademicYearArchive, AcademicYearSetting, AdminUser, ExcludedPeriod
+from app.models import AcademicWeekNumber, AcademicYear, AdminUser, ExcludedPeriod
 from app.services.academic_weeks import is_vacation_week, iter_week_starts, suggest_week_numbers
+from app.services.academic_years import activate_academic_year, find_overlapping_year, get_active_academic_year, list_academic_years, suggest_year_label
 from app.services.calendar import expand_excluded_periods
 
 
@@ -25,59 +27,147 @@ templates.env.filters["date_display"] = format_display_date
 settings = get_settings()
 templates.env.globals["app_name"] = settings.app_name
 templates.env.globals["school_name"] = settings.school_name
+SELECTED_YEAR_SECTION_ID = "academic-year-detail"
 EXCLUDED_PERIODS_SECTION_ID = "excluded-periods"
+DANGER_ZONE_SECTION_ID = "danger-zone"
 WEEK_FIELD_PREFIX = "week_"
+STATUS_MESSAGES = {
+    "year-created": ("Curs acadèmic creat.", "ok"),
+    "year-updated": ("Curs acadèmic actualitzat.", "ok"),
+    "year-activated": ("Aquest és ara el curs actiu per al professorat.", "ok"),
+    "year-deleted": ("Curs acadèmic suprimit.", "ok"),
+    "period-added": ("Període sense classe afegit.", "ok"),
+    "period-updated": ("Període sense classe actualitzat.", "ok"),
+    "period-deleted": ("Període sense classe suprimit.", "ok"),
+    "weeks-updated": ("Numeració de setmanes desada.", "ok"),
+}
+
+
+def _status_from_request(request: Request) -> tuple[str | None, str | None]:
+    """Resolve the optional banner message requested by the UI redirect."""
+
+    status_name = request.query_params.get("status")
+    return STATUS_MESSAGES.get(status_name, (None, None))
+
+
+def _selected_year_from_request(request: Request, db: Session) -> AcademicYear:
+    """Resolve the year selected in the UI, falling back to the active one."""
+
+    year_id_raw = request.query_params.get("year_id")
+    if year_id_raw and year_id_raw.isdigit():
+        selected_year = db.get(AcademicYear, int(year_id_raw))
+        if selected_year is not None:
+            return selected_year
+    return get_active_academic_year(db)
+
+
+def _periods_for_year(db: Session, academic_year_id: int) -> list[ExcludedPeriod]:
+    """Return excluded periods belonging to one academic year."""
+
+    return db.scalars(
+        select(ExcludedPeriod)
+        .where(ExcludedPeriod.academic_year_id == academic_year_id)
+        .order_by(ExcludedPeriod.start_date, ExcludedPeriod.end_date, ExcludedPeriod.id)
+    ).all()
+
+
+def _year_dashboard_url(year_id: int | None = None, *, status_name: str | None = None, section_id: str | None = None) -> str:
+    """Build a stable redirect back to the admin dashboard."""
+
+    params: list[str] = []
+    if year_id is not None:
+        params.append(f"year_id={year_id}")
+    if status_name:
+        params.append(f"status={status_name}")
+    url = "/admin"
+    if params:
+        url += "?" + "&".join(params)
+    if section_id:
+        url += f"#{section_id}"
+    return url
+
+
+def _academic_year_rows(db: Session) -> tuple[AcademicYear, list[dict[str, object]], Counter[int], Counter[int]]:
+    """Collect academic-year rows plus lightweight counts for the admin UI."""
+
+    academic_years = list_academic_years(db)
+    active_year = get_active_academic_year(db)
+    period_counts = Counter(
+        academic_year_id
+        for academic_year_id in db.scalars(select(ExcludedPeriod.academic_year_id)).all()
+        if academic_year_id is not None
+    )
+    week_counts = Counter(
+        academic_year_id
+        for academic_year_id in db.scalars(select(AcademicWeekNumber.academic_year_id)).all()
+        if academic_year_id is not None
+    )
+    academic_year_rows = [
+        {
+            "year": academic_year,
+            "period_count": period_counts.get(academic_year.id, 0),
+            "week_count": week_counts.get(academic_year.id, 0),
+        }
+        for academic_year in academic_years
+    ]
+    return active_year, academic_year_rows, period_counts, week_counts
 
 
 def _render_dashboard(
     request: Request,
-    settings: AcademicYearSetting,
-    periods: list[ExcludedPeriod],
-    archived_years: list[AcademicYearArchive],
-    viewing_archive: AcademicYearArchive | None = None,
+    db: Session,
+    *,
+    selected_year: AcademicYear | None = None,
     error: str | None = None,
     focus_section: str | None = None,
     status_code: int = status.HTTP_200_OK,
+    new_year_form: dict[str, str] | None = None,
 ):
-    """Render the admin dashboard with the provided context."""
+    """Render the admin dashboard with active-year and detail context."""
 
+    active_year, academic_year_rows, period_counts, week_counts = _academic_year_rows(db)
+    if selected_year is None:
+        selected_year = active_year
+
+    status_message, status_tone = _status_from_request(request)
+
+    periods = _periods_for_year(db, selected_year.id)
     return templates.TemplateResponse(
         request,
         "admin/dashboard.html",
         {
-            "settings": settings,
+            "academic_year_rows": academic_year_rows,
+            "active_year": active_year,
+            "selected_year": selected_year,
             "periods": periods,
-            "archived_years": archived_years,
-            "viewing_archive": viewing_archive,
+            "selected_period_count": period_counts.get(selected_year.id, 0),
+            "selected_week_count": week_counts.get(selected_year.id, 0),
             "error": error,
             "focus_section": focus_section,
+            "status_message": status_message,
+            "status_tone": status_tone,
+            "new_year_form": new_year_form or {"year_label": "", "default_start_date": "", "default_end_date": ""},
         },
         status_code=status_code,
     )
 
 
-def _suggest_year_label(start_date, end_date) -> str:
-    """Derive a "2026-27"-style label from a date range when the admin leaves it blank."""
+def _render_years_index(request: Request, db: Session, *, status_code: int = status.HTTP_200_OK):
+    """Render the compact index of all academic years."""
 
-    if start_date.year == end_date.year:
-        return str(start_date.year)
-    return f"{start_date.year}-{end_date.year % 100:02d}"
-
-
-def _periods_in_range(db: Session, start_date, end_date) -> list[ExcludedPeriod]:
-    """Excluded periods that overlap the given date range.
-
-    Used to show only the active academic year's exclusions by default
-    (there's no year foreign key on ExcludedPeriod; scoping is purely by
-    date overlap, which also lets a past AcademicYearArchive's own
-    start/end date be reused to "load" that year's periods on demand).
-    """
-
-    return db.scalars(
-        select(ExcludedPeriod)
-        .where(ExcludedPeriod.start_date <= end_date, ExcludedPeriod.end_date >= start_date)
-        .order_by(ExcludedPeriod.start_date, ExcludedPeriod.end_date)
-    ).all()
+    active_year, academic_year_rows, _, _ = _academic_year_rows(db)
+    status_message, status_tone = _status_from_request(request)
+    return templates.TemplateResponse(
+        request,
+        "admin/years.html",
+        {
+            "active_year": active_year,
+            "academic_year_rows": academic_year_rows,
+            "status_message": status_message,
+            "status_tone": status_tone,
+        },
+        status_code=status_code,
+    )
 
 
 @router.get("/login")
@@ -114,65 +204,103 @@ def logout(request: Request):
 
 @router.get("")
 def admin_dashboard(request: Request, db: Session = Depends(get_db), _: AdminUser = Depends(require_admin)):
-    """Show the settings page for dates and excluded periods.
+    """Show the active-year dashboard and selected year's detail view."""
 
-    By default only shows exclusions overlapping the active academic year.
-    Passing ?view_year=<archive id> switches to a read-only view of a past
-    year's exclusions instead, using that archive's own date range.
-    """
-
-    settings = db.get(AcademicYearSetting, 1)
-    archived_years = db.scalars(
-        select(AcademicYearArchive).order_by(AcademicYearArchive.start_date.desc())
-    ).all()
-
-    viewing_archive = None
-    view_year_raw = request.query_params.get("view_year")
-    if view_year_raw and view_year_raw.isdigit():
-        viewing_archive = db.get(AcademicYearArchive, int(view_year_raw))
-
-    if viewing_archive is not None:
-        periods = _periods_in_range(db, viewing_archive.start_date, viewing_archive.end_date)
-    else:
-        periods = _periods_in_range(db, settings.default_start_date, settings.default_end_date)
-
-    error = None
-    focus_section = None
-    if request.query_params.get("error") == "invalid-period":
-        error = "La data de fi no pot ser anterior a la data d'inici."
-        focus_section = EXCLUDED_PERIODS_SECTION_ID
-    return _render_dashboard(
-        request,
-        settings,
-        periods,
-        archived_years,
-        viewing_archive=viewing_archive,
-        error=error,
-        focus_section=focus_section,
-    )
+    return _render_dashboard(request, db, selected_year=_selected_year_from_request(request, db))
 
 
-@router.post("/settings")
-def update_settings(
+@router.get("/years")
+def years_index(request: Request, db: Session = Depends(get_db), _: AdminUser = Depends(require_admin)):
+    """Show the compact index used to access less-frequent year management."""
+
+    return _render_years_index(request, db)
+
+
+@router.post("/years")
+def create_year(
     request: Request,
+    year_label_raw: str = Form("", alias="year_label"),
     default_start_date_raw: str = Form(..., alias="default_start_date"),
     default_end_date_raw: str = Form(..., alias="default_end_date"),
-    year_label_raw: str = Form("", alias="year_label"),
     db: Session = Depends(get_db),
     _: AdminUser = Depends(require_admin),
 ):
-    """Update the default planning window used by the teacher form.
+    """Create a new academic year kept separate from the active one."""
 
-    Archives the outgoing dates first whenever they're actually changing, so
-    switching to a new academic year automatically leaves the previous one
-    behind for reference instead of requiring a separate "archive" step.
-    """
+    new_year_form = {
+        "year_label": year_label_raw,
+        "default_start_date": default_start_date_raw,
+        "default_end_date": default_end_date_raw,
+    }
+    try:
+        default_start_date = parse_date_input(default_start_date_raw)
+        default_end_date = parse_date_input(default_end_date_raw)
+    except ValueError as exc:
+        return _render_dashboard(
+            request,
+            db,
+            selected_year=_selected_year_from_request(request, db),
+            error=str(exc),
+            focus_section=None,
+            status_code=status.HTTP_400_BAD_REQUEST,
+            new_year_form=new_year_form,
+        )
 
-    settings = db.get(AcademicYearSetting, 1)
-    periods = _periods_in_range(db, settings.default_start_date, settings.default_end_date)
-    archived_years = db.scalars(
-        select(AcademicYearArchive).order_by(AcademicYearArchive.start_date.desc())
-    ).all()
+    if default_end_date < default_start_date:
+        return _render_dashboard(
+            request,
+            db,
+            selected_year=_selected_year_from_request(request, db),
+            error="La data de fi no pot ser anterior a la data d'inici.",
+            status_code=status.HTTP_400_BAD_REQUEST,
+            new_year_form=new_year_form,
+        )
+
+    overlapping_year = find_overlapping_year(db, default_start_date, default_end_date)
+    if overlapping_year is not None:
+        return _render_dashboard(
+            request,
+            db,
+            selected_year=overlapping_year,
+            error=f"Aquest interval se solapa amb el curs {overlapping_year.label}.",
+            focus_section=SELECTED_YEAR_SECTION_ID,
+            status_code=status.HTTP_400_BAD_REQUEST,
+            new_year_form=new_year_form,
+        )
+
+    academic_year = AcademicYear(
+        label=year_label_raw.strip() or suggest_year_label(default_start_date, default_end_date),
+        default_start_date=default_start_date,
+        default_end_date=default_end_date,
+        include_week_numbers_in_export=False,
+        is_active=False,
+    )
+    if db.scalar(select(AcademicYear.id).limit(1)) is None:
+        academic_year.is_active = True
+    db.add(academic_year)
+    db.commit()
+    return RedirectResponse(
+        url=_year_dashboard_url(academic_year.id, status_name="year-created", section_id=SELECTED_YEAR_SECTION_ID),
+        status_code=status.HTTP_303_SEE_OTHER,
+    )
+
+
+@router.post("/years/{year_id}")
+def update_year(
+    request: Request,
+    year_id: int,
+    year_label_raw: str = Form("", alias="year_label"),
+    default_start_date_raw: str = Form(..., alias="default_start_date"),
+    default_end_date_raw: str = Form(..., alias="default_end_date"),
+    include_week_numbers_in_export: Annotated[bool, Form()] = False,
+    db: Session = Depends(get_db),
+    _: AdminUser = Depends(require_admin),
+):
+    """Update the selected academic year's main settings."""
+
+    academic_year = db.get(AcademicYear, year_id)
+    if academic_year is None:
+        return RedirectResponse(url="/admin", status_code=status.HTTP_303_SEE_OTHER)
 
     try:
         default_start_date = parse_date_input(default_start_date_raw)
@@ -180,67 +308,117 @@ def update_settings(
     except ValueError as exc:
         return _render_dashboard(
             request,
-            settings,
-            periods,
-            archived_years,
+            db,
+            selected_year=academic_year,
             error=str(exc),
-            focus_section=EXCLUDED_PERIODS_SECTION_ID,
+            focus_section=SELECTED_YEAR_SECTION_ID,
             status_code=status.HTTP_400_BAD_REQUEST,
         )
 
     if default_end_date < default_start_date:
         return _render_dashboard(
             request,
-            settings,
-            periods,
-            archived_years,
+            db,
+            selected_year=academic_year,
             error="La data de fi no pot ser anterior a la data d'inici.",
+            focus_section=SELECTED_YEAR_SECTION_ID,
             status_code=status.HTTP_400_BAD_REQUEST,
         )
 
-    dates_changed = (
-        settings.default_start_date != default_start_date or settings.default_end_date != default_end_date
-    )
-    # Only archive when the outgoing row was itself a real, previously-saved
-    # year (settings.label is unset for the bootstrap placeholder), so the
-    # very first admin save doesn't create a bogus "previous year" entry.
-    if dates_changed and settings.label:
-        db.add(
-            AcademicYearArchive(
-                label=settings.label,
-                start_date=settings.default_start_date,
-                end_date=settings.default_end_date,
-            )
+    overlapping_year = find_overlapping_year(db, default_start_date, default_end_date, exclude_year_id=academic_year.id)
+    if overlapping_year is not None:
+        return _render_dashboard(
+            request,
+            db,
+            selected_year=academic_year,
+            error=f"Aquest interval se solapa amb el curs {overlapping_year.label}.",
+            focus_section=SELECTED_YEAR_SECTION_ID,
+            status_code=status.HTTP_400_BAD_REQUEST,
         )
 
-    year_label = year_label_raw.strip() or _suggest_year_label(default_start_date, default_end_date)
-    settings.label = year_label
-    settings.default_start_date = default_start_date
-    settings.default_end_date = default_end_date
+    academic_year.label = year_label_raw.strip() or suggest_year_label(default_start_date, default_end_date)
+    academic_year.default_start_date = default_start_date
+    academic_year.default_end_date = default_end_date
+    academic_year.include_week_numbers_in_export = include_week_numbers_in_export
     db.commit()
-    return RedirectResponse(url="/admin", status_code=status.HTTP_303_SEE_OTHER)
+    return RedirectResponse(
+        url=_year_dashboard_url(academic_year.id, status_name="year-updated", section_id=SELECTED_YEAR_SECTION_ID),
+        status_code=status.HTTP_303_SEE_OTHER,
+    )
 
 
-@router.post("/periods")
+@router.post("/years/{year_id}/activate")
+def activate_year(year_id: int, db: Session = Depends(get_db), _: AdminUser = Depends(require_admin)):
+    """Switch the teacher-facing default year."""
+
+    academic_year = db.get(AcademicYear, year_id)
+    if academic_year is None:
+        return RedirectResponse(url="/admin", status_code=status.HTTP_303_SEE_OTHER)
+
+    activate_academic_year(db, academic_year)
+    db.commit()
+    return RedirectResponse(
+        url=_year_dashboard_url(academic_year.id, status_name="year-activated", section_id=SELECTED_YEAR_SECTION_ID),
+        status_code=status.HTTP_303_SEE_OTHER,
+    )
+
+
+@router.post("/years/{year_id}/delete")
+def delete_year(
+    request: Request,
+    year_id: int,
+    confirm_delete: Annotated[str | None, Form()] = None,
+    db: Session = Depends(get_db),
+    _: AdminUser = Depends(require_admin),
+):
+    """Delete one non-active academic year and all its dependent records."""
+
+    academic_year = db.get(AcademicYear, year_id)
+    if academic_year is None:
+        return RedirectResponse(url="/admin", status_code=status.HTTP_303_SEE_OTHER)
+    if academic_year.is_active:
+        return _render_dashboard(
+            request,
+            db,
+            selected_year=academic_year,
+            error="Canvia primer el curs actiu abans de suprimir-lo.",
+            focus_section=DANGER_ZONE_SECTION_ID,
+            status_code=status.HTTP_400_BAD_REQUEST,
+        )
+    if confirm_delete != "on":
+        return _render_dashboard(
+            request,
+            db,
+            selected_year=academic_year,
+            error="Marca la confirmació abans de suprimir aquest curs.",
+            focus_section=DANGER_ZONE_SECTION_ID,
+            status_code=status.HTTP_400_BAD_REQUEST,
+        )
+
+    for period in _periods_for_year(db, academic_year.id):
+        db.delete(period)
+    for week in db.scalars(select(AcademicWeekNumber).where(AcademicWeekNumber.academic_year_id == academic_year.id)).all():
+        db.delete(week)
+    db.delete(academic_year)
+    db.commit()
+    return RedirectResponse(url=_year_dashboard_url(status_name="year-deleted"), status_code=status.HTTP_303_SEE_OTHER)
+
+
+@router.post("/years/{year_id}/periods")
 def add_period(
     request: Request,
+    year_id: int,
     start_date_raw: str = Form(..., alias="start_date"),
     end_date_raw: Annotated[str | None, Form(alias="end_date")] = None,
     label: Annotated[str | None, Form()] = None,
     db: Session = Depends(get_db),
     _: AdminUser = Depends(require_admin),
 ):
-    """Store a no-class day or an inclusive no-class range.
+    """Store a no-class day or inclusive range for one academic year."""
 
-    The form allows a blank end date for convenience. In that case we interpret
-    the submission as a single excluded day.
-    """
-
-    settings = db.get(AcademicYearSetting, 1)
-    periods = _periods_in_range(db, settings.default_start_date, settings.default_end_date)
-    archived_years = db.scalars(
-        select(AcademicYearArchive).order_by(AcademicYearArchive.start_date.desc())
-    ).all()
+    academic_year = db.get(AcademicYear, year_id)
+    if academic_year is None:
+        return RedirectResponse(url="/admin", status_code=status.HTTP_303_SEE_OTHER)
 
     try:
         start_date = parse_date_input(start_date_raw)
@@ -248,47 +426,64 @@ def add_period(
     except ValueError as exc:
         return _render_dashboard(
             request,
-            settings,
-            periods,
-            archived_years,
+            db,
+            selected_year=academic_year,
             error=str(exc),
             focus_section=EXCLUDED_PERIODS_SECTION_ID,
             status_code=status.HTTP_400_BAD_REQUEST,
         )
 
     if end_date < start_date:
-        return RedirectResponse(url="/admin?error=invalid-period", status_code=status.HTTP_303_SEE_OTHER)
+        return _render_dashboard(
+            request,
+            db,
+            selected_year=academic_year,
+            error="La data de fi no pot ser anterior a la data d'inici.",
+            focus_section=EXCLUDED_PERIODS_SECTION_ID,
+            status_code=status.HTTP_400_BAD_REQUEST,
+        )
 
     existing_period = db.scalar(
         select(ExcludedPeriod).where(
+            ExcludedPeriod.academic_year_id == academic_year.id,
             ExcludedPeriod.start_date == start_date,
             ExcludedPeriod.end_date == end_date,
         )
     )
     if existing_period is not None:
         error_message = (
-            "Aquesta data sense classe ja existeix."
+            "Aquesta data sense classe ja existeix en aquest curs."
             if start_date == end_date
-            else "Aquest període sense classe ja existeix."
+            else "Aquest període sense classe ja existeix en aquest curs."
         )
         return _render_dashboard(
             request,
-            settings,
-            periods,
-            archived_years,
+            db,
+            selected_year=academic_year,
             error=error_message,
             focus_section=EXCLUDED_PERIODS_SECTION_ID,
             status_code=status.HTTP_400_BAD_REQUEST,
         )
 
-    db.add(ExcludedPeriod(start_date=start_date, end_date=end_date, label=(label or "").strip() or None))
+    db.add(
+        ExcludedPeriod(
+            academic_year_id=academic_year.id,
+            start_date=start_date,
+            end_date=end_date,
+            label=(label or "").strip() or None,
+        )
+    )
     db.commit()
-    return RedirectResponse(url=f"/admin#{EXCLUDED_PERIODS_SECTION_ID}", status_code=status.HTTP_303_SEE_OTHER)
+    return RedirectResponse(
+        url=_year_dashboard_url(academic_year.id, status_name="period-added", section_id=EXCLUDED_PERIODS_SECTION_ID),
+        status_code=status.HTTP_303_SEE_OTHER,
+    )
 
 
-@router.post("/periods/{period_id}")
+@router.post("/years/{year_id}/periods/{period_id}")
 def update_period(
     request: Request,
+    year_id: int,
     period_id: int,
     start_date_raw: str = Form(..., alias="start_date"),
     end_date_raw: Annotated[str | None, Form(alias="end_date")] = None,
@@ -298,15 +493,10 @@ def update_period(
 ):
     """Edit one previously saved excluded period."""
 
-    settings = db.get(AcademicYearSetting, 1)
-    periods = _periods_in_range(db, settings.default_start_date, settings.default_end_date)
-    archived_years = db.scalars(
-        select(AcademicYearArchive).order_by(AcademicYearArchive.start_date.desc())
-    ).all()
+    academic_year = db.get(AcademicYear, year_id)
     period = db.get(ExcludedPeriod, period_id)
-
-    if period is None:
-        return RedirectResponse(url=f"/admin#{EXCLUDED_PERIODS_SECTION_ID}", status_code=status.HTTP_303_SEE_OTHER)
+    if academic_year is None or period is None or period.academic_year_id != academic_year.id:
+        return RedirectResponse(url="/admin", status_code=status.HTTP_303_SEE_OTHER)
 
     try:
         start_date = parse_date_input(start_date_raw)
@@ -314,19 +504,26 @@ def update_period(
     except ValueError as exc:
         return _render_dashboard(
             request,
-            settings,
-            periods,
-            archived_years,
+            db,
+            selected_year=academic_year,
             error=str(exc),
             focus_section=EXCLUDED_PERIODS_SECTION_ID,
             status_code=status.HTTP_400_BAD_REQUEST,
         )
 
     if end_date < start_date:
-        return RedirectResponse(url="/admin?error=invalid-period", status_code=status.HTTP_303_SEE_OTHER)
+        return _render_dashboard(
+            request,
+            db,
+            selected_year=academic_year,
+            error="La data de fi no pot ser anterior a la data d'inici.",
+            focus_section=EXCLUDED_PERIODS_SECTION_ID,
+            status_code=status.HTTP_400_BAD_REQUEST,
+        )
 
     existing_period = db.scalar(
         select(ExcludedPeriod).where(
+            ExcludedPeriod.academic_year_id == academic_year.id,
             ExcludedPeriod.start_date == start_date,
             ExcludedPeriod.end_date == end_date,
             ExcludedPeriod.id != period_id,
@@ -334,15 +531,14 @@ def update_period(
     )
     if existing_period is not None:
         error_message = (
-            "Aquesta data sense classe ja existeix."
+            "Aquesta data sense classe ja existeix en aquest curs."
             if start_date == end_date
-            else "Aquest període sense classe ja existeix."
+            else "Aquest període sense classe ja existeix en aquest curs."
         )
         return _render_dashboard(
             request,
-            settings,
-            periods,
-            archived_years,
+            db,
+            selected_year=academic_year,
             error=error_message,
             focus_section=EXCLUDED_PERIODS_SECTION_ID,
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -352,35 +548,36 @@ def update_period(
     period.end_date = end_date
     period.label = (label or "").strip() or None
     db.commit()
-    return RedirectResponse(url=f"/admin#{EXCLUDED_PERIODS_SECTION_ID}", status_code=status.HTTP_303_SEE_OTHER)
+    return RedirectResponse(
+        url=_year_dashboard_url(academic_year.id, status_name="period-updated", section_id=EXCLUDED_PERIODS_SECTION_ID),
+        status_code=status.HTTP_303_SEE_OTHER,
+    )
 
 
-@router.post("/periods/{period_id}/delete")
-def delete_period(period_id: int, db: Session = Depends(get_db), _: AdminUser = Depends(require_admin)):
+@router.post("/years/{year_id}/periods/{period_id}/delete")
+def delete_period(year_id: int, period_id: int, db: Session = Depends(get_db), _: AdminUser = Depends(require_admin)):
     """Delete one previously saved excluded period."""
 
     period = db.get(ExcludedPeriod, period_id)
-    if period:
+    if period and period.academic_year_id == year_id:
         db.delete(period)
         db.commit()
-    return RedirectResponse(url="/admin", status_code=status.HTTP_303_SEE_OTHER)
+    return RedirectResponse(
+        url=_year_dashboard_url(year_id, status_name="period-deleted", section_id=EXCLUDED_PERIODS_SECTION_ID),
+        status_code=status.HTTP_303_SEE_OTHER,
+    )
 
 
-def _build_week_groups(db: Session, settings: AcademicYearSetting) -> list[dict[str, object]]:
-    """Prepare the week grid, grouped by month, for the admin template.
+def _build_week_groups(db: Session, academic_year: AcademicYear) -> list[dict[str, object]]:
+    """Prepare the week grid, grouped by month, for one academic year."""
 
-    Weeks already saved in the database keep their stored number. Weeks with
-    no saved number get an editable auto-suggested one, so the admin starts
-    from a full grid instead of a blank one and only has to hand-correct the
-    weeks the school merges or skips.
-    """
-
-    week_starts = iter_week_starts(settings.default_start_date, settings.default_end_date)
-    periods = db.scalars(select(ExcludedPeriod)).all()
+    week_starts = iter_week_starts(academic_year.default_start_date, academic_year.default_end_date)
+    periods = _periods_for_year(db, academic_year.id)
     excluded_dates = expand_excluded_periods([(period.start_date, period.end_date) for period in periods])
     suggestions = suggest_week_numbers(week_starts, excluded_dates)
     saved_numbers = {
-        row.week_start_date: row.number for row in db.scalars(select(AcademicWeekNumber)).all()
+        row.week_start_date: row.number
+        for row in db.scalars(select(AcademicWeekNumber).where(AcademicWeekNumber.academic_year_id == academic_year.id)).all()
     }
 
     groups: list[dict[str, object]] = []
@@ -405,30 +602,43 @@ def _build_week_groups(db: Session, settings: AcademicYearSetting) -> list[dict[
     return groups
 
 
-@router.get("/weeks")
-def weeks_page(request: Request, db: Session = Depends(get_db), _: AdminUser = Depends(require_admin)):
-    """Show the week-numbering grid for the current academic year."""
+@router.get("/years/{year_id}/weeks")
+def weeks_page(request: Request, year_id: int, db: Session = Depends(get_db), _: AdminUser = Depends(require_admin)):
+    """Show the week-numbering grid for one academic year."""
 
-    settings = db.get(AcademicYearSetting, 1)
+    academic_year = db.get(AcademicYear, year_id)
+    if academic_year is None:
+        return RedirectResponse(url="/admin", status_code=status.HTTP_303_SEE_OTHER)
+
+    status_message, status_tone = _status_from_request(request)
     return templates.TemplateResponse(
         request,
         "admin/weeks.html",
         {
-            "week_groups": _build_week_groups(db, settings),
-            "include_week_numbers_in_export": settings.include_week_numbers_in_export,
+            "selected_year": academic_year,
+            "week_groups": _build_week_groups(db, academic_year),
+            "include_week_numbers_in_export": academic_year.include_week_numbers_in_export,
+            "status_message": status_message,
+            "status_tone": status_tone,
             "error": None,
         },
     )
 
 
-@router.post("/weeks")
-async def update_weeks(request: Request, db: Session = Depends(get_db), _: AdminUser = Depends(require_admin)):
-    """Bulk-save the week-numbering grid and export toggle submitted from the admin page."""
+@router.post("/years/{year_id}/weeks")
+async def update_weeks(request: Request, year_id: int, db: Session = Depends(get_db), _: AdminUser = Depends(require_admin)):
+    """Bulk-save the week-numbering grid for one academic year."""
 
-    settings = db.get(AcademicYearSetting, 1)
+    academic_year = db.get(AcademicYear, year_id)
+    if academic_year is None:
+        return RedirectResponse(url="/admin", status_code=status.HTTP_303_SEE_OTHER)
+
     form_data = dict(await request.form())
-    week_starts = iter_week_starts(settings.default_start_date, settings.default_end_date)
-    existing_rows = {row.week_start_date: row for row in db.scalars(select(AcademicWeekNumber)).all()}
+    week_starts = iter_week_starts(academic_year.default_start_date, academic_year.default_end_date)
+    existing_rows = {
+        row.week_start_date: row
+        for row in db.scalars(select(AcademicWeekNumber).where(AcademicWeekNumber.academic_year_id == academic_year.id)).all()
+    }
 
     for monday in week_starts:
         raw_value = (form_data.get(f"{WEEK_FIELD_PREFIX}{monday.isoformat()}") or "").strip()
@@ -448,8 +658,11 @@ async def update_weeks(request: Request, db: Session = Depends(get_db), _: Admin
                 request,
                 "admin/weeks.html",
                 {
-                    "week_groups": _build_week_groups(db, settings),
-                    "include_week_numbers_in_export": settings.include_week_numbers_in_export,
+                    "selected_year": academic_year,
+                    "week_groups": _build_week_groups(db, academic_year),
+                    "include_week_numbers_in_export": academic_year.include_week_numbers_in_export,
+                    "status_message": None,
+                    "status_tone": None,
                     "error": f"El número de la setmana del {format_display_date(monday)} no és vàlid.",
                 },
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -458,8 +671,10 @@ async def update_weeks(request: Request, db: Session = Depends(get_db), _: Admin
         if existing_row is not None:
             existing_row.number = number
         else:
-            db.add(AcademicWeekNumber(week_start_date=monday, number=number))
+            db.add(AcademicWeekNumber(academic_year_id=academic_year.id, week_start_date=monday, number=number))
 
-    settings.include_week_numbers_in_export = "include_week_numbers_in_export" in form_data
     db.commit()
-    return RedirectResponse(url="/admin/weeks", status_code=status.HTTP_303_SEE_OTHER)
+    return RedirectResponse(
+        url=f"/admin/years/{academic_year.id}/weeks?status=weeks-updated",
+        status_code=status.HTTP_303_SEE_OTHER,
+    )
