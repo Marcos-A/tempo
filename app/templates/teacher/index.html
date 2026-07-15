@@ -65,8 +65,7 @@
     </div>
     <div class="two-column form-span">
       <label>
-        Data d'inici de la planificació
-        <span class="inline-note">Dia de presentació sense classes</span>
+        <span>Data d'inici de la planificació <span class="inline-note">(dia de presentació sense classes)</span></span>
         <input class="date-input" type="text" name="start_date" value="{{ form.get('start_date', settings.default_start_date|date_display) }}" placeholder="DD/MM/AAAA" inputmode="numeric" pattern="\d{1,2}/\d{1,2}/\d{2,4}" required />
       </label>
       <label>
