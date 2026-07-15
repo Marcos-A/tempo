@@ -1,6 +1,6 @@
 # Roadmap
 
-Short-term improvements currently planned for `curriculum-planner`.
+Short-term improvements currently planned for `tempo`.
 
 ## Next
 
