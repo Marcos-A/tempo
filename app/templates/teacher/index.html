@@ -74,11 +74,15 @@
       </label>
     </div>
     <div class="weekday-grid form-span">
-      <label>Hores dilluns <input type="number" min="0" max="6" name="monday_hours" value="{{ form.get('monday_hours', '0') }}" data-weekday-index="0" required /></label>
-      <label>Hores dimarts <input type="number" min="0" max="6" name="tuesday_hours" value="{{ form.get('tuesday_hours', '0') }}" data-weekday-index="1" required /></label>
-      <label>Hores dimecres <input type="number" min="0" max="6" name="wednesday_hours" value="{{ form.get('wednesday_hours', '0') }}" data-weekday-index="2" required /></label>
-      <label>Hores dijous <input type="number" min="0" max="6" name="thursday_hours" value="{{ form.get('thursday_hours', '0') }}" data-weekday-index="3" required /></label>
-      <label>Hores divendres <input type="number" min="0" max="6" name="friday_hours" value="{{ form.get('friday_hours', '0') }}" data-weekday-index="4" required /></label>
+      {% for weekday_label, weekday_name, weekday_index in [('Hores dilluns', 'monday', 0), ('Hores dimarts', 'tuesday', 1), ('Hores dimecres', 'wednesday', 2), ('Hores dijous', 'thursday', 3), ('Hores divendres', 'friday', 4)] %}
+      <label>{{ weekday_label }}
+        <select name="{{ weekday_name }}_hours" data-weekday-index="{{ weekday_index }}" required>
+          {% for hour in range(0, 7) %}
+          <option value="{{ hour }}" {% if form.get(weekday_name ~ '_hours', '0')|int == hour %}selected{% endif %}>{{ hour }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      {% endfor %}
     </div>
     <div class="ra-count-shell form-span">
       <label class="ra-count-card" for="ra-count-input">
@@ -168,7 +172,7 @@
   const raCountInput = document.querySelector('input[name="ra_count"]');
   const parallelConfig = document.getElementById("parallel-config");
   const parallelModeWarning = document.getElementById("parallel-mode-warning");
-  const globalWeekdayInputs = [...document.querySelectorAll(".weekday-grid.form-span input[data-weekday-index]")];
+  const globalWeekdaySelects = [...document.querySelectorAll(".weekday-grid.form-span select[data-weekday-index]")];
   const blockWeekdayFields = [...document.querySelectorAll(".block-weekday-field")];
   const blockTimeFields = [...document.querySelectorAll(".block-time-field")];
 
@@ -227,7 +231,7 @@
 
   function syncParallelDayConstraints(changedField = null) {
     const globalMinutesByDay = new Map(
-      globalWeekdayInputs.map((input) => [input.dataset.weekdayIndex, Number(input.value || 0) * 60]),
+      globalWeekdaySelects.map((select) => [select.dataset.weekdayIndex, Number(select.value || 0) * 60]),
     );
     const blockFieldsByDay = new Map();
 
@@ -305,7 +309,7 @@
   }
 
   planningModeInputs.forEach((input) => input.addEventListener("change", syncPlanningMode));
-  globalWeekdayInputs.forEach((input) => input.addEventListener("input", () => syncParallelWeekdayAvailability()));
+  globalWeekdaySelects.forEach((select) => select.addEventListener("change", () => syncParallelWeekdayAvailability()));
   blockTimeFields.forEach((field) => {
     const { hoursSelect, minutesSelect } = getBlockTimeSelects(field);
     [hoursSelect, minutesSelect].forEach((select) => {
