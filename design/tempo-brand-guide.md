@@ -1,10 +1,18 @@
-# Tempo — final logo assets
+# Tempo brand guide (superseded)
 
-**Mark:** segmented "T" — a continuous stem crossed by three discrete interval
-blocks, doubling as the app's initial and as the "structured time blocks"
-idea the product is built on.
+This document described the first Tempo logo iteration (solid-stem mark, 3 mark
+colors, 2 lockup backgrounds). It has been superseded by the canonical design
+system, which documents a revised mark (rounded, segmented "Cadence Stack"
+construction), the full color/typography/spacing system, and governance rules
+for future changes.
 
-## Files
+See [`tempo-design-system.md`](tempo-design-system.md) (Section 4, Logo System)
+and the production asset package in [`brand/`](brand/).
+
+Kept here for historical reference only — do not use the file list or color
+values below for new work.
+
+## Original files (retired, no longer shipped in `app/static/img/`)
 
 | File | Description |
 |---|---|
@@ -19,21 +27,3 @@ idea the product is built on.
 | `tempo-wordmark-cream.svg` | "tempo" wordmark, cream, for dark backgrounds |
 | `tempo-lockup-light-bg.svg` | Badge + wordmark, for light backgrounds (nav bars, headers) |
 | `tempo-lockup-dark-bg.svg` | Badge + wordmark, for dark/pine backgrounds |
-
-Assets live in `app/static/img/`, served at `/static/img/<file>`.
-
-## Usage
-
-- App icon / favicon / collapsed UI → `tempo-app-icon.svg` / `tempo-favicon.svg`
-- Nav bar, product header, docs → `tempo-lockup-light-bg.svg` (or `-dark-bg` on pine)
-- Legal text, email signature, plain text → wordmark files only, no mark
-- Wordmark set in Inter, weight 600, tight negative letter-spacing
-
-## Color reference
-
-| Role | Hex |
-|---|---|
-| Pine (primary) | `#33604c` |
-| Dark pine (alt) | `#1e3a2d` |
-| Ochre (optional accent, sparing use only) | `#8a5a2b` |
-| Background (light) | `#eef0ea` / `#fbfbf7` |
