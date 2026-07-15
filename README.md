@@ -90,11 +90,11 @@ bash scripts/deploy_production.sh
 
 Default production-oriented variables:
 
-- `ENV_FILE=/srv/config/curriculum-planner/.env.prod`
-- `DATA_DIR=/srv/data/curriculum-planner`
+- `ENV_FILE=/srv/config/tempo/.env.prod`
+- `DATA_DIR=/srv/data/tempo`
 - `HOST_PORT=8091`
-- `CONTAINER_NAME=curriculum-planner-web`
-- `IMAGE_NAME=curriculum-planner-web:local`
+- `CONTAINER_NAME=tempo-web`
+- `IMAGE_NAME=tempo-web:local`
 
 These defaults are convenient on this server, but every value can be overridden so another
 admin can deploy the same app elsewhere without editing the compose file.

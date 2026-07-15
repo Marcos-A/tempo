@@ -1,21 +1,21 @@
-name: curriculum-planner
+name: tempo
 
 services:
   web:
-    container_name: ${CONTAINER_NAME:-curriculum-planner-web}
-    image: ${IMAGE_NAME:-curriculum-planner-web:local}
+    container_name: ${CONTAINER_NAME:-tempo-web}
+    image: ${IMAGE_NAME:-tempo-web:local}
     build:
       context: .
       dockerfile: Dockerfile
     command: python -m app.server
     env_file:
-      - ${ENV_FILE:-/srv/config/curriculum-planner/.env.prod}
+      - ${ENV_FILE:-/srv/config/tempo/.env.prod}
     ports:
       - "127.0.0.1:${HOST_PORT:-8091}:8000"
     environment:
       DATABASE_URL: sqlite:///data/app.db
     volumes:
-      - ${DATA_DIR:-/srv/data/curriculum-planner}:/app/data
+      - ${DATA_DIR:-/srv/data/tempo}:/app/data
     restart: unless-stopped
     healthcheck:
       test:

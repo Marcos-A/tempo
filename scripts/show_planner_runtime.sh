@@ -18,13 +18,13 @@ labels=(
 )
 
 production_candidates=(
-  "curriculum-planner-web"
-  "curriculum-planner-web-1"
+  "tempo-web"
+  "tempo-web-1"
 )
 
 preview_candidates=(
-  "curriculum-planner-preview-web"
-  "curriculum-planner-preview-web-1"
+  "tempo-preview-web"
+  "tempo-preview-web-1"
 )
 
 for label in "${labels[@]}"; do
