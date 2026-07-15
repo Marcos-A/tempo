@@ -112,7 +112,7 @@ bash scripts/deploy_preview.sh
 
 ## Design assets
 
-- `design/tempo-design-system.md`: canonical brand and design system reference (logo construction, color, typography, spacing, components). `design/tempo-brand-guide.md` is the retired first-iteration guide, kept for history only.
+- `design/tempo-design-system.md`: canonical brand and design system reference (logo construction, color, typography, spacing, components).
 - `design/brand/`: full production asset package (all SVG/PNG/ICO color variants and sizes) the app's assets are exported from — see `design/brand/README.md`.
 - `app/static/img/`: the curated subset of logo SVGs actually served by the app (symbol, wordmark, lockup, app icon, favicon — pine/white/black/ink variants only).
 - `app/static/fonts/`: self-hosted Inter (latin subset), matching the wordmark's typeface, used for headings and body text.
