@@ -86,10 +86,10 @@ def test_distribution_validation_rejects_zero_hour_ras():
         validate_ra_distribution(10, [RAPlan("RA1", "RA1", 10), RAPlan("RA2", "RA2", 0)])
 
 
-def test_default_ra_state_splits_parallel_ras_evenly_between_blocks():
-    """The first half of the RAs should seed into block 1, the rest into block 2."""
+def test_default_ra_state_splits_parallel_ras_evenly_when_blocks_have_equal_capacity():
+    """With no capacity info (or equal capacity), fall back to an even split."""
 
-    state = _default_ra_state(5, "parallel")
+    state = _default_ra_state(5, "parallel", {"block_1": 100, "block_2": 100})
 
     assert state["blocks"] == {
         "RA1": "block_1",
@@ -98,6 +98,29 @@ def test_default_ra_state_splits_parallel_ras_evenly_between_blocks():
         "RA4": "block_2",
         "RA5": "block_2",
     }
+
+
+def test_default_ra_state_weights_the_parallel_split_by_block_capacity():
+    """A block with far less of its own weekly time should seed fewer RAs by default."""
+
+    state = _default_ra_state(4, "parallel", {"block_1": 43, "block_2": 215})
+
+    assert state["blocks"] == {
+        "RA1": "block_1",
+        "RA2": "block_2",
+        "RA3": "block_2",
+        "RA4": "block_2",
+    }
+
+
+def test_default_ra_state_always_seeds_at_least_one_ra_per_block():
+    """Even an extreme capacity skew must not leave a block empty by default."""
+
+    state = _default_ra_state(3, "parallel", {"block_1": 1, "block_2": 999})
+
+    assert state["blocks"]["RA1"] == "block_1"
+    assert state["blocks"]["RA2"] == "block_2"
+    assert state["blocks"]["RA3"] == "block_2"
 
 
 def test_parallel_blocks_preserve_their_weekly_split_when_both_need_all_hours():

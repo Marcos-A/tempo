@@ -1,7 +1,6 @@
 """Routes for the public teacher planning workflow."""
 
 import json
-import math
 from datetime import date
 
 from fastapi import APIRouter, Depends, Request, status
@@ -232,7 +231,11 @@ def _week_numbers_for_schedule(db: Session, academic_year_id: int, schedule: lis
     return week_numbers
 
 
-def _default_ra_state(ra_count: int, planning_mode: str) -> dict[str, object]:
+def _default_ra_state(
+    ra_count: int,
+    planning_mode: str,
+    block_available_minutes: dict[str, int] | None = None,
+) -> dict[str, object]:
     """Prepare the browser state used to render the RA editor."""
 
     order = [f"RA{index}" for index in range(1, ra_count + 1)]
@@ -240,7 +243,13 @@ def _default_ra_state(ra_count: int, planning_mode: str) -> dict[str, object]:
     hours = {key: 0 for key in order}
     minutes = {key: 0 for key in order}
     if planning_mode == "parallel":
-        first_block_size = math.ceil(len(order) / 2)
+        available = block_available_minutes or {}
+        block_1_minutes = available.get("block_1", 0)
+        total_minutes = block_1_minutes + available.get("block_2", 0)
+        block_1_share = block_1_minutes / total_minutes if total_minutes else 0.5
+        # Round half up (not Python's banker's rounding) to match the JS fallback's Math.round.
+        first_block_size = int(len(order) * block_1_share + 0.5)
+        first_block_size = min(max(first_block_size, 1), len(order) - 1)
         blocks = {key: "block_1" if index < first_block_size else "block_2" for index, key in enumerate(order)}
     else:
         blocks = {}
@@ -408,7 +417,7 @@ async def prepare_plan(request: Request, db: Session = Depends(get_db)):
         {
             "summary": plan_payload,
             "plan_json": json.dumps(plan_payload),
-            "ra_state_json": json.dumps(_default_ra_state(ra_count, planning_mode)),
+            "ra_state_json": json.dumps(_default_ra_state(ra_count, planning_mode, block_available_minutes)),
         },
     )
 

@@ -507,9 +507,13 @@
       : Array.from({ length: Number(distributionForm.dataset.count) }, (_, index) => `RA${index + 1}`);
 
     if (planningMode === "parallel") {
-      const firstBlockSize = Math.ceil(keys.length / 2);
       const primaryBlock = planData.blocks?.[0]?.key;
       const secondaryBlock = planData.blocks?.[1]?.key || primaryBlock;
+      const primaryMinutes = Number(planData.blocks?.[0]?.available_minutes ?? 0);
+      const secondaryMinutes = Number(planData.blocks?.[1]?.available_minutes ?? 0);
+      const totalMinutes = primaryMinutes + secondaryMinutes;
+      const primaryShare = totalMinutes > 0 ? primaryMinutes / totalMinutes : 0.5;
+      const firstBlockSize = Math.min(Math.max(Math.round(keys.length * primaryShare), 1), keys.length - 1);
       keys.forEach((key, index) => {
         const blockKey = initialState.blocks?.[key] || (index < firstBlockSize ? primaryBlock : secondaryBlock);
         const blockList = blockLists.find((list) => list.dataset.blockKey === blockKey) || blockLists[0];
