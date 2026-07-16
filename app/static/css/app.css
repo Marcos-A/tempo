@@ -1159,6 +1159,14 @@ button.secondary.ra-action-button:hover {
   border-color: var(--accent);
 }
 
+.ra-action-button[data-direction="right"] {
+  transform: rotate(90deg);
+}
+
+.ra-action-button[data-direction="left"] {
+  transform: rotate(-90deg);
+}
+
 .ra-action-button:focus-visible,
 button.secondary.ra-action-button:focus-visible {
   outline: 2px solid var(--accent);

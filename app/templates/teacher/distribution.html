@@ -184,6 +184,14 @@
     (planData.blocks || []).map((block) => [block.key, document.getElementById(`summary-block-start-${block.key}`)])
   );
   const startsAfterRaByBlock = { ...(initialState.block_start_triggers || {}) };
+  {
+    // Only one block may ever carry a trigger. Guard against a stale seed
+    // (e.g. restored from a previous, otherwise-rejected export attempt)
+    // holding more than one, which would otherwise wedge both selects into
+    // permanently believing "the other one" has a trigger.
+    const seededBlockKeys = Object.keys(startsAfterRaByBlock).filter((key) => startsAfterRaByBlock[key]);
+    seededBlockKeys.slice(1).forEach((key) => delete startsAfterRaByBlock[key]);
+  }
   const blockLists = planningMode === "parallel"
     ? [...document.querySelectorAll(".block-dropzone")]
     : [document.getElementById("ra-list")];
@@ -284,6 +292,33 @@
       }
     }
     return null;
+  }
+
+  function getRaDisplayName(raKey) {
+    for (const list of blockLists) {
+      const row = [...list.querySelectorAll(".ra-row")].find((candidate) => candidate.dataset.key === raKey);
+      if (row) {
+        return row.querySelector(`input[name="${raKey}_name"]`)?.value?.trim() || raKey;
+      }
+    }
+    return raKey;
+  }
+
+  function getBlockStartStatus(block) {
+    const triggerRaKey = startsAfterRaByBlock[block.key];
+    if (!triggerRaKey) {
+      return { state: "immediate" };
+    }
+    const siblingBlock = (planData.blocks || []).find((candidate) => candidate.key !== block.key);
+    const assignedSoFar = siblingBlock ? getAssignedMinutesUpToRa(siblingBlock.key, triggerRaKey) : 0;
+    if (assignedSoFar <= 0) {
+      return { state: "pending", triggerRaKey };
+    }
+    const startDateIso = estimateBlockStartDate(block);
+    if (!startDateIso) {
+      return { state: "unresolved", triggerRaKey };
+    }
+    return { state: "resolved", triggerRaKey, startDateIso };
   }
 
   function computeBlockAvailableMinutes() {
@@ -426,7 +461,7 @@
     const wholeHours = Math.floor(initialMinutes / 60);
     const remainingMinutes = initialMinutes % 60;
     const blockIndex = (planData.blocks || []).findIndex((block) => block.key === blockKey);
-    const moveBlockIcon = blockIndex <= 0 ? "→" : "←";
+    const moveBlockDirection = blockIndex <= 0 ? "right" : "left";
     const timeFieldMarkup = planningMode === "parallel"
       ? `<div class="ra-time-field"><input type="number" min="0" step="1" name="${key}_hours" value="${wholeHours}" /><span class="ra-time-suffix">h</span><select name="${key}_minutes">${buildMinuteOptions(remainingMinutes)}</select><span class="ra-time-suffix">min</span></div>`
       : `<input type="number" min="0" step="1" name="${key}_hours" value="${Math.round(Number(initialState.hours?.[key] ?? 0))}" />`;
@@ -438,7 +473,7 @@
       <div class="ra-actions">
         <button type="button" class="secondary ra-action-button" data-action="move-up" aria-label="Puja la RA" title="Puja la RA">↑</button>
         <button type="button" class="secondary ra-action-button" data-action="move-down" aria-label="Baixa la RA" title="Baixa la RA">↓</button>
-        ${planningMode === "parallel" ? `<button type="button" class="secondary ra-action-button" data-action="move-block" aria-label="Mou la RA a l&apos;altre bloc" title="Mou la RA a l&apos;altre bloc">${moveBlockIcon}</button>` : ""}
+        ${planningMode === "parallel" ? `<button type="button" class="secondary ra-action-button" data-action="move-block" data-direction="${moveBlockDirection}" aria-label="Mou la RA a l&apos;altre bloc" title="Mou la RA a l&apos;altre bloc">↑</button>` : ""}
       </div>
     `;
     attachZeroResetBehavior(row.querySelector(`input[name="${key}_hours"]`));
@@ -513,12 +548,12 @@
           const blockKey = list.dataset.blockKey;
           const blockIndex = (planData.blocks || []).findIndex((block) => block.key === blockKey);
           const moveBlockButton = row.querySelector('[data-action="move-block"]');
-          const moveBlockIcon = blockIndex <= 0 ? "→" : "←";
+          const moveBlockDirection = blockIndex <= 0 ? "right" : "left";
           row.dataset.blockKey = blockKey;
           blocks[key] = blockKey;
           assignedByBlock[blockKey] += assignedMinutes;
           if (moveBlockButton) {
-            moveBlockButton.textContent = moveBlockIcon;
+            moveBlockButton.dataset.direction = moveBlockDirection;
           }
         }
         assigned += planningMode === "parallel" ? assignedMinutes : assignedHours;
@@ -538,18 +573,24 @@
       const assignedBlockMinutes = Number(assignedByBlock[blockKey] || 0);
       const availableBlockMinutes = Number(effectiveAvailableMinutes[blockKey] || 0);
       const availableBlockDisplay = formatMinutes(availableBlockMinutes);
-      const startDateIso = estimateBlockStartDate(block);
+      const startStatus = getBlockStartStatus(block);
+      const startDateIso = startStatus.startDateIso || null;
+      const awaitingTriggerHours = startStatus.state === "pending" || startStatus.state === "unresolved";
+      const awaitingMessage = awaitingTriggerHours
+        ? `Es calcularà quan ${getRaDisplayName(startStatus.triggerRaKey)} tingui temps assignat.`
+        : "";
 
       const startHintEl = blockStartHintEls[blockKey];
       if (startHintEl) {
-        const triggerRaKey = startsAfterRaByBlock[blockKey];
-        startHintEl.textContent = triggerRaKey
-          ? `Comença ${startDateIso ? `el ${formatDisplayDate(startDateIso, planData.schedule.find((day) => day.date === startDateIso)?.weekday_index)}` : "quan acabi l'RA seleccionada"}`
-          : "";
+        startHintEl.textContent = startStatus.state === "resolved"
+          ? `Comença el ${formatDisplayDate(startDateIso, planData.schedule.find((day) => day.date === startDateIso)?.weekday_index)}`
+          : awaitingTriggerHours
+            ? "Comença quan acabi l'RA seleccionada"
+            : "";
       }
       const summaryAvailableEl = summaryBlockAvailableEls[blockKey];
       if (summaryAvailableEl) {
-        summaryAvailableEl.textContent = availableBlockDisplay;
+        summaryAvailableEl.textContent = awaitingTriggerHours ? "Pendent de calcular" : availableBlockDisplay;
       }
       const summaryStartEl = summaryBlockStartEls[blockKey];
       if (summaryStartEl) {
@@ -559,17 +600,21 @@
       const remainingBlockMinutes = availableBlockMinutes - assignedBlockMinutes;
       const pendingEl = blockPendingEls[blockKey];
       if (pendingEl) {
-        pendingEl.textContent = `${formatMinutes(Math.abs(remainingBlockMinutes))} ${remainingBlockMinutes < 0 ? "de més" : "pendents"} de ${availableBlockDisplay} pròpies`;
-        pendingEl.className = `block-pending-hours ${pendingHoursStatusClass(remainingBlockMinutes)}`;
+        pendingEl.textContent = awaitingTriggerHours
+          ? awaitingMessage
+          : `${formatMinutes(Math.abs(remainingBlockMinutes))} ${remainingBlockMinutes < 0 ? "de més" : "pendents"} de ${availableBlockDisplay} pròpies`;
+        pendingEl.className = `block-pending-hours ${awaitingTriggerHours ? "block-pending-open" : pendingHoursStatusClass(remainingBlockMinutes)}`;
       }
       const stickyPendingEl = stickyBlockPendingEls[blockKey];
       if (stickyPendingEl) {
-        stickyPendingEl.textContent = remainingBlockMinutes < 0
-          ? `${formatMinutes(Math.abs(remainingBlockMinutes))} de més de ${availableBlockDisplay} pròpies`
-          : remainingBlockMinutes === 0
-            ? `Quadrat respecte de ${availableBlockDisplay} pròpies`
-            : `${formatMinutes(remainingBlockMinutes)} pendents de ${availableBlockDisplay} pròpies`;
-        stickyPendingEl.className = `block-pending-hours ${pendingHoursStatusClass(remainingBlockMinutes)}`;
+        stickyPendingEl.textContent = awaitingTriggerHours
+          ? awaitingMessage
+          : remainingBlockMinutes < 0
+            ? `${formatMinutes(Math.abs(remainingBlockMinutes))} de més de ${availableBlockDisplay} pròpies`
+            : remainingBlockMinutes === 0
+              ? `Quadrat respecte de ${availableBlockDisplay} pròpies`
+              : `${formatMinutes(remainingBlockMinutes)} pendents de ${availableBlockDisplay} pròpies`;
+        stickyPendingEl.className = `block-pending-hours ${awaitingTriggerHours ? "block-pending-open" : pendingHoursStatusClass(remainingBlockMinutes)}`;
       }
 
       const endDateEl = blockEndDateEls[blockKey];
@@ -726,6 +771,11 @@
     select.addEventListener("change", () => {
       const blockKey = select.dataset.blockKey;
       if (select.value) {
+        Object.keys(startsAfterRaByBlock).forEach((otherKey) => {
+          if (otherKey !== blockKey) {
+            delete startsAfterRaByBlock[otherKey];
+          }
+        });
         startsAfterRaByBlock[blockKey] = select.value;
       } else {
         delete startsAfterRaByBlock[blockKey];
