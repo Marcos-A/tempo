@@ -572,10 +572,13 @@ button:disabled {
 }
 
 .block-start-trigger-disabled-hint {
-  display: block;
   margin-top: 0.3rem;
   font-weight: 500;
   font-size: 0.8rem;
+}
+
+.block-start-trigger-disabled-hint:not([hidden]) {
+  display: block;
 }
 
 .section-heading h2,
