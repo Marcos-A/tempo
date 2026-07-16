@@ -554,6 +554,16 @@ button:disabled {
   margin-bottom: 1rem;
 }
 
+.block-start-trigger {
+  display: block;
+  margin-bottom: 1rem;
+  font-size: 0.85rem;
+}
+
+.block-start-trigger select {
+  margin-top: 0.3rem;
+}
+
 .section-heading h2,
 .block-card h3,
 .block-summary-card h3 {
@@ -734,16 +744,6 @@ button:disabled {
 .parallel-blocks-layout {
   display: grid;
   gap: 1rem;
-}
-
-.block-start-offset {
-  margin-top: 1rem;
-  padding-top: 1rem;
-  border-top: 1px solid var(--line);
-}
-
-.block-start-offset .two-column {
-  margin-top: 0.75rem;
 }
 
 .block-time-grid {

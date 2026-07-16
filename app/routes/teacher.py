@@ -36,7 +36,6 @@ templates.env.globals["app_name"] = settings.app_name
 templates.env.globals["school_name"] = settings.school_name
 templates.env.globals["block_minute_choices"] = BLOCK_MINUTE_CHOICES
 PLANNING_MODE_CHOICES = {"sequential", "parallel"}
-DELAYED_BLOCK_CHOICES = {"block_1", "block_2"}
 MAX_RA_COUNT = 24
 WEEKDAY_FIELDS = ["monday", "tuesday", "wednesday", "thursday", "friday"]
 
@@ -85,32 +84,7 @@ def _parse_block_weekday_minutes(form_data: dict[str, str], prefix: str) -> dict
     return values
 
 
-def _parse_delayed_block_start(
-    form_data: dict[str, str], plan_start_date: date, plan_end_date: date
-) -> tuple[str, date] | None:
-    """Read the optional "one block starts later" fields, if the teacher enabled it."""
-
-    if not form_data.get("block_start_offset_enabled"):
-        return None
-
-    delayed_block = form_data.get("delayed_block", "")
-    if delayed_block not in DELAYED_BLOCK_CHOICES:
-        raise ValueError("Selecciona quin bloc comença més tard.")
-
-    delayed_start_date = parse_date_input(form_data.get("delayed_block_start_date", ""))
-    if not (plan_start_date <= delayed_start_date <= plan_end_date):
-        raise ValueError("La data d'inici endarrerida ha d'estar dins de l'interval de la planificació.")
-
-    return delayed_block, delayed_start_date
-
-
-def _build_block_plans(
-    form_data: dict[str, str],
-    weekday_hours: dict[int, int],
-    planning_mode: str,
-    plan_start_date: date | None = None,
-    plan_end_date: date | None = None,
-) -> list[BlockPlan]:
+def _build_block_plans(form_data: dict[str, str], weekday_hours: dict[int, int], planning_mode: str) -> list[BlockPlan]:
     """Build the planning blocks for the advanced parallel mode."""
 
     if planning_mode != "parallel":
@@ -125,25 +99,9 @@ def _build_block_plans(
         if block_1_minutes[index] + block_2_minutes[index] != weekday_total_minutes:
             raise ValueError("En mode per blocs, la suma dels blocs ha de coincidir amb les hores del calendari cada dia.")
 
-    delayed_start = (
-        _parse_delayed_block_start(form_data, plan_start_date, plan_end_date)
-        if plan_start_date and plan_end_date
-        else None
-    )
-
     return [
-        BlockPlan(
-            key="block_1",
-            name="Bloc 1",
-            weekday_minutes=block_1_minutes,
-            start_date=delayed_start[1] if delayed_start and delayed_start[0] == "block_1" else None,
-        ),
-        BlockPlan(
-            key="block_2",
-            name="Bloc 2",
-            weekday_minutes=block_2_minutes,
-            start_date=delayed_start[1] if delayed_start and delayed_start[0] == "block_2" else None,
-        ),
+        BlockPlan(key="block_1", name="Bloc 1", weekday_minutes=block_1_minutes),
+        BlockPlan(key="block_2", name="Bloc 2", weekday_minutes=block_2_minutes),
     ]
 
 
@@ -220,24 +178,22 @@ def _serialize_blocks(blocks: list[BlockPlan]) -> list[dict[str, object]]:
                 "name": block.name,
                 "weekday_minutes": block.weekday_minutes,
                 "weekday_hours_display": _format_weekday_minutes(block.weekday_minutes),
-                "start_date": block.start_date.isoformat() if block.start_date else None,
-                "start_date_display": format_display_date(block.start_date) if block.start_date else None,
             }
         )
     return serialized_blocks
 
 
 def _summarize_block_available_minutes(schedule: list[ScheduleDay], blocks: list[BlockPlan]) -> dict[str, int]:
-    """Calculate how many schedule minutes each block owns before any releases.
+    """Calculate how many schedule minutes each block owns in its own weekly lane.
 
-    Uses the same day-by-day capacity split as the allocator so a delayed
-    block's borrowed-out minutes are already folded into its sibling here,
-    keeping this summary consistent with what /export will actually produce.
+    This is the Pas 1 nominal split, before the teacher has assigned any RAs
+    yet, so no block can carry a `starts_after_ra` trigger at this point —
+    Pas 2 recomputes the real, possibly-delayed totals live once RAs exist.
     """
 
     totals = {block.key: 0 for block in blocks}
     for day in schedule:
-        for key, minutes in block_day_capacities(day, blocks).items():
+        for key, minutes in block_day_capacities(day, blocks, set()).items():
             totals[key] += minutes
     return totals
 
@@ -286,10 +242,23 @@ def _default_ra_state(ra_count: int, planning_mode: str) -> dict[str, object]:
         blocks = {key: "block_1" if index == 0 else "block_2" for index, key in enumerate(order)}
     else:
         blocks = {}
-    return {"order": order, "names": names, "hours": hours, "minutes": minutes, "blocks": blocks}
+    return {
+        "order": order,
+        "names": names,
+        "hours": hours,
+        "minutes": minutes,
+        "blocks": blocks,
+        "block_start_triggers": {},
+    }
 
 
-def _format_blocks_summary(blocks: list[dict[str, object]], ra_order: list[str], ra_names: dict[str, str], ra_blocks: dict[str, str]) -> str:
+def _format_blocks_summary(
+    blocks: list[dict[str, object]],
+    ra_order: list[str],
+    ra_names: dict[str, str],
+    ra_blocks: dict[str, str],
+    block_start_triggers: dict[str, str],
+) -> str:
     """Render a readable summary of the configured parallel blocks."""
 
     parts: list[str] = []
@@ -297,8 +266,9 @@ def _format_blocks_summary(blocks: list[dict[str, object]], ra_order: list[str],
         block_key = str(block["key"])
         block_ras = [ra_names[key].strip() or key for key in ra_order if ra_blocks.get(key) == block_key]
         ra_text = ", ".join(block_ras) if block_ras else "-"
-        start_date_display = block.get("start_date_display")
-        start_note = f", comença el {start_date_display}" if start_date_display else ""
+        trigger_ra_key = block_start_triggers.get(block_key)
+        trigger_name = (ra_names.get(trigger_ra_key, trigger_ra_key) or trigger_ra_key) if trigger_ra_key else None
+        start_note = f", comença després de {trigger_name}" if trigger_name else ""
         parts.append(f"{block['name']} ({block['weekday_hours_display']}{start_note}): {ra_text}")
     return " | ".join(parts)
 
@@ -350,7 +320,7 @@ async def prepare_plan(request: Request, db: Session = Depends(get_db)):
             raise ValueError("La data de fi no pot ser anterior a la data d'inici.")
         weekday_hours = _parse_weekday_hours(form_data)
         planning_mode = _parse_planning_mode(form_data)
-        blocks = _build_block_plans(form_data, weekday_hours, planning_mode, start_date, end_date)
+        blocks = _build_block_plans(form_data, weekday_hours, planning_mode)
         ra_count = _validate_ra_count(form_data, planning_mode)
     except (KeyError, ValueError) as exc:
         return templates.TemplateResponse(
@@ -452,6 +422,9 @@ async def export_plan(request: Request):
     ra_hours = json.loads(form["ra_hours"])
     ra_minutes = json.loads(form.get("ra_minutes", "{}"))
     ra_blocks = json.loads(form.get("ra_blocks", "{}"))
+    block_start_triggers = {
+        key: value for key, value in json.loads(form.get("block_start_triggers", "{}")).items() if value
+    }
 
     schedule_days = [
         ScheduleDay(
@@ -468,7 +441,7 @@ async def export_plan(request: Request):
             key=item["key"],
             name=item["name"],
             weekday_minutes={int(index): int(minutes) for index, minutes in item["weekday_minutes"].items()},
-            start_date=date.fromisoformat(item["start_date"]) if item.get("start_date") else None,
+            starts_after_ra=block_start_triggers.get(item["key"]),
         )
         for item in plan_data.get("blocks", [])
     ]
@@ -500,6 +473,8 @@ async def export_plan(request: Request):
             validate_ra_distribution(int(plan_data["total_available_hours"]), ras)
         if plan_data.get("planning_mode") == "parallel" and any(not ra.block_key for ra in ras):
             raise ValueError("Assigna cada RA a un dels dos blocs abans d'exportar.")
+        if len(block_start_triggers) > 1:
+            raise ValueError("Només un bloc pot començar més tard que l'altre.")
         rows = (
             allocate_ra_hours_by_blocks(schedule_days, ras, blocks)
             if plan_data.get("planning_mode") == "parallel"
@@ -513,7 +488,14 @@ async def export_plan(request: Request):
                 "summary": plan_data,
                 "plan_json": json.dumps(plan_data),
                 "ra_state_json": json.dumps(
-                    {"order": ra_order, "names": ra_names, "hours": ra_hours, "minutes": ra_minutes, "blocks": ra_blocks}
+                    {
+                        "order": ra_order,
+                        "names": ra_names,
+                        "hours": ra_hours,
+                        "minutes": ra_minutes,
+                        "blocks": ra_blocks,
+                        "block_start_triggers": block_start_triggers,
+                    }
                 ),
                 "export_error": str(exc),
             },
@@ -541,7 +523,7 @@ async def export_plan(request: Request):
         ),
     }
     if plan_data.get("planning_mode") == "parallel":
-        summary["Blocs"] = _format_blocks_summary(plan_data.get("blocks", []), ra_order, ra_names, ra_blocks)
+        summary["Blocs"] = _format_blocks_summary(plan_data.get("blocks", []), ra_order, ra_names, ra_blocks, block_start_triggers)
 
     include_week_numbers = bool(plan_data.get("include_week_numbers"))
     if include_week_numbers:

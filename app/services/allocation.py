@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import date
 
 from app.services.calendar import ScheduleDay
 from app.services.hours import MINUTES_PER_HOUR, minutes_to_hour_number
@@ -27,7 +26,7 @@ class BlockPlan:
     key: str
     name: str
     weekday_minutes: dict[int, int]
-    start_date: date | None = None
+    starts_after_ra: str | None = None
 
 
 def _ra_total_minutes(ra: RAPlan) -> int:
@@ -77,17 +76,24 @@ def _allocate_block_minutes(
     return remaining_capacity
 
 
-def block_day_capacities(day: ScheduleDay, blocks: list[BlockPlan]) -> dict[str, int]:
+def block_day_capacities(
+    day: ScheduleDay, blocks: list[BlockPlan], finished_ra_keys: set[str]
+) -> dict[str, int]:
     """Return each block's effective teaching minutes for one schedule day.
 
-    A block that has not reached its own start_date yet contributes zero
-    minutes that day; that slice is folded into the block(s) that have
-    already started (at most one block may be delayed, enforced when the
-    blocks are built), so the calendar's daily hours are never lost.
+    A block whose `starts_after_ra` RA has not finished yet (as of the end of
+    the previous schedule day) contributes zero minutes that day; that slice
+    is folded into the block(s) that have already started (at most one block
+    may carry a trigger, enforced when the blocks are built), so the
+    calendar's daily hours are never lost.
     """
 
     capacities = {block.key: block.weekday_minutes.get(day.weekday_index, 0) for block in blocks}
-    started_keys = [block.key for block in blocks if block.start_date is None or day.date >= block.start_date]
+    started_keys = [
+        block.key
+        for block in blocks
+        if not block.starts_after_ra or block.starts_after_ra in finished_ra_keys
+    ]
     delayed_keys = [block.key for block in blocks if block.key not in started_keys]
     borrowed = sum(capacities[key] for key in delayed_keys)
     for key in delayed_keys:
@@ -120,6 +126,16 @@ def allocate_ra_hours_by_blocks(
     if invalid_blocks:
         raise ValueError("Cada RA ha d'estar assignada a un bloc vàlid.")
 
+    ra_by_key = {ra.key: ra for ra in ras}
+    for block in blocks:
+        if not block.starts_after_ra:
+            continue
+        trigger_ra = ra_by_key.get(block.starts_after_ra)
+        if trigger_ra is None:
+            raise ValueError("El bloc espera una RA que no existeix en aquesta planificació.")
+        if trigger_ra.block_key == block.key:
+            raise ValueError("Un bloc no pot començar després d'una RA que ell mateix imparteix.")
+
     block_ras: dict[str, list[RAPlan]] = {block.key: [ra for ra in ras if ra.block_key == block.key] for block in blocks}
     block_states: dict[str, dict[str, int]] = {}
     for block in blocks:
@@ -128,6 +144,10 @@ def allocate_ra_hours_by_blocks(
             "index": 0,
             "remaining": _ra_total_minutes(ras_in_block[0]) if ras_in_block else 0,
         }
+
+    ra_target_minutes = {ra.key: _ra_total_minutes(ra) for ra in ras}
+    ra_cumulative_minutes = {ra.key: 0 for ra in ras}
+    finished_ra_keys: set[str] = set()
 
     rows: list[dict[str, object]] = []
     for day in schedule:
@@ -139,7 +159,7 @@ def allocate_ra_hours_by_blocks(
         }
         row_minutes = {ra.key: 0 for ra in ras}
         released_minutes = 0
-        day_capacities = block_day_capacities(day, blocks)
+        day_capacities = block_day_capacities(day, blocks, finished_ra_keys)
 
         for block in blocks:
             capacity = day_capacities[block.key]
@@ -169,6 +189,14 @@ def allocate_ra_hours_by_blocks(
 
         if released_minutes != 0:
             raise ValueError("L'assignació dels blocs ha deixat hores sense absorbir en un dia lectiu.")
+
+        for ra_key, minutes in row_minutes.items():
+            if minutes == 0 or ra_key in finished_ra_keys:
+                continue
+            ra_cumulative_minutes[ra_key] += minutes
+            if ra_cumulative_minutes[ra_key] >= ra_target_minutes[ra_key]:
+                finished_ra_keys.add(ra_key)
+
         row["ra_hours"] = {key: minutes_to_hour_number(minutes) for key, minutes in row_minutes.items()}
         rows.append(row)
 
