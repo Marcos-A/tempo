@@ -111,8 +111,7 @@
           <span class="pill">{{ block.key|replace("_", " ") }}</span>
         </div>
         <label class="block-start-trigger">
-          Inici del bloc
-          <span class="block-start-trigger-disabled-hint hint" id="block-start-trigger-disabled-{{ block.key }}" hidden>Control d'inici del bloc deshabilitat: l'altre bloc ja comença més tard.</span>
+          <span id="block-start-trigger-label-{{ block.key }}">Inici del bloc</span>
           <select class="block-start-trigger-select" data-block-key="{{ block.key }}"></select>
         </label>
         <div class="ra-list block-dropzone" data-block-key="{{ block.key }}" data-block-name="{{ block.name }}"></div>
@@ -358,9 +357,11 @@
       select.disabled = otherBlockHasTrigger;
       select.classList.toggle("is-disabled-by-sibling", otherBlockHasTrigger);
       select.title = otherBlockHasTrigger ? "Ja hi ha un bloc que comença més tard." : "";
-      const disabledHintEl = document.getElementById(`block-start-trigger-disabled-${blockKey}`);
-      if (disabledHintEl) {
-        disabledHintEl.hidden = !otherBlockHasTrigger;
+      const labelEl = document.getElementById(`block-start-trigger-label-${blockKey}`);
+      if (labelEl) {
+        labelEl.textContent = otherBlockHasTrigger
+          ? "Control d'inici del bloc deshabilitat: l'altre bloc ja comença més tard."
+          : "Inici del bloc";
       }
       select.innerHTML = [
         `<option value="">Des de principi de curs</option>`,

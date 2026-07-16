@@ -571,16 +571,6 @@ button:disabled {
   cursor: not-allowed;
 }
 
-.block-start-trigger-disabled-hint {
-  margin-top: 0.3rem;
-  font-weight: 500;
-  font-size: 0.8rem;
-}
-
-.block-start-trigger-disabled-hint:not([hidden]) {
-  display: block;
-}
-
 .section-heading h2,
 .block-card h3,
 .block-summary-card h3 {
