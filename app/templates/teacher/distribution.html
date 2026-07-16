@@ -115,6 +115,7 @@
         <label class="block-start-trigger">
           Inici del bloc
           <select class="block-start-trigger-select" data-block-key="{{ block.key }}"></select>
+          <span class="block-start-trigger-disabled-hint hint" id="block-start-trigger-disabled-{{ block.key }}" hidden>Deshabilitat: l'altre bloc ja comença més tard.</span>
         </label>
         <div class="ra-list block-dropzone" data-block-key="{{ block.key }}" data-block-name="{{ block.name }}"></div>
       </section>
@@ -322,8 +323,14 @@
         ([key, value]) => key !== blockKey && value
       );
       select.disabled = otherBlockHasTrigger;
+      select.classList.toggle("is-disabled-by-sibling", otherBlockHasTrigger);
+      select.title = otherBlockHasTrigger ? "Ja hi ha un bloc que comença més tard." : "";
+      const disabledHintEl = document.getElementById(`block-start-trigger-disabled-${blockKey}`);
+      if (disabledHintEl) {
+        disabledHintEl.hidden = !otherBlockHasTrigger;
+      }
       select.innerHTML = [
-        `<option value="">Des del principi</option>`,
+        `<option value="">Des de principi de curs</option>`,
         ...siblingRows.map((row) => {
           const name = row.querySelector(`input[name="${row.dataset.key}_name"]`)?.value?.trim() || row.dataset.key;
           return `<option value="${row.dataset.key}">Després de ${name}</option>`;

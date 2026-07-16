@@ -4,7 +4,7 @@
   font-weight: 400;
   font-display: swap;
   src: url("../fonts/inter-latin-variable.woff2") format("woff2");
-  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2190-2193, U+2212, U+2215, U+FEFF, U+FFFD;
 }
 
 @font-face {
@@ -13,7 +13,7 @@
   font-weight: 600;
   font-display: swap;
   src: url("../fonts/inter-latin-variable.woff2") format("woff2");
-  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2190-2193, U+2212, U+2215, U+FEFF, U+FFFD;
 }
 
 /* Color values follow design/tempo-design-system.md Section 5 (Paper,
@@ -562,6 +562,20 @@ button:disabled {
 
 .block-start-trigger select {
   margin-top: 0.3rem;
+}
+
+.block-start-trigger select.is-disabled-by-sibling {
+  background: var(--bg);
+  border-style: dashed;
+  color: var(--muted);
+  cursor: not-allowed;
+}
+
+.block-start-trigger-disabled-hint {
+  display: block;
+  margin-top: 0.3rem;
+  font-weight: 500;
+  font-size: 0.8rem;
 }
 
 .section-heading h2,
