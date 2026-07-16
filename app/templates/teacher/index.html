@@ -162,6 +162,25 @@
         </section>
         {% endfor %}
       </div>
+      <div class="block-start-offset">
+        <label class="checkbox-label">
+          <input type="checkbox" id="block-start-offset-toggle" name="block_start_offset_enabled" {% if form.get('block_start_offset_enabled') %}checked{% endif %} />
+          Un dels blocs comença més tard
+        </label>
+        <div id="block-start-offset-fields" class="two-column" {% if not form.get('block_start_offset_enabled') %}hidden{% endif %}>
+          <label>
+            Bloc que s'endarrereix
+            <select name="delayed_block">
+              <option value="block_1" {% if form.get('delayed_block') == 'block_1' %}selected{% endif %}>Bloc 1</option>
+              <option value="block_2" {% if form.get('delayed_block', 'block_2') == 'block_2' %}selected{% endif %}>Bloc 2</option>
+            </select>
+          </label>
+          <label>
+            Data d'inici d'aquest bloc
+            <input class="date-input" type="text" name="delayed_block_start_date" value="{{ form.get('delayed_block_start_date', '') }}" placeholder="DD/MM/AAAA" inputmode="numeric" pattern="\d{1,2}/\d{1,2}/\d{2,4}" />
+          </label>
+        </div>
+      </div>
     </section>
     <button type="submit">Calcula les hores disponibles</button>
   </form>
@@ -172,6 +191,9 @@
   const raCountInput = document.querySelector('input[name="ra_count"]');
   const parallelConfig = document.getElementById("parallel-config");
   const parallelModeWarning = document.getElementById("parallel-mode-warning");
+  const blockStartOffsetToggle = document.getElementById("block-start-offset-toggle");
+  const blockStartOffsetFields = document.getElementById("block-start-offset-fields");
+  const delayedBlockStartDateInput = document.querySelector('input[name="delayed_block_start_date"]');
   const globalWeekdaySelects = [...document.querySelectorAll(".weekday-grid.form-span select[data-weekday-index]")];
   const blockWeekdayFields = [...document.querySelectorAll(".block-weekday-field")];
   const blockTimeFields = [...document.querySelectorAll(".block-time-field")];
@@ -291,6 +313,17 @@
     syncParallelRaWarning();
   }
 
+  function syncBlockStartOffset() {
+    const enabled = Boolean(blockStartOffsetToggle?.checked);
+    blockStartOffsetFields.hidden = !enabled;
+    if (delayedBlockStartDateInput) {
+      delayedBlockStartDateInput.required = enabled;
+      if (!enabled) {
+        delayedBlockStartDateInput.setCustomValidity("");
+      }
+    }
+  }
+
   function syncParallelWeekdayAvailability(changedField = null) {
     syncParallelDayConstraints(changedField);
   }
@@ -309,6 +342,7 @@
   }
 
   planningModeInputs.forEach((input) => input.addEventListener("change", syncPlanningMode));
+  blockStartOffsetToggle?.addEventListener("change", syncBlockStartOffset);
   globalWeekdaySelects.forEach((select) => select.addEventListener("change", () => syncParallelWeekdayAvailability()));
   blockTimeFields.forEach((field) => {
     const { hoursSelect, minutesSelect } = getBlockTimeSelects(field);
@@ -328,5 +362,6 @@
   syncPlanningMode();
   syncParallelWeekdayAvailability();
   syncParallelRaWarning();
+  syncBlockStartOffset();
 </script>
 {% endblock %}

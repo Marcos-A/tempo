@@ -164,6 +164,71 @@ def test_parallel_blocks_can_transfer_unused_hours_in_reverse_direction():
     assert rows[3]["ra_hours"] == {"RA1": 2, "RA2": 0}
 
 
+def test_parallel_blocks_fold_a_delayed_blocks_capacity_into_its_sibling():
+    """Before a delayed block's start date, its slice of the day flows to the other block."""
+
+    schedule = build_schedule(date(2026, 9, 6), date(2026, 9, 14), {0: 2}, set())
+    rows = allocate_ra_hours_by_blocks(
+        schedule,
+        [
+            RAPlan("RA1", "RA1", 3, block_key="block_1", minutes=180),
+            RAPlan("RA2", "RA2", 1, block_key="block_2", minutes=60),
+        ],
+        [
+            BlockPlan("block_1", "Bloc 1", {0: 60, 1: 0, 2: 0, 3: 0, 4: 0}),
+            BlockPlan("block_2", "Bloc 2", {0: 60, 1: 0, 2: 0, 3: 0, 4: 0}, start_date=date(2026, 9, 14)),
+        ],
+    )
+
+    assert rows[0]["ra_hours"] == {"RA1": 2, "RA2": 0}
+    assert rows[1]["ra_hours"] == {"RA1": 1, "RA2": 1}
+
+
+def test_build_block_plans_attaches_start_date_to_the_selected_block():
+    """Enabling the delayed-start option should set start_date only on the chosen block."""
+
+    blocks = _build_block_plans(
+        {
+            "block_1_monday_hours": "1",
+            "block_1_monday_minutes": "0",
+            "block_2_monday_hours": "1",
+            "block_2_monday_minutes": "0",
+            "block_start_offset_enabled": "on",
+            "delayed_block": "block_2",
+            "delayed_block_start_date": "14/9/2026",
+        },
+        {0: 2, 1: 0, 2: 0, 3: 0, 4: 0},
+        "parallel",
+        date(2026, 9, 7),
+        date(2026, 9, 21),
+    )
+
+    block_1, block_2 = blocks
+    assert block_1.start_date is None
+    assert block_2.start_date == date(2026, 9, 14)
+
+
+def test_build_block_plans_rejects_a_delayed_start_date_outside_the_plan_range():
+    """The delayed block's start date must stay inside the plan's own date range."""
+
+    with pytest.raises(ValueError, match="interval de la planificació"):
+        _build_block_plans(
+            {
+                "block_1_monday_hours": "1",
+                "block_1_monday_minutes": "0",
+                "block_2_monday_hours": "1",
+                "block_2_monday_minutes": "0",
+                "block_start_offset_enabled": "on",
+                "delayed_block": "block_2",
+                "delayed_block_start_date": "1/10/2026",
+            },
+            {0: 2, 1: 0, 2: 0, 3: 0, 4: 0},
+            "parallel",
+            date(2026, 9, 7),
+            date(2026, 9, 21),
+        )
+
+
 def test_export_hour_cells_use_general_format_so_whole_numbers_show_no_decimals():
     """Hour cells should use Excel's "General" format, not a custom decimal mask.
 

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import date
 
 from app.services.calendar import ScheduleDay
 from app.services.hours import MINUTES_PER_HOUR, minutes_to_hour_number
@@ -26,6 +27,7 @@ class BlockPlan:
     key: str
     name: str
     weekday_minutes: dict[int, int]
+    start_date: date | None = None
 
 
 def _ra_total_minutes(ra: RAPlan) -> int:
@@ -75,6 +77,26 @@ def _allocate_block_minutes(
     return remaining_capacity
 
 
+def block_day_capacities(day: ScheduleDay, blocks: list[BlockPlan]) -> dict[str, int]:
+    """Return each block's effective teaching minutes for one schedule day.
+
+    A block that has not reached its own start_date yet contributes zero
+    minutes that day; that slice is folded into the block(s) that have
+    already started (at most one block may be delayed, enforced when the
+    blocks are built), so the calendar's daily hours are never lost.
+    """
+
+    capacities = {block.key: block.weekday_minutes.get(day.weekday_index, 0) for block in blocks}
+    started_keys = [block.key for block in blocks if block.start_date is None or day.date >= block.start_date]
+    delayed_keys = [block.key for block in blocks if block.key not in started_keys]
+    borrowed = sum(capacities[key] for key in delayed_keys)
+    for key in delayed_keys:
+        capacities[key] = 0
+    if borrowed and started_keys:
+        capacities[started_keys[0]] += borrowed
+    return capacities
+
+
 def _block_has_pending_hours(state: dict[str, int], block_ras: list[RAPlan]) -> bool:
     """Tell whether a block still has RA hours left to allocate."""
 
@@ -117,9 +139,10 @@ def allocate_ra_hours_by_blocks(
         }
         row_minutes = {ra.key: 0 for ra in ras}
         released_minutes = 0
+        day_capacities = block_day_capacities(day, blocks)
 
         for block in blocks:
-            capacity = block.weekday_minutes.get(day.weekday_index, 0)
+            capacity = day_capacities[block.key]
             if capacity == 0:
                 continue
 

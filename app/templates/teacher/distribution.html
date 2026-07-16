@@ -16,6 +16,9 @@
       <h3>{{ block.name }}</h3>
       <p><strong>Setmana:</strong> {{ block.weekday_hours_display }}</p>
       <p><strong>Temps propi:</strong> {{ block.available_hours_display }}</p>
+      {% if block.start_date_display %}
+      <p><strong>Comença el:</strong> {{ block.start_date_display }}</p>
+      {% endif %}
     </article>
     {% endfor %}
   </div>
@@ -105,6 +108,9 @@
           <div>
             <h3>{{ block.name }}</h3>
             <p class="hint">{{ block.weekday_hours_display }}</p>
+            {% if block.start_date_display %}
+            <p class="hint">Comença el {{ block.start_date_display }}</p>
+            {% endif %}
             <p class="block-end-date hint" id="block-end-{{ block.key }}"></p>
           </div>
           <span class="pill">{{ block.key|replace("_", " ") }}</span>
@@ -228,6 +234,9 @@
 
     let remainingMinutes = assignedMinutes;
     for (const day of planData.schedule || []) {
+      if (block.start_date && day.date < block.start_date) {
+        continue;
+      }
       const blockMinutesForDay = Number(block.weekday_minutes?.[day.weekday_index] ?? block.weekday_minutes?.[String(day.weekday_index)] ?? 0);
       if (blockMinutesForDay <= 0) {
         continue;
