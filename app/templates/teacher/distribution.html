@@ -15,8 +15,7 @@
     <article class="block-summary-card block-theme block-theme-{{ loop.index }}">
       <h3>{{ block.name }}</h3>
       <p><strong>Setmana:</strong> {{ block.weekday_hours_display }}</p>
-      <p><strong>Temps propi:</strong> <span id="summary-block-available-{{ block.key }}">{{ block.available_hours_display }}</span></p>
-      <p class="hint" id="summary-block-start-{{ block.key }}"></p>
+      <p><strong>Temps propi:</strong> <span id="summary-block-available-{{ block.key }}">{{ block.available_hours_display }}</span><span class="hint" id="summary-block-start-{{ block.key }}"></span></p>
     </article>
     {% endfor %}
   </div>
@@ -579,13 +578,13 @@
         ? `Es calcularà quan ${getRaDisplayName(startStatus.triggerRaKey)} tingui temps assignat.`
         : "";
 
-      const standaloneStartMessage = startStatus.state === "resolved"
+      const baseStartMessage = startStatus.state === "resolved"
         ? `Comença el ${formatDisplayDate(startDateIso, planData.schedule.find((day) => day.date === startDateIso)?.weekday_index)}`
         : awaitingTriggerHours
           ? "Comença quan acabi l'RA seleccionada"
           : "";
-      const inlineStartMessage = standaloneStartMessage
-        ? `; ${standaloneStartMessage.charAt(0).toLowerCase()}${standaloneStartMessage.slice(1)}`
+      const inlineStartMessage = baseStartMessage
+        ? `; ${baseStartMessage.charAt(0).toLowerCase()}${baseStartMessage.slice(1)}`
         : "";
 
       const startHintEl = blockStartHintEls[blockKey];
@@ -598,7 +597,7 @@
       }
       const summaryStartEl = summaryBlockStartEls[blockKey];
       if (summaryStartEl) {
-        summaryStartEl.textContent = standaloneStartMessage;
+        summaryStartEl.textContent = inlineStartMessage;
       }
 
       const remainingBlockMinutes = availableBlockMinutes - assignedBlockMinutes;
