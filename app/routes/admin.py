@@ -7,7 +7,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Form, Request, status
 from fastapi.responses import RedirectResponse
 from fastapi.templating import Jinja2Templates
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
 from app.auth import verify_password
@@ -16,7 +16,7 @@ from app.database import get_db
 from app.date_utils import format_display_date, format_month_label, parse_date_input
 from app.dependencies import require_admin
 from app.models import AcademicWeekNumber, AcademicYear, AdminUser, ExcludedPeriod
-from app.services.academic_weeks import is_vacation_week, iter_week_starts, suggest_week_numbers
+from app.services.academic_weeks import is_vacation_week, iter_week_starts, suggest_week_numbers, week_start
 from app.services.academic_years import activate_academic_year, find_overlapping_year, get_active_academic_year, list_academic_years, suggest_year_label
 from app.services.calendar import expand_excluded_periods
 
@@ -285,6 +285,21 @@ def create_year(
     )
 
 
+def _prune_out_of_range_week_numbers(db: Session, academic_year: AcademicYear) -> None:
+    """Delete saved week numbers left over from before the year's dates were last edited."""
+
+    valid_start = week_start(academic_year.default_start_date)
+    valid_end = week_start(academic_year.default_end_date)
+    stale_rows = db.scalars(
+        select(AcademicWeekNumber).where(
+            AcademicWeekNumber.academic_year_id == academic_year.id,
+            or_(AcademicWeekNumber.week_start_date < valid_start, AcademicWeekNumber.week_start_date > valid_end),
+        )
+    ).all()
+    for row in stale_rows:
+        db.delete(row)
+
+
 @router.post("/years/{year_id}")
 def update_year(
     request: Request,
@@ -340,6 +355,7 @@ def update_year(
     academic_year.default_start_date = default_start_date
     academic_year.default_end_date = default_end_date
     academic_year.include_week_numbers_in_export = include_week_numbers_in_export
+    _prune_out_of_range_week_numbers(db, academic_year)
     db.commit()
     return RedirectResponse(
         url=_year_dashboard_url(academic_year.id, status_name="year-updated", section_id=SELECTED_YEAR_SECTION_ID),

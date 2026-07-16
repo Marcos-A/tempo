@@ -139,3 +139,52 @@ def test_delete_year_requires_explicit_confirmation(tmp_path, monkeypatch):
         assert response.status_code == 400
         assert response.context["error"] == "Marca la confirmació abans de suprimir aquest curs."
         assert session.get(AcademicYear, inactive_year.id) is not None
+
+
+def test_update_year_prunes_week_numbers_left_outside_the_new_date_range(tmp_path, monkeypatch):
+    """Narrowing or shifting a year's dates should drop now out-of-range saved week numbers."""
+
+    db_path = tmp_path / "planner.db"
+    monkeypatch.setenv("ADMIN_USERNAME", "admin")
+    monkeypatch.setenv("ADMIN_PASSWORD", "preview-secret")
+
+    engine = _legacy_engine(db_path)
+    Base.metadata.create_all(bind=engine)
+    SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False, expire_on_commit=False)
+
+    with SessionLocal() as session:
+        academic_year = AcademicYear(
+            label="2026-27",
+            default_start_date=date(2025, 9, 8),
+            default_end_date=date(2027, 6, 30),
+            include_week_numbers_in_export=True,
+            is_active=True,
+        )
+        session.add(academic_year)
+        session.commit()
+
+        session.add_all(
+            [
+                AcademicWeekNumber(academic_year_id=academic_year.id, week_start_date=date(2025, 9, 8), number=1),
+                AcademicWeekNumber(academic_year_id=academic_year.id, week_start_date=date(2026, 9, 14), number=1),
+                AcademicWeekNumber(academic_year_id=academic_year.id, week_start_date=date(2026, 9, 21), number=2),
+            ]
+        )
+        session.commit()
+
+        response = admin_routes.update_year(
+            _request(f"/admin/years/{academic_year.id}"),
+            academic_year.id,
+            "2026-27",
+            "14/09/2026",
+            "25/05/2027",
+            True,
+            session,
+            object(),
+        )
+
+        assert response.status_code == 303
+        remaining_weeks = session.scalars(
+            select(AcademicWeekNumber).where(AcademicWeekNumber.academic_year_id == academic_year.id).order_by(AcademicWeekNumber.week_start_date)
+        ).all()
+        assert [week.week_start_date for week in remaining_weeks] == [date(2026, 9, 14), date(2026, 9, 21)]
