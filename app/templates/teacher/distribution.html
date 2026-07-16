@@ -112,8 +112,8 @@
         </div>
         <label class="block-start-trigger">
           Inici del bloc
+          <span class="block-start-trigger-disabled-hint hint" id="block-start-trigger-disabled-{{ block.key }}" hidden>Control d'inici del bloc deshabilitat: l'altre bloc ja comença més tard.</span>
           <select class="block-start-trigger-select" data-block-key="{{ block.key }}"></select>
-          <span class="block-start-trigger-disabled-hint hint" id="block-start-trigger-disabled-{{ block.key }}" hidden>Deshabilitat: l'altre bloc ja comença més tard.</span>
         </label>
         <div class="ra-list block-dropzone" data-block-key="{{ block.key }}" data-block-name="{{ block.name }}"></div>
       </section>
