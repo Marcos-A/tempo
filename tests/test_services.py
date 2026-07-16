@@ -22,7 +22,7 @@ from app.services.academic_weeks import (
 from app.services.allocation import BlockPlan, RAPlan, allocate_ra_hours, allocate_ra_hours_by_blocks, validate_ra_distribution
 from app.services.calendar import build_schedule, expand_excluded_periods, total_available_hours
 from app.services.export import build_workbook
-from app.routes.teacher import _build_block_plans
+from app.routes.teacher import _build_block_plans, _default_ra_state
 from app.services.hours import format_minutes_label, parse_hour_minute_pair
 
 
@@ -84,6 +84,20 @@ def test_distribution_validation_rejects_zero_hour_ras():
 
     with pytest.raises(ValueError, match="temps assignat"):
         validate_ra_distribution(10, [RAPlan("RA1", "RA1", 10), RAPlan("RA2", "RA2", 0)])
+
+
+def test_default_ra_state_splits_parallel_ras_evenly_between_blocks():
+    """The first half of the RAs should seed into block 1, the rest into block 2."""
+
+    state = _default_ra_state(5, "parallel")
+
+    assert state["blocks"] == {
+        "RA1": "block_1",
+        "RA2": "block_1",
+        "RA3": "block_1",
+        "RA4": "block_2",
+        "RA5": "block_2",
+    }
 
 
 def test_parallel_blocks_preserve_their_weekly_split_when_both_need_all_hours():

@@ -507,9 +507,11 @@
       : Array.from({ length: Number(distributionForm.dataset.count) }, (_, index) => `RA${index + 1}`);
 
     if (planningMode === "parallel") {
-      const fallbackBlock = planData.blocks?.[1]?.key || planData.blocks?.[0]?.key;
+      const firstBlockSize = Math.ceil(keys.length / 2);
+      const primaryBlock = planData.blocks?.[0]?.key;
+      const secondaryBlock = planData.blocks?.[1]?.key || primaryBlock;
       keys.forEach((key, index) => {
-        const blockKey = initialState.blocks?.[key] || (index === 0 ? planData.blocks?.[0]?.key : fallbackBlock);
+        const blockKey = initialState.blocks?.[key] || (index < firstBlockSize ? primaryBlock : secondaryBlock);
         const blockList = blockLists.find((list) => list.dataset.blockKey === blockKey) || blockLists[0];
         blockList.appendChild(createRow(key, blockList.dataset.blockKey));
       });

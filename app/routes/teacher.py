@@ -1,6 +1,7 @@
 """Routes for the public teacher planning workflow."""
 
 import json
+import math
 from datetime import date
 
 from fastapi import APIRouter, Depends, Request, status
@@ -239,7 +240,8 @@ def _default_ra_state(ra_count: int, planning_mode: str) -> dict[str, object]:
     hours = {key: 0 for key in order}
     minutes = {key: 0 for key in order}
     if planning_mode == "parallel":
-        blocks = {key: "block_1" if index == 0 else "block_2" for index, key in enumerate(order)}
+        first_block_size = math.ceil(len(order) / 2)
+        blocks = {key: "block_1" if index < first_block_size else "block_2" for index, key in enumerate(order)}
     else:
         blocks = {}
     return {
