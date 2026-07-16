@@ -243,12 +243,19 @@ def _default_ra_state(
     hours = {key: 0 for key in order}
     minutes = {key: 0 for key in order}
     if planning_mode == "parallel":
+        # Seed each block with a share of the RAs proportional to its own share of
+        # available minutes, not a flat headcount split: two blocks with very
+        # different weekday-hour allocations (e.g. a 1h/week block next to a
+        # 5h/week block) would otherwise end up with wildly unbalanced pending
+        # hours per RA. This is only the starting point — the teacher can still
+        # freely move any RA to the other block afterwards.
         available = block_available_minutes or {}
         block_1_minutes = available.get("block_1", 0)
         total_minutes = block_1_minutes + available.get("block_2", 0)
         block_1_share = block_1_minutes / total_minutes if total_minutes else 0.5
         # Round half up (not Python's banker's rounding) to match the JS fallback's Math.round.
         first_block_size = int(len(order) * block_1_share + 0.5)
+        # Clamp so neither block is ever seeded empty, even at an extreme capacity skew.
         first_block_size = min(max(first_block_size, 1), len(order) - 1)
         blocks = {key: "block_1" if index < first_block_size else "block_2" for index, key in enumerate(order)}
     else:

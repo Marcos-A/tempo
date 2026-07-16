@@ -507,6 +507,9 @@
       : Array.from({ length: Number(distributionForm.dataset.count) }, (_, index) => `RA${index + 1}`);
 
     if (planningMode === "parallel") {
+      // Fallback only: initialState.blocks normally already carries the server's
+      // capacity-weighted split (see _default_ra_state in app/routes/teacher.py),
+      // this mirrors that same proportional logic for any RA missing from it.
       const primaryBlock = planData.blocks?.[0]?.key;
       const secondaryBlock = planData.blocks?.[1]?.key || primaryBlock;
       const primaryMinutes = Number(planData.blocks?.[0]?.available_minutes ?? 0);
