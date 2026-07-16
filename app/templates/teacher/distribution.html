@@ -106,8 +106,7 @@
         <div class="block-card-header">
           <div>
             <h3>{{ block.name }}</h3>
-            <p class="hint">{{ block.weekday_hours_display }}</p>
-            <p class="hint" id="block-start-hint-{{ block.key }}"></p>
+            <p class="hint">{{ block.weekday_hours_display }}<span id="block-start-hint-{{ block.key }}"></span></p>
             <p class="block-end-date hint" id="block-end-{{ block.key }}"></p>
           </div>
           <span class="pill">{{ block.key|replace("_", " ") }}</span>
@@ -580,13 +579,18 @@
         ? `Es calcularà quan ${getRaDisplayName(startStatus.triggerRaKey)} tingui temps assignat.`
         : "";
 
+      const standaloneStartMessage = startStatus.state === "resolved"
+        ? `Comença el ${formatDisplayDate(startDateIso, planData.schedule.find((day) => day.date === startDateIso)?.weekday_index)}`
+        : awaitingTriggerHours
+          ? "Comença quan acabi l'RA seleccionada"
+          : "";
+      const inlineStartMessage = standaloneStartMessage
+        ? `; ${standaloneStartMessage.charAt(0).toLowerCase()}${standaloneStartMessage.slice(1)}`
+        : "";
+
       const startHintEl = blockStartHintEls[blockKey];
       if (startHintEl) {
-        startHintEl.textContent = startStatus.state === "resolved"
-          ? `Comença el ${formatDisplayDate(startDateIso, planData.schedule.find((day) => day.date === startDateIso)?.weekday_index)}`
-          : awaitingTriggerHours
-            ? "Comença quan acabi l'RA seleccionada"
-            : "";
+        startHintEl.textContent = inlineStartMessage;
       }
       const summaryAvailableEl = summaryBlockAvailableEls[blockKey];
       if (summaryAvailableEl) {
@@ -594,7 +598,7 @@
       }
       const summaryStartEl = summaryBlockStartEls[blockKey];
       if (summaryStartEl) {
-        summaryStartEl.textContent = startHintEl ? startHintEl.textContent : "";
+        summaryStartEl.textContent = standaloneStartMessage;
       }
 
       const remainingBlockMinutes = availableBlockMinutes - assignedBlockMinutes;
