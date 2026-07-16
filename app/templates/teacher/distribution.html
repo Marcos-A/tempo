@@ -15,7 +15,7 @@
     <article class="block-summary-card block-theme block-theme-{{ loop.index }}">
       <h3>{{ block.name }}</h3>
       <p><strong>Setmana:</strong> {{ block.weekday_hours_display }}</p>
-      <p><strong>Temps propi:</strong> {{ block.available_hours_display }}</p>
+      <p><strong>Temps propi:</strong> <span id="summary-block-available-{{ block.key }}">{{ block.available_hours_display }}</span><span class="hint" id="summary-block-start-{{ block.key }}"></span></p>
     </article>
     {% endfor %}
   </div>
@@ -96,6 +96,7 @@
     <input type="hidden" name="ra_hours" id="ra-hours" />
     <input type="hidden" name="ra_minutes" id="ra-minutes" />
     <input type="hidden" name="ra_blocks" id="ra-blocks" />
+    <input type="hidden" name="block_start_triggers" id="block-start-triggers" />
 
     {% if summary.planning_mode == "parallel" %}
     <div class="block-editor-grid" id="parallel-editor">
@@ -104,11 +105,15 @@
         <div class="block-card-header">
           <div>
             <h3>{{ block.name }}</h3>
-            <p class="hint">{{ block.weekday_hours_display }}</p>
+            <p class="hint">{{ block.weekday_hours_display }}<span id="block-start-hint-{{ block.key }}"></span></p>
             <p class="block-end-date hint" id="block-end-{{ block.key }}"></p>
           </div>
           <span class="pill">{{ block.key|replace("_", " ") }}</span>
         </div>
+        <label class="block-start-trigger">
+          <span id="block-start-trigger-label-{{ block.key }}">Inici del bloc</span>
+          <select class="block-start-trigger-select" data-block-key="{{ block.key }}"></select>
+        </label>
         <div class="ra-list block-dropzone" data-block-key="{{ block.key }}" data-block-name="{{ block.name }}"></div>
       </section>
       {% endfor %}
@@ -164,6 +169,26 @@
   const raMinutesInput = document.getElementById("ra-minutes");
   const raBlocksInput = document.getElementById("ra-blocks");
   const stickyTransferNote = document.getElementById("sticky-transfer-note");
+  const blockStartTriggersInput = document.getElementById("block-start-triggers");
+  const blockStartTriggerSelects = [...document.querySelectorAll(".block-start-trigger-select")];
+  const blockStartHintEls = Object.fromEntries(
+    (planData.blocks || []).map((block) => [block.key, document.getElementById(`block-start-hint-${block.key}`)])
+  );
+  const summaryBlockAvailableEls = Object.fromEntries(
+    (planData.blocks || []).map((block) => [block.key, document.getElementById(`summary-block-available-${block.key}`)])
+  );
+  const summaryBlockStartEls = Object.fromEntries(
+    (planData.blocks || []).map((block) => [block.key, document.getElementById(`summary-block-start-${block.key}`)])
+  );
+  const startsAfterRaByBlock = { ...(initialState.block_start_triggers || {}) };
+  {
+    // Only one block may ever carry a trigger. Guard against a stale seed
+    // (e.g. restored from a previous, otherwise-rejected export attempt)
+    // holding more than one, which would otherwise wedge both selects into
+    // permanently believing "the other one" has a trigger.
+    const seededBlockKeys = Object.keys(startsAfterRaByBlock).filter((key) => startsAfterRaByBlock[key]);
+    seededBlockKeys.slice(1).forEach((key) => delete startsAfterRaByBlock[key]);
+  }
   const blockLists = planningMode === "parallel"
     ? [...document.querySelectorAll(".block-dropzone")]
     : [document.getElementById("ra-list")];
@@ -221,14 +246,145 @@
     return (wholeHours * 60) + minutes;
   }
 
-  function calculateBlockEndDate(block, assignedMinutes) {
+  function getBlockWeekdayMinutes(block, weekdayIndex) {
+    return Number(block.weekday_minutes?.[weekdayIndex] ?? block.weekday_minutes?.[String(weekdayIndex)] ?? 0);
+  }
+
+  function getAssignedMinutesUpToRa(blockKey, raKey) {
+    const list = blockLists.find((candidate) => candidate.dataset.blockKey === blockKey);
+    if (!list) return 0;
+    let total = 0;
+    for (const row of list.querySelectorAll(".ra-row")) {
+      total += getRowAssignedMinutes(row, row.dataset.key);
+      if (row.dataset.key === raKey) break;
+    }
+    return total;
+  }
+
+  function findNextScheduleDate(isoDate) {
+    const days = planData.schedule || [];
+    const index = days.findIndex((day) => day.date === isoDate);
+    return index >= 0 && index + 1 < days.length ? days[index + 1].date : null;
+  }
+
+  function estimateBlockStartDate(block) {
+    const triggerRaKey = startsAfterRaByBlock[block.key];
+    if (!triggerRaKey) {
+      return null;
+    }
+    const siblingBlock = (planData.blocks || []).find((candidate) => candidate.key !== block.key);
+    if (!siblingBlock) {
+      return null;
+    }
+    let remainingMinutes = getAssignedMinutesUpToRa(siblingBlock.key, triggerRaKey);
+    if (remainingMinutes <= 0) {
+      return null;
+    }
+    for (const day of planData.schedule || []) {
+      const minutesForDay = getBlockWeekdayMinutes(siblingBlock, day.weekday_index);
+      if (minutesForDay <= 0) continue;
+      remainingMinutes -= minutesForDay;
+      if (remainingMinutes <= 0) {
+        return findNextScheduleDate(day.date);
+      }
+    }
+    return null;
+  }
+
+  function getRaDisplayName(raKey) {
+    for (const list of blockLists) {
+      const row = [...list.querySelectorAll(".ra-row")].find((candidate) => candidate.dataset.key === raKey);
+      if (row) {
+        return row.querySelector(`input[name="${raKey}_name"]`)?.value?.trim() || raKey;
+      }
+    }
+    return raKey;
+  }
+
+  function getBlockStartStatus(block) {
+    const triggerRaKey = startsAfterRaByBlock[block.key];
+    if (!triggerRaKey) {
+      return { state: "immediate" };
+    }
+    const siblingBlock = (planData.blocks || []).find((candidate) => candidate.key !== block.key);
+    const assignedSoFar = siblingBlock ? getAssignedMinutesUpToRa(siblingBlock.key, triggerRaKey) : 0;
+    if (assignedSoFar <= 0) {
+      return { state: "pending", triggerRaKey };
+    }
+    const startDateIso = estimateBlockStartDate(block);
+    if (!startDateIso) {
+      return { state: "unresolved", triggerRaKey };
+    }
+    return { state: "resolved", triggerRaKey, startDateIso };
+  }
+
+  function computeBlockAvailableMinutes() {
+    const blocks = planData.blocks || [];
+    const totals = Object.fromEntries(blocks.map((block) => [block.key, 0]));
+    const delayedBlock = blocks.find((block) => startsAfterRaByBlock[block.key]);
+    const startDateIso = delayedBlock ? estimateBlockStartDate(delayedBlock) : null;
+    const siblingBlock = delayedBlock ? blocks.find((block) => block.key !== delayedBlock.key) : null;
+
+    for (const day of planData.schedule || []) {
+      const isDelayedDay = Boolean(delayedBlock && startDateIso && day.date < startDateIso);
+      for (const block of blocks) {
+        if (isDelayedDay && block.key === delayedBlock.key) {
+          continue;
+        }
+        totals[block.key] += getBlockWeekdayMinutes(block, day.weekday_index);
+      }
+      if (isDelayedDay && siblingBlock) {
+        totals[siblingBlock.key] += getBlockWeekdayMinutes(delayedBlock, day.weekday_index);
+      }
+    }
+    return totals;
+  }
+
+  function refreshBlockStartTriggerOptions() {
+    blockStartTriggerSelects.forEach((select) => {
+      const blockKey = select.dataset.blockKey;
+      const siblingBlock = (planData.blocks || []).find((block) => block.key !== blockKey);
+      const siblingList = blockLists.find((list) => list.dataset.blockKey === siblingBlock?.key);
+      const siblingRows = siblingList ? [...siblingList.querySelectorAll(".ra-row")] : [];
+      const currentValue = startsAfterRaByBlock[blockKey] || "";
+      const stillValid = siblingRows.some((row) => row.dataset.key === currentValue);
+      if (currentValue && !stillValid) {
+        delete startsAfterRaByBlock[blockKey];
+      }
+      const otherBlockHasTrigger = Object.entries(startsAfterRaByBlock).some(
+        ([key, value]) => key !== blockKey && value
+      );
+      select.disabled = otherBlockHasTrigger;
+      select.classList.toggle("is-disabled-by-sibling", otherBlockHasTrigger);
+      select.title = otherBlockHasTrigger ? "Ja hi ha un bloc que comença més tard." : "";
+      const labelEl = document.getElementById(`block-start-trigger-label-${blockKey}`);
+      if (labelEl) {
+        labelEl.textContent = otherBlockHasTrigger
+          ? "Control d'inici del bloc deshabilitat: l'altre bloc ja comença més tard."
+          : "Inici del bloc";
+      }
+      select.innerHTML = [
+        `<option value="">Des de principi de curs</option>`,
+        ...siblingRows.map((row) => {
+          const name = row.querySelector(`input[name="${row.dataset.key}_name"]`)?.value?.trim() || row.dataset.key;
+          return `<option value="${row.dataset.key}">Després de ${name}</option>`;
+        }),
+      ].join("");
+      select.value = stillValid ? currentValue : "";
+    });
+  }
+
+  function calculateBlockEndDate(block, assignedMinutes, startDateIso) {
     if (!block || assignedMinutes <= 0) {
       return null;
     }
 
     let remainingMinutes = assignedMinutes;
     for (const day of planData.schedule || []) {
-      const blockMinutesForDay = Number(block.weekday_minutes?.[day.weekday_index] ?? block.weekday_minutes?.[String(day.weekday_index)] ?? 0);
+      if (startDateIso && day.date < startDateIso) {
+        continue;
+      }
+      const blockMinutesForDay = getBlockWeekdayMinutes(block, day.weekday_index);
       if (blockMinutesForDay <= 0) {
         continue;
       }
@@ -304,7 +460,7 @@
     const wholeHours = Math.floor(initialMinutes / 60);
     const remainingMinutes = initialMinutes % 60;
     const blockIndex = (planData.blocks || []).findIndex((block) => block.key === blockKey);
-    const moveBlockIcon = blockIndex <= 0 ? "→" : "←";
+    const moveBlockDirection = blockIndex <= 0 ? "right" : "left";
     const timeFieldMarkup = planningMode === "parallel"
       ? `<div class="ra-time-field"><input type="number" min="0" step="1" name="${key}_hours" value="${wholeHours}" /><span class="ra-time-suffix">h</span><select name="${key}_minutes">${buildMinuteOptions(remainingMinutes)}</select><span class="ra-time-suffix">min</span></div>`
       : `<input type="number" min="0" step="1" name="${key}_hours" value="${Math.round(Number(initialState.hours?.[key] ?? 0))}" />`;
@@ -316,7 +472,7 @@
       <div class="ra-actions">
         <button type="button" class="secondary ra-action-button" data-action="move-up" aria-label="Puja la RA" title="Puja la RA">↑</button>
         <button type="button" class="secondary ra-action-button" data-action="move-down" aria-label="Baixa la RA" title="Baixa la RA">↓</button>
-        ${planningMode === "parallel" ? `<button type="button" class="secondary ra-action-button" data-action="move-block" aria-label="Mou la RA a l&apos;altre bloc" title="Mou la RA a l&apos;altre bloc">${moveBlockIcon}</button>` : ""}
+        ${planningMode === "parallel" ? `<button type="button" class="secondary ra-action-button" data-action="move-block" data-direction="${moveBlockDirection}" aria-label="Mou la RA a l&apos;altre bloc" title="Mou la RA a l&apos;altre bloc">↑</button>` : ""}
       </div>
     `;
     attachZeroResetBehavior(row.querySelector(`input[name="${key}_hours"]`));
@@ -372,6 +528,9 @@
     let assigned = 0;
     const assignedByBlock = Object.fromEntries((planData.blocks || []).map((block) => [block.key, 0]));
 
+    refreshBlockStartTriggerOptions();
+    const effectiveAvailableMinutes = computeBlockAvailableMinutes();
+
     blockLists.forEach((list) => {
       [...list.querySelectorAll(".ra-row")].forEach((row) => {
         const key = row.dataset.key;
@@ -388,12 +547,12 @@
           const blockKey = list.dataset.blockKey;
           const blockIndex = (planData.blocks || []).findIndex((block) => block.key === blockKey);
           const moveBlockButton = row.querySelector('[data-action="move-block"]');
-          const moveBlockIcon = blockIndex <= 0 ? "→" : "←";
+          const moveBlockDirection = blockIndex <= 0 ? "right" : "left";
           row.dataset.blockKey = blockKey;
           blocks[key] = blockKey;
           assignedByBlock[blockKey] += assignedMinutes;
           if (moveBlockButton) {
-            moveBlockButton.textContent = moveBlockIcon;
+            moveBlockButton.dataset.direction = moveBlockDirection;
           }
         }
         assigned += planningMode === "parallel" ? assignedMinutes : assignedHours;
@@ -411,21 +570,55 @@
       const blockKey = block.key;
       const blockRows = blockLists.find((list) => list.dataset.blockKey === blockKey)?.querySelectorAll(".ra-row") || [];
       const assignedBlockMinutes = Number(assignedByBlock[blockKey] || 0);
+      const availableBlockMinutes = Number(effectiveAvailableMinutes[blockKey] || 0);
+      const availableBlockDisplay = formatMinutes(availableBlockMinutes);
+      const startStatus = getBlockStartStatus(block);
+      const startDateIso = startStatus.startDateIso || null;
+      const awaitingTriggerHours = startStatus.state === "pending" || startStatus.state === "unresolved";
+      const awaitingMessage = awaitingTriggerHours
+        ? `Es calcularà quan ${getRaDisplayName(startStatus.triggerRaKey)} tingui temps assignat.`
+        : "";
 
-      const remainingBlockMinutes = Number(block.available_minutes || 0) - assignedBlockMinutes;
+      const baseStartMessage = startStatus.state === "resolved"
+        ? `Comença el ${formatDisplayDate(startDateIso, planData.schedule.find((day) => day.date === startDateIso)?.weekday_index)}`
+        : awaitingTriggerHours
+          ? "Comença quan acabi l'RA seleccionada"
+          : "";
+      const inlineStartMessage = baseStartMessage
+        ? `; ${baseStartMessage.charAt(0).toLowerCase()}${baseStartMessage.slice(1)}`
+        : "";
+
+      const startHintEl = blockStartHintEls[blockKey];
+      if (startHintEl) {
+        startHintEl.textContent = inlineStartMessage;
+      }
+      const summaryAvailableEl = summaryBlockAvailableEls[blockKey];
+      if (summaryAvailableEl) {
+        summaryAvailableEl.textContent = awaitingTriggerHours ? awaitingMessage : availableBlockDisplay;
+      }
+      const summaryStartEl = summaryBlockStartEls[blockKey];
+      if (summaryStartEl) {
+        summaryStartEl.textContent = awaitingTriggerHours ? "" : inlineStartMessage;
+      }
+
+      const remainingBlockMinutes = availableBlockMinutes - assignedBlockMinutes;
       const pendingEl = blockPendingEls[blockKey];
       if (pendingEl) {
-        pendingEl.textContent = `${formatMinutes(Math.abs(remainingBlockMinutes))} ${remainingBlockMinutes < 0 ? "de més" : "pendents"} de ${block.available_hours_display} pròpies`;
-        pendingEl.className = `block-pending-hours ${pendingHoursStatusClass(remainingBlockMinutes)}`;
+        pendingEl.textContent = awaitingTriggerHours
+          ? awaitingMessage
+          : `${formatMinutes(Math.abs(remainingBlockMinutes))} ${remainingBlockMinutes < 0 ? "de més" : "pendents"} de ${availableBlockDisplay} pròpies`;
+        pendingEl.className = `block-pending-hours ${awaitingTriggerHours ? "block-pending-open" : pendingHoursStatusClass(remainingBlockMinutes)}`;
       }
       const stickyPendingEl = stickyBlockPendingEls[blockKey];
       if (stickyPendingEl) {
-        stickyPendingEl.textContent = remainingBlockMinutes < 0
-          ? `${formatMinutes(Math.abs(remainingBlockMinutes))} de més de ${block.available_hours_display} pròpies`
-          : remainingBlockMinutes === 0
-            ? `Quadrat respecte de ${block.available_hours_display} pròpies`
-            : `${formatMinutes(remainingBlockMinutes)} pendents de ${block.available_hours_display} pròpies`;
-        stickyPendingEl.className = `block-pending-hours ${pendingHoursStatusClass(remainingBlockMinutes)}`;
+        stickyPendingEl.textContent = awaitingTriggerHours
+          ? awaitingMessage
+          : remainingBlockMinutes < 0
+            ? `${formatMinutes(Math.abs(remainingBlockMinutes))} de més de ${availableBlockDisplay} pròpies`
+            : remainingBlockMinutes === 0
+              ? `Quadrat respecte de ${availableBlockDisplay} pròpies`
+              : `${formatMinutes(remainingBlockMinutes)} pendents de ${availableBlockDisplay} pròpies`;
+        stickyPendingEl.className = `block-pending-hours ${awaitingTriggerHours ? "block-pending-open" : pendingHoursStatusClass(remainingBlockMinutes)}`;
       }
 
       const endDateEl = blockEndDateEls[blockKey];
@@ -440,17 +633,18 @@
         endDateEl.textContent = "Hi ha RA sense temps assignat";
         return;
       }
-      const blockEndDate = calculateBlockEndDate(block, assignedBlockMinutes);
+      const blockEndDate = calculateBlockEndDate(block, assignedBlockMinutes, startDateIso);
       if (blockEndDate) {
         endDateEl.textContent = `El bloc finalitza el ${formatDisplayDate(blockEndDate.date, blockEndDate.weekday_index)}`;
         return;
       }
       endDateEl.textContent = "El bloc no finalitza dins del calendari actual";
     });
+    blockStartTriggersInput.value = JSON.stringify(startsAfterRaByBlock);
     if (stickyTransferNote) {
       const blockStatuses = (planData.blocks || []).map((block) => {
         const listRows = blockLists.find((list) => list.dataset.blockKey === block.key)?.querySelectorAll(".ra-row") || [];
-        const remainingBlockMinutes = Number(block.available_minutes || 0) - Number(assignedByBlock[block.key] || 0);
+        const remainingBlockMinutes = Number(effectiveAvailableMinutes[block.key] || 0) - Number(assignedByBlock[block.key] || 0);
         const allAssigned = [...listRows].length > 0 && [...listRows].every((row) => getRowAssignedMinutes(row, row.dataset.key) > 0);
         return {
           block,
@@ -575,6 +769,23 @@
       row.draggable = desktopDragEnabled();
     });
     clearArmedRowDrag();
+  });
+
+  blockStartTriggerSelects.forEach((select) => {
+    select.addEventListener("change", () => {
+      const blockKey = select.dataset.blockKey;
+      if (select.value) {
+        Object.keys(startsAfterRaByBlock).forEach((otherKey) => {
+          if (otherKey !== blockKey) {
+            delete startsAfterRaByBlock[otherKey];
+          }
+        });
+        startsAfterRaByBlock[blockKey] = select.value;
+      } else {
+        delete startsAfterRaByBlock[blockKey];
+      }
+      syncState();
+    });
   });
 
   buildItems();

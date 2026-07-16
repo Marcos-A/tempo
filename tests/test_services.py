@@ -164,6 +164,63 @@ def test_parallel_blocks_can_transfer_unused_hours_in_reverse_direction():
     assert rows[3]["ra_hours"] == {"RA1": 2, "RA2": 0}
 
 
+def test_parallel_blocks_fold_a_not_yet_triggered_blocks_capacity_into_its_sibling():
+    """Before its trigger RA finishes, a delayed block's slice flows to the other block."""
+
+    schedule = build_schedule(date(2026, 9, 6), date(2026, 9, 14), {0: 2}, set())
+    rows = allocate_ra_hours_by_blocks(
+        schedule,
+        [
+            RAPlan("RA0", "RA0", 2, block_key="block_1", minutes=120),
+            RAPlan("RA1", "RA1", 1, block_key="block_1", minutes=60),
+            RAPlan("RA2", "RA2", 1, block_key="block_2", minutes=60),
+        ],
+        [
+            BlockPlan("block_1", "Bloc 1", {0: 60, 1: 0, 2: 0, 3: 0, 4: 0}),
+            BlockPlan("block_2", "Bloc 2", {0: 60, 1: 0, 2: 0, 3: 0, 4: 0}, starts_after_ra="RA0"),
+        ],
+    )
+
+    assert rows[0]["ra_hours"] == {"RA0": 2, "RA1": 0, "RA2": 0}
+    assert rows[1]["ra_hours"] == {"RA0": 0, "RA1": 1, "RA2": 1}
+
+
+def test_allocate_rejects_a_block_that_waits_on_its_own_ra():
+    """A block cannot be configured to wait for an RA it teaches itself."""
+
+    schedule = build_schedule(date(2026, 9, 6), date(2026, 9, 14), {0: 2}, set())
+    with pytest.raises(ValueError, match="que ell mateix imparteix"):
+        allocate_ra_hours_by_blocks(
+            schedule,
+            [
+                RAPlan("RA0", "RA0", 2, block_key="block_1", minutes=120),
+                RAPlan("RA1", "RA1", 2, block_key="block_1", minutes=120),
+            ],
+            [
+                BlockPlan("block_1", "Bloc 1", {0: 60, 1: 0, 2: 0, 3: 0, 4: 0}, starts_after_ra="RA0"),
+                BlockPlan("block_2", "Bloc 2", {0: 60, 1: 0, 2: 0, 3: 0, 4: 0}),
+            ],
+        )
+
+
+def test_allocate_rejects_a_trigger_ra_that_does_not_exist():
+    """A stale or tampered trigger referencing an unknown RA should be rejected."""
+
+    schedule = build_schedule(date(2026, 9, 6), date(2026, 9, 14), {0: 2}, set())
+    with pytest.raises(ValueError, match="no existeix"):
+        allocate_ra_hours_by_blocks(
+            schedule,
+            [
+                RAPlan("RA1", "RA1", 2, block_key="block_1", minutes=120),
+                RAPlan("RA2", "RA2", 2, block_key="block_2", minutes=120),
+            ],
+            [
+                BlockPlan("block_1", "Bloc 1", {0: 60, 1: 0, 2: 0, 3: 0, 4: 0}),
+                BlockPlan("block_2", "Bloc 2", {0: 60, 1: 0, 2: 0, 3: 0, 4: 0}, starts_after_ra="RA_missing"),
+            ],
+        )
+
+
 def test_export_hour_cells_use_general_format_so_whole_numbers_show_no_decimals():
     """Hour cells should use Excel's "General" format, not a custom decimal mask.
 
