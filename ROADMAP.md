@@ -25,6 +25,25 @@ Short-term improvements currently planned for `tempo`.
   - Keep typing dates by hand possible, keep the existing date format and validation, and use Catalan locale (Monday as first day of the week, Catalan month and day names).
   - Done when: clicking any date field opens a compact calendar, picking a day fills the field in the expected format, and typing by hand still works.
 
+### Branding
+
+- [ ] Give the Tempo logo and wordmark a more polished look with a subtle relief, bevel or 3D effect.
+  - **Goal:** discreet, professional and clean, but less flat and simple than the current branding.
+  - **Keep the identity:** keep the "cadence stack" construction (repeating rectangular modules, Pine color, rounded corners) described in Section 4 of `design/tempo-design-system.md`. Refine it; don't replace it.
+  - **Directions to explore:**
+    - Light bevel on each module: a lighter top/left edge and a darker bottom/right edge, using tints and shades of Pine.
+    - Faceted or chamfered geometric modules (for example angled corners or a split-tone face) for a more crafted, geometric feel.
+    - Soft depth: a very slight offset shadow or a two-tone extrusion, with no glossy or skeuomorphic effects.
+    - A matching treatment for the wordmark, such as a subtle inner shadow or a two-tone fill, that stays readable in Inter 600.
+  - **Constraints:**
+    - Pure SVG (gradients and paths only, no raster effects or filters that render inconsistently).
+    - Readable down to 16px: keep a flat build for the favicon and small sizes if the effect gets muddy.
+    - Provide light, reversed/white (dark mode) and monochrome variants.
+  - **Deliverables:**
+    - Prepare 2–3 mockups of the symbol, lockup and app icon so one direction can be chosen.
+    - Then update the SVGs in `app/static/img/` and `design/brand/` (svg, png, ico) and the logo section of the design system document.
+  - Done when: the chosen design replaces the current assets in the header, favicon and app icon, and looks right in light mode, dark mode and at 16px.
+
 ### New feature: internship calendar
 
 - [ ] Add a separate section to build internship calendars for students.
