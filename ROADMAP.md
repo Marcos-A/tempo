@@ -44,13 +44,6 @@ Short-term improvements currently planned for `tempo`.
     - Then update the SVGs in `app/static/img/` and `design/brand/` (svg, png, ico) and the logo section of the design system document.
   - Done when: the chosen design replaces the current assets in the header, favicon and app icon, and looks right in light mode, dark mode and at 16px.
 
-### Deployment
-
-- [ ] Give the preview service the same container health check and restart policy as production.
-  - `docker-compose.preview.yml` has neither the `healthcheck` block nor `restart: unless-stopped` that `docker-compose.production.yml` has. Copy both over unchanged (the check loads `/` from inside the container).
-  - Why: preview should behave like production so a deploy there is a faithful rehearsal. Without the health check, Docker (and any monitor watching the container) can only tell "running", not "running and answering", and without the restart policy preview stays down after a host reboot.
-  - Done when: after redeploying preview, `docker ps` shows the preview container as `(healthy)`, and it comes back on its own after a Docker restart.
-
 ### New feature: internship calendar
 
 - [ ] Add a separate section to build internship calendars for students.
