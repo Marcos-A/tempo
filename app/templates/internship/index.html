@@ -120,7 +120,7 @@
           </div>
           <ul class="period-list" id="school-period-list">
             {% for period in school_periods %}
-            <li data-period-end="{{ period.end }}">
+            <li data-period-start="{{ period.start }}" data-period-end="{{ period.end }}" data-period-label="{{ period.label }}">
               <label class="checkbox-label period-option">
                 <input type="checkbox" data-period-id="{{ period.id }}" />
                 <span><span class="period-dates">{{ period.display }}</span>{% if period.label %} <span class="period-label">{{ period.label }}</span>{% endif %}</span>
@@ -239,6 +239,10 @@
   const metadataInputs = [...document.querySelectorAll("[data-metadata]")];
   const periodCheckboxes = [...document.querySelectorAll("[data-period-id]")];
   const allPeriodIds = periodCheckboxes.map((box) => Number(box.dataset.periodId));
+  const schoolPeriods = periodCheckboxes.map((box) => {
+    const item = box.closest("li");
+    return { id: Number(box.dataset.periodId), start: item.dataset.periodStart, end: item.dataset.periodEnd, label: item.dataset.periodLabel };
+  });
 
   let state = null;
   let lastResult = null;
@@ -392,6 +396,53 @@
     document.querySelector(".non-working-actions").hidden = visible === 0;
   }
 
+  function extraRangeIso(period) {
+    const start = dateToIso(parseDisplayDate(period.start));
+    return [start, period.end ? dateToIso(parseDisplayDate(period.end)) : start];
+  }
+
+  /* Explain why every day of [startIso, endIso] is already non-teaching, or
+   * return null when at least one day would really change the calendar.
+   * `skipIndex` leaves one added period out, to check that period itself. */
+  function coverageReason(startIso, endIso, skipIndex = -1) {
+    const unchecked = new Set(state.unchecked_period_ids.map(Number));
+    const extras = state.extra_periods.filter((_, index) => index !== skipIndex).map(extraRangeIso);
+    const found = { checked: new Set(), unchecked: new Set(), extra: false, weekend: false };
+    for (let day = isoToDate(startIso); dateToIso(day) <= endIso; day.setDate(day.getDate() + 1)) {
+      const iso = dateToIso(day);
+      const school = schoolPeriods.filter((period) => period.start <= iso && iso <= period.end);
+      const checked = school.filter((period) => !unchecked.has(period.id));
+      if (checked.length) {
+        checked.forEach((period) => found.checked.add(period.label || "sense motiu"));
+      } else if (extras.some(([start, end]) => start <= iso && iso <= end)) {
+        found.extra = true;
+      } else if (school.length) {
+        school.forEach((period) => found.unchecked.add(period.label || "sense motiu"));
+      } else if (day.getDay() === 0 || day.getDay() === 6) {
+        found.weekend = true;
+      } else {
+        return null;
+      }
+    }
+    return found;
+  }
+
+  function coverageMessage(found, isSingleDay) {
+    const subject = isSingleDay ? "Aquest dia" : "Aquests dies";
+    if (found.unchecked.size) {
+      return `${subject} ja ${isSingleDay ? "és" : "són"} al calendari del centre (${[...found.unchecked].join(", ")}), però el període està desmarcat. `
+        + "Torna'l a marcar a «Calendari del centre» en lloc d'afegir-lo.";
+    }
+    if (found.checked.size) {
+      return `${subject} ja ${isSingleDay ? "és no lectiu" : "són no lectius"} segons el calendari del centre (${[...found.checked].join(", ")}). No cal afegir-${isSingleDay ? "lo" : "los"}.`;
+    }
+    if (found.extra) {
+      return `${subject} ja ${isSingleDay ? "és" : "són"} a la llista de dies afegits. No cal afegir-${isSingleDay ? "lo" : "los"} de nou.`;
+    }
+    return `${isSingleDay ? "Aquest dia cau" : "Aquests dies cauen"} en cap de setmana, que ja no compta com a dia de pràctiques. `
+      + "Si hi vols posar hores, fes clic al dia al calendari resultant.";
+  }
+
   function renderExtraPeriods() {
     const list = $("extra-period-list");
     list.replaceChildren();
@@ -408,6 +459,14 @@
         label.className = "period-label";
         label.textContent = ` ${period.label}`;
         text.append(label);
+      }
+      const [startIso, endIso] = extraRangeIso(period);
+      const found = coverageReason(startIso, endIso, index);
+      if (found && (found.checked.size || found.extra)) {
+        const note = document.createElement("span");
+        note.className = "extra-period-note";
+        note.textContent = found.checked.size ? " Ja és al calendari del centre: pots eliminar-lo." : " Repetit: pots eliminar-lo.";
+        text.append(note);
       }
       const remove = document.createElement("button");
       remove.type = "button";
@@ -475,6 +534,7 @@
       if (box.checked) unchecked.delete(id);
       else unchecked.add(id);
       state.unchecked_period_ids = [...unchecked];
+      renderExtraPeriods();
       changed({ immediate: true });
     });
   });
@@ -500,6 +560,10 @@
     if (!start) message = "Indica una data d'inici vàlida (DD/MM/AAAA).";
     else if (!end) message = "Indica una data de fi vàlida (DD/MM/AAAA) o deixa-la en blanc.";
     else if (end < start) message = "La data de fi no pot ser anterior a la d'inici.";
+    else {
+      const found = coverageReason(dateToIso(start), dateToIso(end));
+      if (found) message = coverageMessage(found, dateToIso(start) === dateToIso(end));
+    }
     errorBox.textContent = message;
     errorBox.hidden = !message;
     if (message) return;
