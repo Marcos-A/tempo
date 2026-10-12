@@ -180,6 +180,7 @@ README.en.md
 
 - `design/tempo-design-system.md`: canonical visual-system reference
 - `design/brand/README.md`: correct logo usage and variants
+- `design/brand/build_svgs.py`: generates every logo SVG from the design-system values (`--check` reports drift)
 - `app/static/img/`: curated subset of logo assets served by the app
 
 ## License
