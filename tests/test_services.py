@@ -502,6 +502,39 @@ def test_export_uses_two_row_ra_headers_when_optional_names_are_present():
 
 
 
+def test_export_wraps_long_ra_names_in_fixed_width_columns():
+    """Long RA names should wrap inside narrow columns with a tall enough row."""
+
+    long_name = "Programació de bases de dades relacionals"
+    workbook_io = build_workbook(
+        [
+            {
+                "date": date(2026, 9, 1),
+                "weekday": "Dimarts",
+                "total_hours": 4,
+                "ra_hours": {"RA1": 4, "RA2": 0},
+            }
+        ],
+        [
+            RAPlan("RA1", long_name, 4),
+            RAPlan("RA2", "Curt", 0),
+        ],
+        {"Camp": "Valor"},
+    )
+    workbook = load_workbook(workbook_io)
+    sheet = workbook["Calendari"]
+
+    assert sheet["D7"].value == long_name
+    assert sheet["D7"].alignment.wrap_text is True
+    assert sheet["D7"].alignment.vertical == "center"
+    assert sheet["E7"].alignment.wrap_text is True
+    assert sheet["D8"].alignment.wrap_text is not True
+    assert sheet.column_dimensions["D"].width == 14
+    assert sheet.column_dimensions["E"].width == 14
+    # "Programació / de bases / de dades / relacionals" needs four lines.
+    assert sheet.row_dimensions[7].height >= 4 * 15
+
+
 def test_export_includes_optional_module_fields_above_the_calendar_table():
     """The calendar sheet should reserve editable rows for optional module metadata."""
 
