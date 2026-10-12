@@ -180,6 +180,7 @@ README.en.md
 
 - `design/tempo-design-system.md`: referència canònica del sistema visual
 - `design/brand/README.md`: ús correcte dels logos i variants
+- `design/brand/build_svgs.py`: genera tots els SVG del logo a partir dels valors del sistema de disseny (`--check` detecta desviacions)
 - `app/static/img/`: subconjunt de logos servits per l'aplicació
 
 ## Llicència

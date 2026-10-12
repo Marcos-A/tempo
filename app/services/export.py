@@ -60,6 +60,10 @@ SUMMARY_LABELS = (
 SHEET_MAIN_NS = "http://schemas.openxmlformats.org/spreadsheetml/2006/main"
 COMMENT_COLUMN_WIDTH_MULTIPLIER = 3
 RA_COLUMN_WIDTH = 14
+# Approximate characters of bold Calibri 11 that fit on one line of an RA column,
+# and the height (in points) each wrapped line needs.
+RA_NAME_CHARS_PER_LINE = 12
+RA_NAME_LINE_HEIGHT = 15
 # Sequential-mode hours are always whole numbers; parallel-mode hours can carry
 # up to two decimal places (see hours.DISPLAY_HOUR_QUANTUM). "General" shows a
 # value using its natural representation instead of padding to a fixed decimal
@@ -123,6 +127,40 @@ def _instruction_banner_height(ra_count: int) -> float:
         for line in _instruction_banner_text(ra_count).splitlines()
     )
     return max(24, line_count * 18)
+
+
+def _wrapped_line_count(text: str, chars_per_line: int) -> int:
+    """Estimate how many lines a greedy word wrap needs for `text`."""
+
+    line_count = 0
+    for paragraph in text.splitlines() or [""]:
+        paragraph_lines = 1
+        current_length = 0
+        for word in paragraph.split():
+            if current_length and current_length + 1 + len(word) <= chars_per_line:
+                current_length += 1 + len(word)
+                continue
+            if current_length:
+                paragraph_lines += 1
+            # Words longer than a line are broken mid-word by the spreadsheet app.
+            paragraph_lines += (len(word) - 1) // chars_per_line
+            current_length = len(word) % chars_per_line or chars_per_line
+        line_count += paragraph_lines
+    return line_count
+
+
+def _ra_name_row_height(ras: list[RAPlan]) -> float:
+    """Estimate a row height that shows every wrapped RA name in full.
+
+    openpyxl cannot auto-fit row heights, so the height is derived from the
+    longest wrapped name, like the instruction banner does.
+    """
+
+    line_count = max(
+        (_wrapped_line_count((ra.name or "").strip(), RA_NAME_CHARS_PER_LINE) for ra in ras),
+        default=1,
+    )
+    return max(RA_NAME_LINE_HEIGHT, line_count * RA_NAME_LINE_HEIGHT)
 
 
 def _active_ra_keys(row: dict[str, object], ras: list[RAPlan]) -> tuple[str, ...]:
@@ -298,7 +336,7 @@ def build_workbook(
                 name_cell = calendar_sheet.cell(row=header_sub_row, column=column_index)
                 name_cell.value = optional_name
                 name_cell.font = Font(bold=True)
-                name_cell.alignment = Alignment(horizontal="center", vertical="center")
+                name_cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
                 _apply_ra_fill(name_cell, index)
             else:
                 calendar_sheet.merge_cells(
@@ -307,6 +345,8 @@ def build_workbook(
                     end_row=header_sub_row,
                     end_column=column_index,
                 )
+    if has_optional_ra_names:
+        calendar_sheet.row_dimensions[header_sub_row].height = _ra_name_row_height(ras)
 
     calendar_sheet.freeze_panes = f"{get_column_letter(first_ra_column)}{data_start_row}"
 
@@ -421,7 +461,11 @@ def build_workbook(
         for row in calendar_sheet.iter_rows(
             min_row=header_main_row, max_row=completion_row, min_col=first_ra_column + index, max_col=first_ra_column + index
         ):
-            row[0].alignment = Alignment(horizontal="center", vertical="center")
+            row[0].alignment = Alignment(
+                horizontal="center",
+                vertical="center",
+                wrap_text=row[0].row == header_sub_row,
+            )
             if data_start_row <= row[0].row < completion_row and row[0].value is not None:
                 row[0].number_format = HOUR_NUMBER_FORMAT
 

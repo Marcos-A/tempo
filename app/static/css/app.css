@@ -737,7 +737,7 @@ button:disabled {
 }
 
 .block-card.block-theme .block-weekday-field.is-unavailable select {
-  background: var(--bg);
+  background-color: var(--bg);
   border-color: var(--line);
   color: var(--muted-faint);
 }
@@ -767,7 +767,7 @@ button:disabled {
 
 .block-time-field {
   display: grid;
-  grid-template-columns: minmax(4rem, 4rem) auto;
+  grid-template-columns: minmax(4.5rem, 4.5rem) auto;
   grid-template-areas:
     "hours hours_label"
     "minutes minutes_label";
@@ -795,7 +795,15 @@ button:disabled {
 .block-time-field select {
   width: 100%;
   min-width: 0;
-  padding: 0.55rem 1.65rem 0.55rem 0.45rem;
+  /* Draw our own chevron: native arrows (notably Safari/macOS) are added on
+     top of the padding and leave too little room for "00". */
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%23607165' stroke-width='1.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.5rem center;
+  background-size: 0.6rem auto;
+  padding: 0.55rem 1.4rem 0.55rem 0.5rem;
   text-align: center;
   font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
@@ -812,7 +820,7 @@ button:disabled {
 }
 
 .block-weekday-field.is-unavailable select {
-  background: var(--bg);
+  background-color: var(--bg);
   border-color: var(--line);
   color: var(--muted-faint);
   cursor: not-allowed;
@@ -1485,4 +1493,87 @@ th {
   .admin-detail-actions {
     grid-template-columns: 1fr;
   }
+}
+
+/* Compact calendar popup attached to every .date-input (static/js/datepicker.js). */
+.datepicker {
+  position: absolute;
+  z-index: 1000;
+  width: 15.5rem;
+  padding: 0.6rem;
+  border: 1px solid var(--line-strong);
+  border-radius: 6px;
+  background: var(--card);
+  box-shadow: 0 6px 18px rgba(30, 38, 31, 0.12);
+  font-size: 0.85rem;
+  user-select: none;
+}
+
+.datepicker[hidden] {
+  display: none;
+}
+
+.datepicker-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.4rem;
+}
+
+.datepicker-title {
+  font-weight: 600;
+}
+
+.datepicker button {
+  border: 0;
+  border-radius: 4px;
+  padding: 0;
+  font: inherit;
+  font-weight: 400;
+  color: var(--text);
+  background: transparent;
+}
+
+.datepicker-nav {
+  width: 1.9rem;
+  height: 1.9rem;
+  font-size: 1.1rem;
+  line-height: 1;
+}
+
+.datepicker button:hover {
+  background: var(--bg);
+}
+
+.datepicker-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+  text-align: center;
+}
+
+.datepicker-weekday {
+  padding: 0.2rem 0;
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+
+.datepicker-day {
+  height: 1.9rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.datepicker .datepicker-day.is-weekend {
+  color: var(--muted-faint);
+}
+
+.datepicker .datepicker-day.is-today {
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+
+.datepicker .datepicker-day.is-selected,
+.datepicker .datepicker-day.is-selected:hover {
+  color: var(--card);
+  background: var(--accent);
+  font-weight: 600;
 }
