@@ -7,7 +7,7 @@ The workbook has three sheets:
   are formulas, so editing any day's hours recalculates everything.
 - "Detall": one row per date from the start to the end date. Hours link back to
   the grid and the running and remaining totals are formulas.
-- "Configuració": the weekly schedule and the non-working periods that were applied.
+- "Configuració": the weekly schedule and the non-teaching periods that were applied.
 """
 
 from __future__ import annotations
@@ -40,7 +40,7 @@ KIND_FILLS = {
 }
 KIND_LABELS = {
     DAY_KIND_WORKING: "Laborable",
-    DAY_KIND_HOLIDAY: "Festiu / no laborable",
+    DAY_KIND_HOLIDAY: "Festiu / no lectiu",
     DAY_KIND_WEEKEND: "Sense horari (cap de setmana)",
     DAY_KIND_OVERRIDE: "Dia modificat",
 }
@@ -239,13 +239,16 @@ def build_internship_workbook(
                     hours_cell.border = Border(left=END_DAY_SIDE, right=END_DAY_SIDE, bottom=END_DAY_SIDE)
                 hour_cell_by_date[current] = f"{get_column_letter(column)}{hours_row}"
 
-            week_total = grid.cell(row=hours_row, column=GRID_COLUMNS, value=f"=ROUND(SUM(A{hours_row}:G{hours_row}),2)")
+            # One tall weekly-total cell spanning the date and hours rows.
+            grid.merge_cells(start_row=date_row, start_column=GRID_COLUMNS, end_row=hours_row, end_column=GRID_COLUMNS)
+            week_total = grid.cell(row=date_row, column=GRID_COLUMNS, value=f"=ROUND(SUM(A{hours_row}:G{hours_row}),2)")
             week_total.alignment = Alignment(horizontal="center", vertical="center")
             # Weeks outside the internship would otherwise show a column of zeros.
             week_total.number_format = "General;-General;;@"
+            week_total.font = Font(bold=True)
             week_total.border = THIN_BORDER
-            grid.cell(row=date_row, column=GRID_COLUMNS).border = THIN_BORDER
-            week_total_cells.append(f"H{hours_row}")
+            grid.cell(row=hours_row, column=GRID_COLUMNS).border = THIN_BORDER
+            week_total_cells.append(f"H{date_row}")
             grid.row_dimensions[date_row].height = 12
             grid.row_dimensions[hours_row].height = 20
             row += 2
@@ -340,7 +343,7 @@ def build_internship_workbook(
         minutes = weekday_minutes.get(index, 0)
         config.append([weekday, format_minutes_label(minutes) if minutes else "-"])
     config.append([])
-    config.append(["Dies no laborables aplicats"])
+    config.append(["Dies no lectius aplicats"])
     config.cell(row=config.max_row, column=1).font = Font(bold=True)
     config.append(["Inici", "Fi", "Motiu", "Origen"])
     for cell in config[config.max_row]:

@@ -95,19 +95,19 @@ class InternshipRequest:
         try:
             selected_ids = {int(value) for value in payload.get("excluded_period_ids") or []}
         except (TypeError, ValueError):
-            raise ValueError("Selecció de períodes no laborables no vàlida.") from None
+            raise ValueError("Selecció de períodes no lectius no vàlida.") from None
         self.school_periods = [period for period in periods if period.id in selected_ids]
 
         raw_extra = payload.get("extra_periods") or []
         if len(raw_extra) > MAX_EXTRA_PERIODS:
-            raise ValueError("Hi ha massa dies no laborables afegits.")
+            raise ValueError("Hi ha massa dies no lectius afegits.")
         self.extra_periods: list[tuple[date, date, str]] = []
         for item in raw_extra:
             start = parse_date_input(str(item.get("start") or ""))
             end_text = str(item.get("end") or "").strip()
             end = parse_date_input(end_text) if end_text else start
             if end < start:
-                raise ValueError("Un període no laborable afegit acaba abans de començar.")
+                raise ValueError("Un període no lectiu afegit acaba abans de començar.")
             label = str(item.get("label") or "").strip()[:MAX_LABEL_LENGTH]
             self.extra_periods.append((start, end, label))
 
@@ -189,7 +189,7 @@ def _coverage_warning(db: Session, result: InternshipCalendar) -> str | None:
     last_year_end = db.scalar(select(AcademicYear.default_end_date).order_by(AcademicYear.default_end_date.desc()))
     if last_year_end is not None and result.end_date > last_year_end:
         return (
-            f"El calendari del centre només té dies no laborables configurats fins al {format_display_date(last_year_end)}. "
+            f"El calendari del centre només té dies no lectius configurats fins al {format_display_date(last_year_end)}. "
             "Afegeix a mà els festius posteriors."
         )
     return None

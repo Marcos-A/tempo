@@ -1645,7 +1645,7 @@ nav a.site-nav-link[aria-current="page"] {
 }
 
 .time-field input {
-  width: 7.5rem;
+  width: 9.5rem;
   font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
   text-align: center;
@@ -1775,8 +1775,13 @@ select.time-select {
   margin-bottom: 0.75rem;
 }
 
-.extra-period-label {
+.extra-period-label,
+.extra-period-hint {
   grid-column: 1 / -1;
+}
+
+.extra-period-hint {
+  margin-top: -0.4rem;
 }
 
 .extra-period-form input {

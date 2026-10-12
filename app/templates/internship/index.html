@@ -7,7 +7,7 @@
     <ul class="step-intro-list">
       <li>Indica la data d'inici i el total d'hores de pràctiques.</li>
       <li>Defineix les hores de cada dia de la setmana; admeten minuts (p. ex. 4 h 30 min).</li>
-      <li>Revisa els dies no laborables: els del calendari del centre ja estan marcats i en pots afegir més.</li>
+      <li>Revisa els dies no lectius: els del calendari del centre ja estan marcats i en pots afegir més.</li>
     </ul>
     <p class="step-intro-next">El calendari es recalcula automàticament. Fes clic en qualsevol dia per canviar-ne les hores.</p>
   </div>
@@ -69,7 +69,7 @@
         </div>
       </div>
       <div class="quick-fill">
-        <span class="quick-fill-label">Mateix horari per a tots els dies</span>
+        <span class="quick-fill-label">Mateix nombre d'hores per a tots els dies</span>
         <span class="time-field">
           <select id="quick-fill-hours" class="time-select" aria-label="Hores">
             {% for hour in range(0, max_daily_hours + 1) %}<option value="{{ hour }}">{{ hour }}</option>{% endfor %}
@@ -105,7 +105,7 @@
     <section class="card-panel form-span internship-panel">
       <div class="section-heading">
         <div>
-          <h2>Dies no laborables</h2>
+          <h2>Dies no lectius</h2>
           <p class="hint">Desmarca els períodes del calendari del centre que no afectin l'empresa (p. ex. si l'alumne fa pràctiques durant les vacances escolars).</p>
         </div>
       </div>
@@ -128,7 +128,8 @@
             </li>
             {% endfor %}
           </ul>
-          <p class="hint" id="school-period-empty" hidden>No hi ha períodes no lectius configurats a partir de la data d'inici.</p>
+          <p class="hint" id="school-period-none" hidden>El centre encara no té cap període no lectiu configurat. Pots afegir dies a mà a «Dies afegits».</p>
+          <p class="hint" id="school-period-empty" hidden>Cap període no lectiu del centre afecta aquestes dates.</p>
         </div>
         <div>
           <div class="non-working-heading">
@@ -136,13 +137,14 @@
           </div>
           <div class="extra-period-form">
             <label>
-              Des de
+              <span>Des de</span>
               <input class="date-input" id="extra-start" type="text" placeholder="DD/MM/AAAA" inputmode="numeric" />
             </label>
             <label>
               <span>Fins a <span class="optional-label">(opcional)</span></span>
               <input class="date-input" id="extra-end" type="text" placeholder="DD/MM/AAAA" inputmode="numeric" />
             </label>
+            <span class="optional-label extra-period-hint">Si només és un dia, n'hi ha prou amb indicar la data «Des de».</span>
             <label class="extra-period-label">
               <span>Motiu <span class="optional-label">(opcional)</span></span>
               <input id="extra-label" type="text" maxlength="120" placeholder="P.ex. Festa local, tancament de l'empresa" />
@@ -186,7 +188,7 @@
     <p class="warning-box" id="result-warning" hidden></p>
     <ul class="calendar-legend" aria-label="Llegenda">
       <li><span class="legend-swatch day-working"></span>Laborable</li>
-      <li><span class="legend-swatch day-holiday"></span>Festiu / no laborable</li>
+      <li><span class="legend-swatch day-holiday"></span>Festiu / no lectiu</li>
       <li><span class="legend-swatch day-weekend"></span>Sense horari</li>
       <li><span class="legend-swatch day-override"></span>Dia modificat</li>
       <li><span class="legend-swatch day-end"></span>Darrer dia</li>
@@ -229,7 +231,7 @@
   const STORAGE_KEY = "tempo.internship.v1";
   const MONTH_NAMES = ["Gener", "Febrer", "Març", "Abril", "Maig", "Juny", "Juliol", "Agost", "Setembre", "Octubre", "Novembre", "Desembre"];
   const WEEKDAY_SHORT = ["dl.", "dt.", "dc.", "dj.", "dv.", "ds.", "dg."];
-  const KIND_LABELS = { working: "Laborable", holiday: "Festiu / no laborable", weekend: "Sense horari", override: "Dia modificat" };
+  const KIND_LABELS = { working: "Laborable", holiday: "Festiu / no lectiu", weekend: "Sense horari", override: "Dia modificat" };
   const serverState = {{ state|tojson }};
   const hasServerError = {{ 'true' if error else 'false' }};
 
@@ -384,7 +386,10 @@
       item.hidden = !show;
       if (show) visible += 1;
     });
-    $("school-period-empty").hidden = visible > 0;
+    const hasAny = periodCheckboxes.length > 0;
+    $("school-period-none").hidden = hasAny;
+    $("school-period-empty").hidden = !hasAny || visible > 0;
+    document.querySelector(".non-working-actions").hidden = visible === 0;
   }
 
   function renderExtraPeriods() {

@@ -224,7 +224,7 @@ def test_workbook_structure_and_formulas():
     assert "_xlfn.MINIFS(Detall!" in end_formula
 
     # Legend lists every colour category.
-    for label in ("Laborable", "Festiu / no laborable", "Dia modificat"):
+    for label in ("Laborable", "Festiu / no lectiu", "Dia modificat"):
         _find(grid, label)
 
     # Each day's hours sit right below its date; kinds are coloured distinctly.
@@ -240,7 +240,8 @@ def test_workbook_structure_and_formulas():
     assert holiday_cell.comment.text.startswith("Festa local")
 
     # Week and month totals are formulas over the hour rows.
-    assert grid.cell(row=monday.row + 1, column=8).value == f"=ROUND(SUM(A{monday.row + 1}:G{monday.row + 1}),2)"
+    assert grid.cell(row=monday.row, column=8).value == f"=ROUND(SUM(A{monday.row + 1}:G{monday.row + 1}),2)"
+    assert f"H{monday.row}:H{monday.row + 1}" in {str(merged) for merged in grid.merged_cells.ranges}
     assert _find(grid, "Total octubre 2026").row > monday.row
 
     # Detail sheet: hours link to the grid, running and remaining totals are formulas.
@@ -252,7 +253,7 @@ def test_workbook_structure_and_formulas():
     assert detail["F3"].value == "=ROUND(F2+E3,2)"
     assert detail["G2"].value == f"=ROUND(Calendari!$D${target_cell.row}-F2,2)"
     assert detail.cell(row=2 + len(result.days), column=4).value == "Total"
-    assert detail["C4"].value == "Festiu / no laborable"
+    assert detail["C4"].value == "Festiu / no lectiu"
     assert detail["D4"].value == "Festa local"
 
 
