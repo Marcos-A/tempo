@@ -4,7 +4,7 @@ Production package for the approved Tempo mark (Cadence Stack — Production Mas
 
 Since 2.0 the artwork draws each module as a solid extruded block (right and bottom faces plus a top-lit front face), with a matching extruded wordmark, as described in Section 4 of `../tempo-design-system.md`. It uses only SVG rectangles, polygons, text and linear gradients, no filters. The `black` variants and `safari-pinned-tab.svg` stay flat for single-ink use.
 
-PNG files are rendered natively per size from the SVGs in a headless browser with Inter loaded, so the wordmark rasterizes in Inter rather than a fallback font. `favicon.ico` bundles the 16/32/48 PNG renders.
+The wordmark is stored as outlines (Inter 600 glyphs with Inter's kerning and the specified letter-spacing, taken from `app/static/fonts/inter-latin-variable.woff2`), not as live `<text>`, so it renders identically in `<img>` tags, print and design tools without Inter installed. PNG files are rendered natively per size from the SVGs. `favicon.ico` bundles the 16/32/48 PNG renders.
 
 ## Directory contents
 
@@ -60,7 +60,7 @@ ico/            favicon.ico (16/32/48 layers, PNG-in-ICO)
 
 ## Recommended CSS usage
 
-Prefer the SVG variants inline or via `<img>` — they scale losslessly and need no CSS filters or shadows (the relief is already in the artwork). Note that an SVG loaded via `<img>` cannot use the page's web fonts: the wordmark text falls back to the system sans-serif unless Inter is installed, so use the PNG or inline the SVG where exact Inter rendering matters. Use `symbol` SVGs (not `lockup`) as inline UI marks so they don't drag in wordmark whitespace. For a symbol that must sit on an arbitrary/unknown background, use the plain (non-reversed) color that has the most contrast, or `white`/`black` monochrome.
+Prefer the SVG variants inline or via `<img>` — they scale losslessly and need no CSS filters or shadows (the relief is already in the artwork). Use `symbol` SVGs (not `lockup`) as inline UI marks so they don't drag in wordmark whitespace. For a symbol that must sit on an arbitrary/unknown background, use the plain (non-reversed) color that has the most contrast, or `white`/`black` monochrome.
 
 ## Transparent vs. reversed variants
 
