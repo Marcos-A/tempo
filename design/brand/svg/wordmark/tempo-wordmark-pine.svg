@@ -1,4 +1,11 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 90">
-  <text x="1.45" y="66.8" font-family="Inter, -apple-system, sans-serif" font-weight="600" font-size="60" letter-spacing="-0.6" fill="#1e3a2d">tempo</text>
+  <g fill="#1e3a2d">
+    <text x="1.90" y="67.50" font-family="Inter, -apple-system, sans-serif" font-weight="600" font-size="60" letter-spacing="-0.6">tempo</text>
+    <text x="1.58" y="67.08" font-family="Inter, -apple-system, sans-serif" font-weight="600" font-size="60" letter-spacing="-0.6">tempo</text>
+    <text x="1.27" y="66.67" font-family="Inter, -apple-system, sans-serif" font-weight="600" font-size="60" letter-spacing="-0.6">tempo</text>
+    <text x="0.95" y="66.25" font-family="Inter, -apple-system, sans-serif" font-weight="600" font-size="60" letter-spacing="-0.6">tempo</text>
+    <text x="0.63" y="65.83" font-family="Inter, -apple-system, sans-serif" font-weight="600" font-size="60" letter-spacing="-0.6">tempo</text>
+    <text x="0.32" y="65.42" font-family="Inter, -apple-system, sans-serif" font-weight="600" font-size="60" letter-spacing="-0.6">tempo</text>
+  </g>
   <text x="0" y="65" font-family="Inter, -apple-system, sans-serif" font-weight="600" font-size="60" letter-spacing="-0.6" fill="#33604c">tempo</text>
 </svg>

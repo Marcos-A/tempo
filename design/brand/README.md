@@ -1,8 +1,8 @@
 # Tempo Brand Assets
 
-Production package for the approved Tempo mark (Cadence Stack — Production Master, design system 2.0). Geometry is frozen: a 20-unit module, 6.5/7-unit optical-corrected gaps, 1.8-unit corner radius, on a 0–100 viewBox. Do not alter coordinates in any file below.
+Production package for the approved Tempo mark (Cadence Stack — Production Master, design system 2.0). Geometry is frozen: a 20-unit module, 6.5/7-unit optical-corrected gaps, 0.9-unit corner radius, on a 0–100 viewBox. Do not alter coordinates in any file below.
 
-Since 2.0 the artwork carries the "soft extrusion" relief (offset depth copy plus a soft top-lit face gradient) described in Section 4 of `../tempo-design-system.md`. It uses only SVG rectangles, text and linear gradients, no filters. The `black` variants and `safari-pinned-tab.svg` stay flat for single-ink use.
+Since 2.0 the artwork draws each module as a solid extruded block (right and bottom faces plus a top-lit front face), with a matching extruded wordmark, as described in Section 4 of `../tempo-design-system.md`. It uses only SVG rectangles, polygons, text and linear gradients, no filters. The `black` variants and `safari-pinned-tab.svg` stay flat for single-ink use.
 
 PNG files are rendered natively per size from the SVGs in a headless browser with Inter loaded, so the wordmark rasterizes in Inter rather than a fallback font. `favicon.ico` bundles the 16/32/48 PNG renders.
 

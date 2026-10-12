@@ -3,7 +3,7 @@
 **Version 2.0 — Canonical Reference**
 Status: Approved. The visual identity documented here (Sections 4–8) is frozen. Component patterns, tokens, and implementation guidance may evolve under the governance described in Section 18.
 
-**Revision note (2.0):** the logo gains a subtle relief, the "soft extrusion" (Section 4, *Relief*). The cadence-stack geometry, Pine palette, clear space and lockup composition are unchanged; only fills change. Migration: replace every logo, wordmark, lockup, app-icon and favicon file with the 2.0 package in `design/brand/` and `app/static/img/` (same filenames). The flat 1.x builds survive only as the Black monochrome and the Safari pinned-tab silhouette.
+**Revision note (2.0):** the logo becomes three-dimensional: every module is drawn as a solid extruded block (Section 4, *Relief*) and the corner radius is halved from 1.8 to 0.9 units for a squarer build. Module positions, sizes and gaps, the Pine palette, clear space and lockup composition are unchanged. Migration: replace every logo, wordmark, lockup, app-icon and favicon file with the 2.0 package in `design/brand/` and `app/static/img/` (same filenames). The flat 1.x builds survive only as the Black monochrome and the Safari pinned-tab silhouette.
 
 **Revision note (1.1):** a design review found that three tokens in v1.0 (`Warning`, `Success`, `Muted`) did not meet WCAG AA contrast in every context the document itself specified they'd be used in — e.g. `Warning` as text on Paper measured 2.91:1 against a required 4.5:1. All three were re-derived at the same hue to the nearest lightness step that clears AA in every stated use case, verified numerically rather than by eye. See Section 5 for the corrected values and the reasoning. This also closes gaps around subtle/tint badge backgrounds, dropdown radius ambiguity, elevation/shadow, and a fully-specified dark-mode token set — all flagged in the same review.
 
@@ -131,33 +131,34 @@ All coordinates below are defined on a 100×100 unit grid (`viewBox="0 0 100 100
 
 | Element | x | y | width | height | corner radius |
 |---|---|---|---|---|---|
-| Crossbar, left module | 13.5 | 24 | 20 | 15 | 1.8 |
-| Crossbar, center module | 40 | 24 | 20 | 15 | 1.8 |
-| Crossbar, right module | 66.5 | 24 | 20 | 15 | 1.8 |
-| Stem, module 1 | 40 | 46 | 20 | 9.3 | 1.8 |
-| Stem, module 2 | 40 | 62.3 | 20 | 9.3 | 1.8 |
-| Stem, module 3 | 40 | 78.6 | 20 | 9.3 | 1.8 |
+| Crossbar, left module | 13.5 | 24 | 20 | 15 | 0.9 |
+| Crossbar, center module | 40 | 24 | 20 | 15 | 0.9 |
+| Crossbar, right module | 66.5 | 24 | 20 | 15 | 0.9 |
+| Stem, module 1 | 40 | 46 | 20 | 9.3 | 0.9 |
+| Stem, module 2 | 40 | 62.3 | 20 | 9.3 | 0.9 |
+| Stem, module 3 | 40 | 78.6 | 20 | 9.3 | 0.9 |
 
 Governing values:
 
 - **Module width:** 20 units — constant across every block, crossbar and stem alike.
 - **Optical gap:** crossbar gap is 6.5 units; stem gap is 7 units. These differ intentionally — equal numeric gaps do not read as equal across a horizontal run of wide blocks versus a vertical stack. This is an optical correction, not an inconsistency; never "fix" it to a single numeric value.
-- **Corner radius:** 1.8 units (≈9% of module width) on every block, no exceptions.
+- **Corner radius:** 0.9 units (≈4.5% of module width) on every block, no exceptions. Halved from 1.8 in 2.0 so the modules read as solid, square-edged blocks once extruded (see *Relief*).
 - **Center alignment:** the stem column and the crossbar's center module share the same x-range (40–60). This is what makes the stem read as a continuation of the crossbar rather than an unrelated element beneath it.
 
-### Relief: soft extrusion
+### Relief: solid blocks
 
-Since 2.0 every module carries a restrained two-tone extrusion so the mark reads as solid units rather than flat cut-outs. It is built from plain SVG fills only (rectangles and linear gradients, no filters, blurs or raster effects), so it renders identically everywhere.
+Since 2.0 every module is drawn as a solid block seen slightly from above-left, so the mark reads as stacked physical units rather than flat cut-outs. It is built from plain SVG shapes only (rectangles, polygons, text and linear gradients, no filters, blurs or raster effects), so it renders identically everywhere.
 
-- **Depth copy:** behind each module sits a copy of the same rounded rectangle, offset **+1.4 x / +1.8 y** units and filled with a darker shade of the module color (Pine → Deep Pine `#1e3a2d`; Deep Pine → `#0f1f17`; Ink → `#0a0d0a`).
-- **Face:** the module itself uses a vertical gradient from a lighter tint at the top edge (Pine `#5a8a73`, Deep Pine `#3f6a56`, Ink `#4a554b`) to the base color at 35% of its height, then flat base color to the bottom. This reads as a soft top light, never as gloss.
-- **Wordmark:** the same idea in type: a solid copy of the word in the depth shade, offset +1.45/+1.8 units at 60px (+1.2/+1.5 at the lockup's 50px), behind the base-color word. No gradient on the letterforms, so Inter 600 stays crisp.
-- **On a colored field** (app icon, favicon, lockup tile): the field is a gentle vertical gradient (Pine `#3b6b55` → `#2c5442`; Deep Pine `#25453a` → `#182f24`), the cream modules fade from `#ffffff` to Surface `#fbfbf7`, and their depth copy is a shade darker than the field (`#1b3428` on Pine).
-- **White (dark mode):** the depth copy is white at 38% opacity, so the mark stays a single color yet keeps its depth on any dark surface.
-- **Exceptions:** the Black monochrome build and the Safari pinned-tab silhouette stay flat. Both exist for single-ink reproduction, where tints and offsets cannot be printed or are forbidden by the platform.
-- **Small sizes:** at 16px the offset is under one pixel, so the mark degrades to the flat silhouette by itself. Do not draw a separate small build or exaggerate the offset to make it visible.
+- **Extrusion:** each block extends **+2.6 x / +3.4 y** units behind its front face. The visible right face uses a mid shade and the bottom face a dark shade of the module color (Pine: right `#244a3a`, bottom Deep Pine `#1e3a2d`; Deep Pine: `#152b21` / `#0f1f17`; Ink: `#141a15` / `#0a0d0a`). The back corners are softened by 0.54 units.
+- **Front face:** a vertical gradient from a lighter tint at the top (Pine `#4f806a`, Deep Pine `#3a6553`, Ink `#3c463d`) to the base color at 35% of its height, then flat base color.
+- **Optical centering:** the whole stack is shifted by −1.3 x / −1.7 y units (half the extrusion) so the extruded silhouette, not just the front faces, sits centered in its box. Front-face coordinates in the table above are before this shift.
+- **On a colored field** (app icon, favicon, lockup tile, reversed builds): blocks are cream (`#ffffff` → Surface `#fbfbf7` front, right face `#c8cfbf`, bottom face `#a3ad9b`) on a vertical field gradient (Pine `#3d6e58` → `#264c3c`; Deep Pine `#284a3c` → `#152a20`; Ink `#2a342b` → `#131814`).
+- **Wordmark:** extruded to match: six stacked copies of the word step toward an offset of +1.9/+2.5 units at 60px (+1.6/+2.1 at the lockup's 50px) in the depth shade, behind the flat base-color word. No gradient on the letterforms, so Inter 600 stays crisp.
+- **White (dark mode):** right faces are white at 50% opacity and bottom faces black at 30% over them; the wordmark depth is white at 38% opacity. The mark stays effectively single-color and keeps its depth on any dark surface.
+- **Exceptions:** the Black monochrome build and the Safari pinned-tab silhouette stay flat (with the 0.9 radius). Both exist for single-ink reproduction, where tints and offsets cannot be printed or are forbidden by the platform.
+- **Small sizes:** at 16px the extrusion is about half a pixel, so the favicon reads as a crisp T with a slight edge. Do not draw a separate small build or exaggerate the depth to make it visible.
 
-The offsets and colors are part of the frozen identity. Never add further effects (glows, blurs, outlines, stronger shadows) on top.
+The offsets and colors are part of the frozen identity. Never add further effects (glows, blurs, outlines, cast shadows) on top.
 
 ### Clear space
 
@@ -188,7 +189,7 @@ Black and white monochrome builds exist for contexts where color reproduction is
 
 ### App icon
 
-The app icon is the symbol in Surface cream (#fbfbf7, with the relief described above) at 82% scale, centered, on a Pine rounded square (corner radius 22% of the icon's edge) filled with the Pine field gradient. This padding ratio (9% margin per side) was deliberately tightened from earlier drafts — the symbol should feel present and confident in a crowded dock or app switcher, not float in a sea of background color.
+The app icon is the symbol as cream solid blocks (see *Relief*) at 82% scale, optically centered, on a Pine rounded square (corner radius 22% of the icon's edge) filled with the Pine field gradient. This padding ratio (9% margin per side) was deliberately tightened from earlier drafts — the symbol should feel present and confident in a crowded dock or app switcher, not float in a sea of background color.
 
 ### Favicon
 
@@ -363,7 +364,7 @@ Tempo's spacing system is not a set of arbitrary tokens — it's the same modula
 | `radius-md` | 10px | Cards, **the dropdown/popover container itself**, its own outer corner |
 | `radius-lg` | 14px | Modals, dialogs |
 | `radius-pill` | 999px | Pills, filter chips, avatar badges |
-| Logo module radius | 9% of module width (1.8/20 units) | Fixed — see Section 4, never reused elsewhere |
+| Logo module radius | 4.5% of module width (0.9/20 units) | Fixed — see Section 4, never reused elsewhere |
 
 **Disambiguating dropdowns specifically**, since "dropdown" refers to two nested things: the floating container uses `radius-md` on its outer edge; each selectable row inside it uses `radius-sm` (or no radius at all if rows run edge-to-edge with the container). Never apply `radius-md` to an individual row — a menu item that rounded reads as its own free-floating card, not a row in a list.
 
@@ -653,7 +654,7 @@ Treat this document and its token files as versioned artifacts. Any change to Se
 ✅ Use the provided SVG source files at any size.
 ❌ Recolor the symbol to a color outside Section 5's palette.
 ❌ Stretch, skew, or change the aspect ratio of the symbol or lockup.
-❌ Add any drop shadow, gradient, glow or outline beyond the specified soft extrusion (Section 4, *Relief*).
+❌ Add any drop shadow, gradient, glow or outline beyond the specified solid-block relief (Section 4, *Relief*).
 
 **Spacing**
 ✅ Build every layout from the 8px scale (Section 7).
