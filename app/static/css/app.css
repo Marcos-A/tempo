@@ -1486,3 +1486,86 @@ th {
     grid-template-columns: 1fr;
   }
 }
+
+/* Compact calendar popup attached to every .date-input (static/js/datepicker.js). */
+.datepicker {
+  position: absolute;
+  z-index: 1000;
+  width: 15.5rem;
+  padding: 0.6rem;
+  border: 1px solid var(--line-strong);
+  border-radius: 6px;
+  background: var(--card);
+  box-shadow: 0 6px 18px rgba(30, 38, 31, 0.12);
+  font-size: 0.85rem;
+  user-select: none;
+}
+
+.datepicker[hidden] {
+  display: none;
+}
+
+.datepicker-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.4rem;
+}
+
+.datepicker-title {
+  font-weight: 600;
+}
+
+.datepicker button {
+  border: 0;
+  border-radius: 4px;
+  padding: 0;
+  font: inherit;
+  font-weight: 400;
+  color: var(--text);
+  background: transparent;
+}
+
+.datepicker-nav {
+  width: 1.9rem;
+  height: 1.9rem;
+  font-size: 1.1rem;
+  line-height: 1;
+}
+
+.datepicker button:hover {
+  background: var(--bg);
+}
+
+.datepicker-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+  text-align: center;
+}
+
+.datepicker-weekday {
+  padding: 0.2rem 0;
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+
+.datepicker-day {
+  height: 1.9rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.datepicker .datepicker-day.is-weekend {
+  color: var(--muted-faint);
+}
+
+.datepicker .datepicker-day.is-today {
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+
+.datepicker .datepicker-day.is-selected,
+.datepicker .datepicker-day.is-selected:hover {
+  color: var(--card);
+  background: var(--accent);
+  font-weight: 600;
+}
