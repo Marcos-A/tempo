@@ -1,7 +1,9 @@
 # Tempo Design System
 
-**Version 1.1 — Canonical Reference**
+**Version 2.0 — Canonical Reference**
 Status: Approved. The visual identity documented here (Sections 4–8) is frozen. Component patterns, tokens, and implementation guidance may evolve under the governance described in Section 18.
+
+**Revision note (2.0):** the logo gains a subtle relief, the "soft extrusion" (Section 4, *Relief*). The cadence-stack geometry, Pine palette, clear space and lockup composition are unchanged; only fills change. Migration: replace every logo, wordmark, lockup, app-icon and favicon file with the 2.0 package in `design/brand/` and `app/static/img/` (same filenames). The flat 1.x builds survive only as the Black monochrome and the Safari pinned-tab silhouette.
 
 **Revision note (1.1):** a design review found that three tokens in v1.0 (`Warning`, `Success`, `Muted`) did not meet WCAG AA contrast in every context the document itself specified they'd be used in — e.g. `Warning` as text on Paper measured 2.91:1 against a required 4.5:1. All three were re-derived at the same hue to the nearest lightness step that clears AA in every stated use case, verified numerically rather than by eye. See Section 5 for the corrected values and the reasoning. This also closes gaps around subtle/tint badge backgrounds, dropdown radius ambiguity, elevation/shadow, and a fully-specified dark-mode token set — all flagged in the same review.
 
@@ -143,6 +145,20 @@ Governing values:
 - **Corner radius:** 1.8 units (≈9% of module width) on every block, no exceptions.
 - **Center alignment:** the stem column and the crossbar's center module share the same x-range (40–60). This is what makes the stem read as a continuation of the crossbar rather than an unrelated element beneath it.
 
+### Relief: soft extrusion
+
+Since 2.0 every module carries a restrained two-tone extrusion so the mark reads as solid units rather than flat cut-outs. It is built from plain SVG fills only (rectangles and linear gradients, no filters, blurs or raster effects), so it renders identically everywhere.
+
+- **Depth copy:** behind each module sits a copy of the same rounded rectangle, offset **+1.4 x / +1.8 y** units and filled with a darker shade of the module color (Pine → Deep Pine `#1e3a2d`; Deep Pine → `#0f1f17`; Ink → `#0a0d0a`).
+- **Face:** the module itself uses a vertical gradient from a lighter tint at the top edge (Pine `#5a8a73`, Deep Pine `#3f6a56`, Ink `#4a554b`) to the base color at 35% of its height, then flat base color to the bottom. This reads as a soft top light, never as gloss.
+- **Wordmark:** the same idea in type: a solid copy of the word in the depth shade, offset +1.45/+1.8 units at 60px (+1.2/+1.5 at the lockup's 50px), behind the base-color word. No gradient on the letterforms, so Inter 600 stays crisp.
+- **On a colored field** (app icon, favicon, lockup tile): the field is a gentle vertical gradient (Pine `#3b6b55` → `#2c5442`; Deep Pine `#25453a` → `#182f24`), the cream modules fade from `#ffffff` to Surface `#fbfbf7`, and their depth copy is a shade darker than the field (`#1b3428` on Pine).
+- **White (dark mode):** the depth copy is white at 38% opacity, so the mark stays a single color yet keeps its depth on any dark surface.
+- **Exceptions:** the Black monochrome build and the Safari pinned-tab silhouette stay flat. Both exist for single-ink reproduction, where tints and offsets cannot be printed or are forbidden by the platform.
+- **Small sizes:** at 16px the offset is under one pixel, so the mark degrades to the flat silhouette by itself. Do not draw a separate small build or exaggerate the offset to make it visible.
+
+The offsets and colors are part of the frozen identity. Never add further effects (glows, blurs, outlines, stronger shadows) on top.
+
 ### Clear space
 
 Minimum clear space around the symbol, on all sides, is **20% of the symbol's height** in any lockup or standalone placement. Never let another interface element (text, icon, edge of a container) enter this zone.
@@ -158,7 +174,7 @@ The symbol is legible down to 16px. Below 16px, do not attempt to preserve the i
 | Pine (#33604c) | Default, on light or neutral backgrounds |
 | Deep Pine (#1e3a2d) | Higher-contrast alternative, dense print, small print reproduction |
 | Ink (#1e261f) | Editorial/documentation contexts alongside body text |
-| Black | Single-color print, engraving, non-color reproduction |
+| Black | Single-color print, engraving, non-color reproduction (flat, no relief) |
 | White | On dark or Pine/Deep-Pine backgrounds |
 | Reversed (white on Pine / Deep Pine field) | Pre-composited badges — emails, slides, merchandise |
 
@@ -172,7 +188,7 @@ Black and white monochrome builds exist for contexts where color reproduction is
 
 ### App icon
 
-The app icon is the symbol in Surface cream (#fbfbf7) at 82% scale, centered, on a Pine-filled rounded square (corner radius 22% of the icon's edge). This padding ratio (9% margin per side) was deliberately tightened from earlier drafts — the symbol should feel present and confident in a crowded dock or app switcher, not float in a sea of background color.
+The app icon is the symbol in Surface cream (#fbfbf7, with the relief described above) at 82% scale, centered, on a Pine rounded square (corner radius 22% of the icon's edge) filled with the Pine field gradient. This padding ratio (9% margin per side) was deliberately tightened from earlier drafts — the symbol should feel present and confident in a crowded dock or app switcher, not float in a sea of background color.
 
 ### Favicon
 
@@ -637,7 +653,7 @@ Treat this document and its token files as versioned artifacts. Any change to Se
 ✅ Use the provided SVG source files at any size.
 ❌ Recolor the symbol to a color outside Section 5's palette.
 ❌ Stretch, skew, or change the aspect ratio of the symbol or lockup.
-❌ Add a drop shadow, gradient, or outline to the symbol.
+❌ Add any drop shadow, gradient, glow or outline beyond the specified soft extrusion (Section 4, *Relief*).
 
 **Spacing**
 ✅ Build every layout from the 8px scale (Section 7).

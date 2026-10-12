@@ -1,4 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 90">
-  <rect width="300" height="90" fill="#33604c"></rect>
-  <text x="0" y="65" font-family="Inter, -apple-system, sans-serif" font-size="60" font-weight="600" letter-spacing="-0.6" fill="#ffffff">tempo</text>
+  <rect width="300" height="90" fill="#33604c"/>
+  <text x="1.45" y="66.8" font-family="Inter, -apple-system, sans-serif" font-weight="600" font-size="60" letter-spacing="-0.6" fill="#1e3a2d">tempo</text>
+  <text x="0" y="65" font-family="Inter, -apple-system, sans-serif" font-weight="600" font-size="60" letter-spacing="-0.6" fill="#ffffff">tempo</text>
 </svg>

@@ -1,6 +1,10 @@
 # Tempo Brand Assets
 
-Production package for the approved Tempo mark (Cadence Stack — Production Master). Geometry is frozen: a 20-unit module, 6.5/7-unit optical-corrected gaps, 1.8-unit corner radius, on a 0–100 viewBox. Do not alter coordinates in any file below.
+Production package for the approved Tempo mark (Cadence Stack — Production Master, design system 2.0). Geometry is frozen: a 20-unit module, 6.5/7-unit optical-corrected gaps, 1.8-unit corner radius, on a 0–100 viewBox. Do not alter coordinates in any file below.
+
+Since 2.0 the artwork carries the "soft extrusion" relief (offset depth copy plus a soft top-lit face gradient) described in Section 4 of `../tempo-design-system.md`. It uses only SVG rectangles, text and linear gradients, no filters. The `black` variants and `safari-pinned-tab.svg` stay flat for single-ink use.
+
+PNG files are rendered natively per size from the SVGs in a headless browser with Inter loaded, so the wordmark rasterizes in Inter rather than a fallback font. `favicon.ico` bundles the 16/32/48 PNG renders.
 
 ## Directory contents
 
@@ -56,7 +60,7 @@ ico/            favicon.ico (16/32/48 layers, PNG-in-ICO)
 
 ## Recommended CSS usage
 
-Prefer the SVG variants inline or via `<img>` — they scale losslessly and inherit no filters/shadows. Use `symbol` SVGs (not `lockup`) as inline UI marks so they don't drag in wordmark whitespace. For a symbol that must sit on an arbitrary/unknown background, use the plain (non-reversed) color that has the most contrast, or `white`/`black` monochrome.
+Prefer the SVG variants inline or via `<img>` — they scale losslessly and need no CSS filters or shadows (the relief is already in the artwork). Note that an SVG loaded via `<img>` cannot use the page's web fonts: the wordmark text falls back to the system sans-serif unless Inter is installed, so use the PNG or inline the SVG where exact Inter rendering matters. Use `symbol` SVGs (not `lockup`) as inline UI marks so they don't drag in wordmark whitespace. For a symbol that must sit on an arbitrary/unknown background, use the plain (non-reversed) color that has the most contrast, or `white`/`black` monochrome.
 
 ## Transparent vs. reversed variants
 
