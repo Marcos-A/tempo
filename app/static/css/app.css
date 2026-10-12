@@ -1577,3 +1577,450 @@ th {
   background: var(--accent);
   font-weight: 600;
 }
+
+/* Header navigation between the module planner and the internship calendar. */
+.site-nav {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.35rem;
+}
+
+nav a.site-nav-link {
+  margin-left: 0;
+  padding: 0.5rem 0.85rem;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  color: var(--muted);
+  font-size: 0.92rem;
+  font-weight: 600;
+}
+
+nav a.site-nav-link:hover {
+  color: var(--accent-dark);
+  background: var(--bg);
+}
+
+nav a.site-nav-link[aria-current="page"] {
+  border-color: var(--line-strong);
+  color: var(--accent-dark);
+  background: var(--bg);
+}
+
+@media (max-width: 700px) {
+  .site-header .container {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .site-nav {
+    justify-content: flex-start;
+  }
+
+  nav a.site-nav-link {
+    padding: 0.4rem 0.6rem;
+  }
+}
+
+/* Internship calendar planner (templates/internship/index.html). */
+#internship-form [hidden],
+#internship-result [hidden] {
+  display: none !important;
+}
+
+.field-group {
+  display: grid;
+  gap: 0.35rem;
+  align-content: start;
+}
+
+.field-group-label {
+  font-weight: 600;
+}
+
+.time-field {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.time-field input {
+  width: 7.5rem;
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+select.time-select {
+  width: 4.6rem;
+  min-width: 0;
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%23607165' stroke-width='1.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.5rem center;
+  background-size: 0.6rem auto;
+  padding: 0.6rem 1.4rem 0.6rem 0.5rem;
+  text-align: center;
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.internship-panel {
+  display: grid;
+  gap: 1rem;
+}
+
+.internship-panel h2,
+.internship-panel .hint {
+  margin: 0 0 0.35rem;
+}
+
+.quick-fill {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem 1rem;
+  padding: 0.75rem 0.9rem;
+  border: 1px dashed var(--line-strong);
+  border-radius: 6px;
+}
+
+.quick-fill-label {
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.quick-fill button {
+  padding: 0.55rem 0.9rem;
+}
+
+.weekly-total {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.link-button {
+  border: 0;
+  padding: 0.2rem 0.3rem;
+  color: var(--accent);
+  background: transparent;
+  font-size: 0.88rem;
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.non-working-layout {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1.5rem;
+}
+
+.non-working-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.non-working-heading h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.period-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.3rem;
+  max-height: 22rem;
+  overflow-y: auto;
+}
+
+.period-option {
+  align-items: flex-start;
+  padding: 0.35rem 0.4rem;
+  border-radius: 4px;
+  font-weight: 500;
+}
+
+.period-option:hover {
+  background: var(--bg);
+}
+
+.period-option input {
+  margin-top: 0.2rem;
+}
+
+.period-dates {
+  font-family: var(--font-mono);
+  font-size: 0.86rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.period-label {
+  color: var(--muted);
+}
+
+.extra-period-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+  align-items: end;
+  margin-bottom: 0.75rem;
+}
+
+.extra-period-label {
+  grid-column: 1 / -1;
+}
+
+.extra-period-form input {
+  padding: 0.6rem 0.7rem;
+}
+
+.extra-period-form button {
+  justify-self: start;
+  padding: 0.6rem 1rem;
+}
+
+.extra-period-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 0.5rem;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+}
+
+.internship-summary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.75rem;
+  margin: 0.5rem 0 1rem;
+}
+
+.internship-stat {
+  display: grid;
+  gap: 0.25rem;
+  padding: 0.8rem 1rem;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+
+.internship-stat-main {
+  border-color: var(--accent);
+  background: rgba(51, 96, 76, 0.07);
+}
+
+.internship-stat-label {
+  font-size: 0.74rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.internship-stat-value {
+  font-family: var(--font-mono);
+  font-size: 1.15rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.internship-stat-main .internship-stat-value {
+  color: var(--accent-dark);
+  font-size: 1.35rem;
+}
+
+.calendar-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1.1rem;
+  list-style: none;
+  margin: 0 0 1rem;
+  padding: 0;
+  font-size: 0.86rem;
+  color: var(--muted);
+}
+
+.calendar-legend li {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.legend-swatch {
+  width: 1rem;
+  height: 1rem;
+  border: 1px solid var(--line-strong);
+  border-radius: 3px;
+}
+
+.day-working { background: #dcebdd; }
+.day-holiday { background: #f4d6d2; }
+.day-weekend { background: #e6e6e6; }
+.day-override { background: #f6e2b3; }
+.legend-swatch.day-end { background: var(--card); border: 2px solid var(--accent-dark); }
+
+.month-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(17.5rem, 1fr));
+  gap: 1rem;
+  margin-bottom: 1.25rem;
+}
+
+.month-card {
+  padding: 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+
+.month-title {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin: 0 0 0.5rem;
+  font-size: 0.98rem;
+}
+
+.month-total {
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.month-days {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 3px;
+}
+
+.month-weekday {
+  padding-bottom: 0.15rem;
+  font-size: 0.7rem;
+  text-align: center;
+  color: var(--muted);
+}
+
+.month-day {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  min-height: 2.75rem;
+  padding: 0.2rem 0.25rem;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  font: inherit;
+  font-weight: 400;
+  color: var(--text);
+  text-align: left;
+}
+
+button.month-day {
+  cursor: pointer;
+  border-color: rgba(30, 38, 31, 0.08);
+}
+
+button.month-day:hover {
+  border-color: var(--accent);
+}
+
+button.month-day:focus-visible {
+  outline: 2px dashed var(--accent);
+  outline-offset: 1px;
+}
+
+.month-day.day-end {
+  border: 2px solid var(--accent-dark);
+}
+
+.month-day.is-outside {
+  color: var(--muted-faint);
+}
+
+.month-day-number {
+  font-size: 0.68rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.month-day-hours {
+  align-self: end;
+  justify-self: center;
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.day-holiday .month-day-hours,
+.day-weekend .month-day-hours {
+  color: var(--muted-faint);
+  font-weight: 400;
+}
+
+.day-editor {
+  width: min(26rem, calc(100vw - 2rem));
+  padding: 1.25rem;
+  border: 1px solid var(--line-strong);
+  border-radius: 6px;
+  background: var(--card);
+  color: var(--text);
+  box-shadow: 0 10px 30px rgba(30, 38, 31, 0.18);
+}
+
+.day-editor::backdrop {
+  background: rgba(30, 38, 31, 0.35);
+}
+
+.day-editor-form {
+  display: grid;
+  gap: 0.9rem;
+}
+
+.day-editor-form h3,
+.day-editor-form p {
+  margin: 0;
+}
+
+.day-editor-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.day-editor-actions button {
+  padding: 0.6rem 0.95rem;
+}
+
+@media (max-width: 900px) {
+  .non-working-layout,
+  .internship-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .non-working-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .internship-weekdays {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 520px) {
+  .internship-summary,
+  .internship-weekdays,
+  .extra-period-form {
+    grid-template-columns: 1fr;
+  }
+
+  .month-grid {
+    grid-template-columns: 1fr;
+  }
+}

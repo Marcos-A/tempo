@@ -23,6 +23,7 @@ This project was developed with human direction and review, with AI assistance u
 - distributes learning outcomes sequentially or in parallel blocks
 - lets teachers review the distribution before export
 - exports the final planning workbook as XLSX for manual review
+- builds a student's internship calendar (end date, holidays and per-day adjustments) and exports it as an XLSX with live formulas
 
 ## Visual Walkthrough
 
@@ -127,6 +128,7 @@ bash scripts/deploy_preview.sh
 - `/` shows the initial module configuration form
 - `/plan` lets users sort, distribute, and validate learning outcomes before export
 - the final export is generated as an XLSX workbook
+- `/practiques` computes an internship calendar from a start date, total hours and a weekly schedule (minutes supported), reuses the configured non-teaching periods and lets users adjust any day's hours
 
 ### Admin Flow
 

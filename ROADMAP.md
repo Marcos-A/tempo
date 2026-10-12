@@ -6,7 +6,7 @@ Short-term improvements currently planned for `tempo`.
 
 ### New feature: internship calendar
 
-- [ ] Add a separate section to build internship calendars for students.
+- [x] Add a separate section to build internship calendars for students.
   - **Entry point:** a new section or page that is independent from the RA-distribution workflow, with its own navigation entry.
   - **Inputs:**
     - Start date.

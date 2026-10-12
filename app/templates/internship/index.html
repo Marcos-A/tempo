@@ -1,0 +1,711 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="card">
+  <h1>Calendari de pràctiques</h1>
+  <p>Calcula la data de fi de les pràctiques d'un alumne a partir de la data d'inici, les hores totals i l'horari setmanal, i ajusta qualsevol dia abans d'exportar-lo.</p>
+  <div class="step-intro card-panel">
+    <ul class="step-intro-list">
+      <li>Indica la data d'inici i el total d'hores de pràctiques.</li>
+      <li>Defineix les hores de cada dia de la setmana; admeten minuts (p. ex. 4 h 30 min).</li>
+      <li>Revisa els dies no laborables: els del calendari del centre ja estan marcats i en pots afegir més.</li>
+    </ul>
+    <p class="step-intro-next">El calendari es recalcula automàticament. Fes clic en qualsevol dia per canviar-ne les hores.</p>
+  </div>
+  {% if error %}
+  <p class="error">{{ error }}</p>
+  {% endif %}
+
+  <div class="form-grid" id="internship-form">
+    <div class="optional-mp-shell form-span">
+      <details class="optional-mp card-panel" id="internship-metadata">
+        <summary><span class="optional-mp-title">Dades de l'alumne i de l'empresa</span><span class="optional-mp-summary-note">Opcional: apareixen a la capçalera del full exportat</span></summary>
+        <div class="optional-mp-content">
+          <div class="two-column optional-mp-grid">
+            {% for key, label in metadata_fields %}
+            <label>
+              {{ label }}
+              <span class="optional-label">Opcional</span>
+              <input
+                type="{{ 'email' if key.endswith('_email') else 'text' }}"
+                data-metadata="{{ key }}"
+                maxlength="200"
+                {% if key == 'training_cycle' %}list="training-cycle-options"{% endif %}
+              />
+            </label>
+            {% endfor %}
+          </div>
+          <datalist id="training-cycle-options">
+            <option value="CFGM Gestió administrativa"></option>
+            <option value="CFGM Gestió administrativa d'àmbit jurídic"></option>
+            <option value="CFGS Administració i finances"></option>
+          </datalist>
+        </div>
+      </details>
+    </div>
+
+    <div class="two-column form-span">
+      <label>
+        Data d'inici de les pràctiques
+        <input class="date-input" id="start-date" type="text" placeholder="DD/MM/AAAA" inputmode="numeric" pattern="\d{1,2}/\d{1,2}/\d{2,4}" required />
+      </label>
+      <div class="field-group">
+        <span class="field-group-label">Hores totals de pràctiques</span>
+        <span class="time-field time-field-wide">
+          <input id="target-hours" type="number" min="1" max="3000" inputmode="numeric" placeholder="P.ex. 350" aria-label="Hores totals" />
+          <span class="block-time-separator">h</span>
+          <select id="target-minutes" class="time-select" aria-label="Minuts addicionals">
+            {% for minute in block_minute_choices %}<option value="{{ minute }}">{{ '%02d'|format(minute) }}</option>{% endfor %}
+          </select>
+          <span class="block-time-separator">min</span>
+        </span>
+      </div>
+    </div>
+
+    <section class="card-panel form-span internship-panel">
+      <div class="section-heading">
+        <div>
+          <h2>Horari setmanal</h2>
+          <p class="hint">Hores de pràctiques de cada dia laborable. Els caps de setmana compten com a dies sense horari, però pots afegir-hi hores a dies concrets des del calendari.</p>
+        </div>
+      </div>
+      <div class="quick-fill">
+        <span class="quick-fill-label">Mateix horari per a tots els dies</span>
+        <span class="time-field">
+          <select id="quick-fill-hours" class="time-select" aria-label="Hores">
+            {% for hour in range(0, max_daily_hours + 1) %}<option value="{{ hour }}">{{ hour }}</option>{% endfor %}
+          </select>
+          <span class="block-time-separator">h</span>
+          <select id="quick-fill-minutes" class="time-select" aria-label="Minuts">
+            {% for minute in block_minute_choices %}<option value="{{ minute }}">{{ '%02d'|format(minute) }}</option>{% endfor %}
+          </select>
+          <span class="block-time-separator">min</span>
+        </span>
+        <button type="button" class="secondary" id="quick-fill-apply">Aplica a dl.–dv.</button>
+      </div>
+      <div class="weekday-grid internship-weekdays">
+        {% for weekday_label, weekday_index in [('Dilluns', 0), ('Dimarts', 1), ('Dimecres', 2), ('Dijous', 3), ('Divendres', 4)] %}
+        <div class="field-group">
+          <span class="field-group-label">{{ weekday_label }}</span>
+          <span class="time-field">
+            <select class="time-select" data-weekday-hours="{{ weekday_index }}" aria-label="Hores {{ weekday_label|lower }}">
+              {% for hour in range(0, max_daily_hours + 1) %}<option value="{{ hour }}">{{ hour }}</option>{% endfor %}
+            </select>
+            <span class="block-time-separator">h</span>
+            <select class="time-select" data-weekday-minutes="{{ weekday_index }}" aria-label="Minuts {{ weekday_label|lower }}">
+              {% for minute in block_minute_choices %}<option value="{{ minute }}">{{ '%02d'|format(minute) }}</option>{% endfor %}
+            </select>
+            <span class="block-time-separator">min</span>
+          </span>
+        </div>
+        {% endfor %}
+      </div>
+      <p class="hint weekly-total" id="weekly-total"></p>
+    </section>
+
+    <section class="card-panel form-span internship-panel">
+      <div class="section-heading">
+        <div>
+          <h2>Dies no laborables</h2>
+          <p class="hint">Desmarca els períodes del calendari del centre que no afectin l'empresa (p. ex. si l'alumne fa pràctiques durant les vacances escolars).</p>
+        </div>
+      </div>
+      <div class="non-working-layout">
+        <div>
+          <div class="non-working-heading">
+            <h3>Calendari del centre</h3>
+            <span class="non-working-actions">
+              <button type="button" class="link-button" data-toggle-periods="on">Marca-ho tot</button>
+              <button type="button" class="link-button" data-toggle-periods="off">Desmarca-ho tot</button>
+            </span>
+          </div>
+          <ul class="period-list" id="school-period-list">
+            {% for period in school_periods %}
+            <li data-period-end="{{ period.end }}">
+              <label class="checkbox-label period-option">
+                <input type="checkbox" data-period-id="{{ period.id }}" />
+                <span><span class="period-dates">{{ period.display }}</span>{% if period.label %} <span class="period-label">{{ period.label }}</span>{% endif %}</span>
+              </label>
+            </li>
+            {% endfor %}
+          </ul>
+          <p class="hint" id="school-period-empty" hidden>No hi ha períodes no lectius configurats a partir de la data d'inici.</p>
+        </div>
+        <div>
+          <div class="non-working-heading">
+            <h3>Dies afegits</h3>
+          </div>
+          <div class="extra-period-form">
+            <label>
+              Des de
+              <input class="date-input" id="extra-start" type="text" placeholder="DD/MM/AAAA" inputmode="numeric" />
+            </label>
+            <label>
+              <span>Fins a <span class="optional-label">(opcional)</span></span>
+              <input class="date-input" id="extra-end" type="text" placeholder="DD/MM/AAAA" inputmode="numeric" />
+            </label>
+            <label class="extra-period-label">
+              <span>Motiu <span class="optional-label">(opcional)</span></span>
+              <input id="extra-label" type="text" maxlength="120" placeholder="P.ex. Festa local, tancament de l'empresa" />
+            </label>
+            <button type="button" class="secondary" id="extra-add">Afegeix</button>
+          </div>
+          <p class="error-text" id="extra-error" hidden></p>
+          <ul class="period-list" id="extra-period-list"></ul>
+        </div>
+      </div>
+    </section>
+  </div>
+</section>
+
+<section class="card" id="internship-result" aria-live="polite">
+  <div class="section-heading">
+    <h2>Calendari resultant</h2>
+    <button type="button" class="link-button" id="reset-all">Comença de nou</button>
+  </div>
+  <p class="hint" id="result-placeholder">Indica la data d'inici, el total d'hores i l'horari setmanal per veure el calendari.</p>
+  <p class="error" id="result-error" hidden></p>
+  <div id="result-body" hidden>
+    <div class="internship-summary">
+      <div class="internship-stat internship-stat-main">
+        <span class="internship-stat-label">Data de fi</span>
+        <span class="internship-stat-value" id="summary-end"></span>
+      </div>
+      <div class="internship-stat">
+        <span class="internship-stat-label">Hores planificades</span>
+        <span class="internship-stat-value" id="summary-hours"></span>
+      </div>
+      <div class="internship-stat">
+        <span class="internship-stat-label">Dies amb pràctiques</span>
+        <span class="internship-stat-value" id="summary-days"></span>
+      </div>
+      <div class="internship-stat">
+        <span class="internship-stat-label">Dies modificats</span>
+        <span class="internship-stat-value"><span id="summary-overrides"></span> <button type="button" class="link-button" id="clear-overrides" hidden>Restableix</button></span>
+      </div>
+    </div>
+    <p class="warning-box" id="result-warning" hidden></p>
+    <ul class="calendar-legend" aria-label="Llegenda">
+      <li><span class="legend-swatch day-working"></span>Laborable</li>
+      <li><span class="legend-swatch day-holiday"></span>Festiu / no laborable</li>
+      <li><span class="legend-swatch day-weekend"></span>Sense horari</li>
+      <li><span class="legend-swatch day-override"></span>Dia modificat</li>
+      <li><span class="legend-swatch day-end"></span>Darrer dia</li>
+    </ul>
+    <div class="month-grid" id="month-grid"></div>
+    <form method="post" action="/practiques/export" class="export-actions" id="export-form">
+      <input type="hidden" name="payload" id="export-payload" />
+      <button type="submit">Descarrega el calendari (XLSX)</button>
+    </form>
+  </div>
+</section>
+
+<dialog class="day-editor" id="day-editor">
+  <form method="dialog" class="day-editor-form">
+    <h3 id="day-editor-title"></h3>
+    <p class="hint" id="day-editor-note"></p>
+    <div class="field-group">
+      <span class="field-group-label">Hores d'aquest dia</span>
+      <span class="time-field">
+        <select class="time-select" id="day-editor-hours" aria-label="Hores">
+          {% for hour in range(0, max_daily_hours + 1) %}<option value="{{ hour }}">{{ hour }}</option>{% endfor %}
+        </select>
+        <span class="block-time-separator">h</span>
+        <select class="time-select" id="day-editor-minutes" aria-label="Minuts">
+          {% for minute in block_minute_choices %}<option value="{{ minute }}">{{ '%02d'|format(minute) }}</option>{% endfor %}
+        </select>
+        <span class="block-time-separator">min</span>
+      </span>
+    </div>
+    <div class="day-editor-actions">
+      <button type="submit" value="save">Desa</button>
+      <button type="submit" value="reset" class="secondary" id="day-editor-reset">Torna a l'horari per defecte</button>
+      <button type="submit" value="cancel" class="secondary">Cancel·la</button>
+    </div>
+  </form>
+</dialog>
+
+<script>
+(() => {
+  const STORAGE_KEY = "tempo.internship.v1";
+  const MONTH_NAMES = ["Gener", "Febrer", "Març", "Abril", "Maig", "Juny", "Juliol", "Agost", "Setembre", "Octubre", "Novembre", "Desembre"];
+  const WEEKDAY_SHORT = ["dl.", "dt.", "dc.", "dj.", "dv.", "ds.", "dg."];
+  const KIND_LABELS = { working: "Laborable", holiday: "Festiu / no laborable", weekend: "Sense horari", override: "Dia modificat" };
+  const serverState = {{ state|tojson }};
+  const hasServerError = {{ 'true' if error else 'false' }};
+
+  const $ = (id) => document.getElementById(id);
+  const metadataInputs = [...document.querySelectorAll("[data-metadata]")];
+  const periodCheckboxes = [...document.querySelectorAll("[data-period-id]")];
+  const allPeriodIds = periodCheckboxes.map((box) => Number(box.dataset.periodId));
+
+  let state = null;
+  let lastResult = null;
+  let requestSeq = 0;
+  let debounceTimer = null;
+  let editingDate = null;
+
+  function pad(value) {
+    return String(value).padStart(2, "0");
+  }
+
+  function isoToDate(iso) {
+    const [year, month, day] = iso.split("-").map(Number);
+    return new Date(year, month - 1, day);
+  }
+
+  function dateToIso(value) {
+    return `${value.getFullYear()}-${pad(value.getMonth() + 1)}-${pad(value.getDate())}`;
+  }
+
+  function displayDate(iso) {
+    const [year, month, day] = iso.split("-");
+    return `${day}/${month}/${year}`;
+  }
+
+  function parseDisplayDate(text) {
+    const match = (text || "").trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{2}|\d{4})$/);
+    if (!match) return null;
+    let year = Number(match[3]);
+    if (match[3].length === 2) year += 2000;
+    const parsed = new Date(year, Number(match[2]) - 1, Number(match[1]));
+    return parsed.getDate() === Number(match[1]) && parsed.getMonth() === Number(match[2]) - 1 ? parsed : null;
+  }
+
+  function formatMinutes(total) {
+    const hours = Math.floor(total / 60);
+    const minutes = total % 60;
+    if (hours && minutes) return `${hours} h ${pad(minutes)} min`;
+    if (hours) return `${hours} h`;
+    return `${minutes} min`;
+  }
+
+  function formatCompact(total) {
+    const hours = Math.floor(total / 60);
+    const minutes = total % 60;
+    return minutes ? `${hours}h${pad(minutes)}` : `${hours}h`;
+  }
+
+  function defaultState() {
+    return {
+      start_date: serverState.start_date,
+      target_hours: "",
+      target_minutes: 0,
+      weekday_minutes: { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0 },
+      unchecked_period_ids: [],
+      extra_periods: [],
+      overrides: {},
+      metadata: {},
+    };
+  }
+
+  function normalizeState(raw) {
+    const base = defaultState();
+    const merged = { ...base, ...raw };
+    if (Array.isArray(raw.excluded_period_ids) && !Array.isArray(raw.unchecked_period_ids)) {
+      const selected = new Set(raw.excluded_period_ids.map(Number));
+      merged.unchecked_period_ids = allPeriodIds.filter((id) => !selected.has(id));
+    }
+    delete merged.excluded_period_ids;
+    merged.weekday_minutes = { ...base.weekday_minutes, ...(raw.weekday_minutes || {}) };
+    merged.overrides = { ...(raw.overrides || {}) };
+    merged.metadata = { ...(raw.metadata || {}) };
+    merged.extra_periods = Array.isArray(raw.extra_periods) ? raw.extra_periods : [];
+    return merged;
+  }
+
+  function loadState() {
+    if (hasServerError) return normalizeState(serverState);
+    try {
+      const saved = window.localStorage.getItem(STORAGE_KEY);
+      if (saved) return normalizeState(JSON.parse(saved));
+    } catch (error) {
+      // Storage can be unavailable (private mode); start fresh.
+    }
+    return normalizeState(serverState);
+  }
+
+  function saveState() {
+    try {
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    } catch (error) {
+      // Saving the draft is only a convenience.
+    }
+  }
+
+  function buildPayload() {
+    const unchecked = new Set(state.unchecked_period_ids.map(Number));
+    return {
+      start_date: state.start_date,
+      target_hours: state.target_hours,
+      target_minutes: Number(state.target_minutes) || 0,
+      weekday_minutes: state.weekday_minutes,
+      excluded_period_ids: allPeriodIds.filter((id) => !unchecked.has(id)),
+      extra_periods: state.extra_periods,
+      overrides: state.overrides,
+      metadata: state.metadata,
+    };
+  }
+
+  /* ---------- Inputs -> state ---------- */
+
+  function renderInputs() {
+    $("start-date").value = state.start_date || "";
+    $("target-hours").value = state.target_hours || "";
+    $("target-minutes").value = String(state.target_minutes || 0);
+    for (let index = 0; index < 5; index += 1) {
+      const minutes = Number(state.weekday_minutes[index]) || 0;
+      document.querySelector(`[data-weekday-hours="${index}"]`).value = String(Math.floor(minutes / 60));
+      document.querySelector(`[data-weekday-minutes="${index}"]`).value = String(minutes % 60);
+    }
+    metadataInputs.forEach((input) => {
+      input.value = state.metadata[input.dataset.metadata] || "";
+    });
+    if (metadataInputs.some((input) => input.value)) $("internship-metadata").open = true;
+    const unchecked = new Set(state.unchecked_period_ids.map(Number));
+    periodCheckboxes.forEach((box) => {
+      box.checked = !unchecked.has(Number(box.dataset.periodId));
+    });
+    renderWeeklyTotal();
+    renderSchoolPeriodVisibility();
+    renderExtraPeriods();
+  }
+
+  function renderWeeklyTotal() {
+    const total = Object.values(state.weekday_minutes).reduce((sum, value) => sum + (Number(value) || 0), 0);
+    $("weekly-total").textContent = total ? `Total setmanal: ${formatMinutes(total)}` : "";
+  }
+
+  function renderSchoolPeriodVisibility() {
+    const start = parseDisplayDate(state.start_date);
+    const startIso = start ? dateToIso(start) : null;
+    let visible = 0;
+    document.querySelectorAll("#school-period-list li").forEach((item) => {
+      const show = !startIso || item.dataset.periodEnd >= startIso;
+      item.hidden = !show;
+      if (show) visible += 1;
+    });
+    $("school-period-empty").hidden = visible > 0;
+  }
+
+  function renderExtraPeriods() {
+    const list = $("extra-period-list");
+    list.replaceChildren();
+    state.extra_periods.forEach((period, index) => {
+      const item = document.createElement("li");
+      item.className = "extra-period-item";
+      const text = document.createElement("span");
+      const dates = document.createElement("span");
+      dates.className = "period-dates";
+      dates.textContent = period.end && period.end !== period.start ? `${period.start} – ${period.end}` : period.start;
+      text.append(dates);
+      if (period.label) {
+        const label = document.createElement("span");
+        label.className = "period-label";
+        label.textContent = ` ${period.label}`;
+        text.append(label);
+      }
+      const remove = document.createElement("button");
+      remove.type = "button";
+      remove.className = "link-button";
+      remove.textContent = "Elimina";
+      remove.addEventListener("click", () => {
+        state.extra_periods.splice(index, 1);
+        renderExtraPeriods();
+        changed();
+      });
+      item.append(text, remove);
+      list.append(item);
+    });
+  }
+
+  function readWeekday(index) {
+    const hours = Number(document.querySelector(`[data-weekday-hours="${index}"]`).value) || 0;
+    const minutes = Number(document.querySelector(`[data-weekday-minutes="${index}"]`).value) || 0;
+    return hours * 60 + minutes;
+  }
+
+  function changed({ immediate = false } = {}) {
+    saveState();
+    window.clearTimeout(debounceTimer);
+    debounceTimer = window.setTimeout(recalculate, immediate ? 0 : 300);
+  }
+
+  $("start-date").addEventListener("input", (event) => {
+    state.start_date = event.target.value.trim();
+    renderSchoolPeriodVisibility();
+    changed();
+  });
+  $("target-hours").addEventListener("input", (event) => {
+    state.target_hours = event.target.value.trim();
+    changed();
+  });
+  $("target-minutes").addEventListener("change", (event) => {
+    state.target_minutes = Number(event.target.value) || 0;
+    changed();
+  });
+  document.querySelectorAll("[data-weekday-hours], [data-weekday-minutes]").forEach((select) => {
+    select.addEventListener("change", () => {
+      const index = select.dataset.weekdayHours ?? select.dataset.weekdayMinutes;
+      state.weekday_minutes[index] = readWeekday(index);
+      renderWeeklyTotal();
+      changed();
+    });
+  });
+  $("quick-fill-apply").addEventListener("click", () => {
+    const minutes = (Number($("quick-fill-hours").value) || 0) * 60 + (Number($("quick-fill-minutes").value) || 0);
+    for (let index = 0; index < 5; index += 1) state.weekday_minutes[index] = minutes;
+    renderInputs();
+    changed({ immediate: true });
+  });
+  metadataInputs.forEach((input) => {
+    input.addEventListener("input", () => {
+      state.metadata[input.dataset.metadata] = input.value;
+      saveState();
+    });
+  });
+  periodCheckboxes.forEach((box) => {
+    box.addEventListener("change", () => {
+      const id = Number(box.dataset.periodId);
+      const unchecked = new Set(state.unchecked_period_ids.map(Number));
+      if (box.checked) unchecked.delete(id);
+      else unchecked.add(id);
+      state.unchecked_period_ids = [...unchecked];
+      changed({ immediate: true });
+    });
+  });
+  document.querySelectorAll("[data-toggle-periods]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const turnOn = button.dataset.togglePeriods === "on";
+      // Only the visible (relevant) periods are toggled.
+      const visibleIds = periodCheckboxes.filter((box) => !box.closest("li").hidden).map((box) => Number(box.dataset.periodId));
+      const unchecked = new Set(state.unchecked_period_ids.map(Number));
+      visibleIds.forEach((id) => (turnOn ? unchecked.delete(id) : unchecked.add(id)));
+      state.unchecked_period_ids = [...unchecked];
+      renderInputs();
+      changed({ immediate: true });
+    });
+  });
+  $("extra-add").addEventListener("click", () => {
+    const startText = $("extra-start").value.trim();
+    const endText = $("extra-end").value.trim();
+    const start = parseDisplayDate(startText);
+    const end = endText ? parseDisplayDate(endText) : start;
+    const errorBox = $("extra-error");
+    let message = "";
+    if (!start) message = "Indica una data d'inici vàlida (DD/MM/AAAA).";
+    else if (!end) message = "Indica una data de fi vàlida (DD/MM/AAAA) o deixa-la en blanc.";
+    else if (end < start) message = "La data de fi no pot ser anterior a la d'inici.";
+    errorBox.textContent = message;
+    errorBox.hidden = !message;
+    if (message) return;
+    state.extra_periods.push({
+      start: displayDate(dateToIso(start)),
+      end: endText ? displayDate(dateToIso(end)) : "",
+      label: $("extra-label").value.trim(),
+    });
+    state.extra_periods.sort((left, right) => dateToIso(parseDisplayDate(left.start)).localeCompare(dateToIso(parseDisplayDate(right.start))));
+    $("extra-start").value = "";
+    $("extra-end").value = "";
+    $("extra-label").value = "";
+    renderExtraPeriods();
+    changed({ immediate: true });
+  });
+  $("reset-all").addEventListener("click", () => {
+    if (!window.confirm("Vols esborrar totes les dades i començar un calendari nou?")) return;
+    state = normalizeState(serverState);
+    state.target_hours = "";
+    state.weekday_minutes = { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0 };
+    state.unchecked_period_ids = [];
+    state.extra_periods = [];
+    state.overrides = {};
+    state.metadata = {};
+    renderInputs();
+    changed({ immediate: true });
+  });
+  $("clear-overrides").addEventListener("click", () => {
+    state.overrides = {};
+    changed({ immediate: true });
+  });
+  $("export-form").addEventListener("submit", () => {
+    $("export-payload").value = JSON.stringify(buildPayload());
+  });
+
+  /* ---------- Calculation ---------- */
+
+  function hasEnoughInput() {
+    const weeklyMinutes = Object.values(state.weekday_minutes).reduce((sum, value) => sum + (Number(value) || 0), 0);
+    const hasOverrideTime = Object.values(state.overrides).some((value) => Number(value) > 0);
+    const target = (Number(state.target_hours) || 0) * 60 + (Number(state.target_minutes) || 0);
+    return Boolean(parseDisplayDate(state.start_date)) && target > 0 && (weeklyMinutes > 0 || hasOverrideTime);
+  }
+
+  let focusDateAfterRender = null;
+
+  async function recalculate() {
+    const seq = ++requestSeq;
+    if (!hasEnoughInput()) {
+      lastResult = null;
+      $("result-placeholder").hidden = false;
+      $("result-error").hidden = true;
+      $("result-body").hidden = true;
+      return;
+    }
+    try {
+      const response = await fetch("/practiques/calcul", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(buildPayload()),
+      });
+      const data = await response.json();
+      if (seq !== requestSeq) return;
+      $("result-placeholder").hidden = true;
+      if (!data.ok) {
+        $("result-error").textContent = data.error;
+        $("result-error").hidden = false;
+        $("result-body").hidden = true;
+        return;
+      }
+      $("result-error").hidden = true;
+      lastResult = data;
+      renderResult(data);
+      if (focusDateAfterRender) {
+        // The grid is rebuilt after an edit, so return focus to the same day.
+        document.querySelector(`#month-grid [data-date="${focusDateAfterRender}"]`)?.focus();
+        focusDateAfterRender = null;
+      }
+    } catch (error) {
+      if (seq !== requestSeq) return;
+      $("result-error").textContent = "No s'ha pogut calcular el calendari. Torna-ho a provar.";
+      $("result-error").hidden = false;
+    }
+  }
+
+  /* ---------- Result rendering ---------- */
+
+  function renderResult(data) {
+    $("result-body").hidden = false;
+    $("summary-end").textContent = data.end_date_display;
+    $("summary-hours").textContent = `${data.scheduled_display} / ${data.target_display}`;
+    $("summary-days").textContent = String(data.working_days);
+    const overrideCount = data.days.filter((day) => day.kind === "override").length;
+    $("summary-overrides").textContent = String(overrideCount);
+    $("clear-overrides").hidden = Object.keys(state.overrides).length === 0;
+    $("result-warning").textContent = data.warning || "";
+    $("result-warning").hidden = !data.warning;
+
+    const daysByIso = new Map(data.days.map((day) => [day.date, day]));
+    const start = isoToDate(data.start_date);
+    const end = isoToDate(data.end_date);
+    const grid = $("month-grid");
+    grid.replaceChildren();
+
+    for (let cursor = new Date(start.getFullYear(), start.getMonth(), 1); cursor <= end; cursor = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1)) {
+      const month = document.createElement("section");
+      month.className = "month-card";
+      const title = document.createElement("h3");
+      title.className = "month-title";
+      const year = cursor.getFullYear();
+      const monthIndex = cursor.getMonth();
+      title.textContent = `${MONTH_NAMES[monthIndex]} ${year}`;
+      const monthTotal = document.createElement("span");
+      monthTotal.className = "month-total";
+      title.append(monthTotal);
+      month.append(title);
+
+      const days = document.createElement("div");
+      days.className = "month-days";
+      WEEKDAY_SHORT.forEach((name) => {
+        const header = document.createElement("span");
+        header.className = "month-weekday";
+        header.textContent = name;
+        days.append(header);
+      });
+      const offset = (new Date(year, monthIndex, 1).getDay() + 6) % 7;
+      for (let index = 0; index < offset; index += 1) {
+        const blank = document.createElement("span");
+        blank.className = "month-day is-blank";
+        days.append(blank);
+      }
+      const daysInMonth = new Date(year, monthIndex + 1, 0).getDate();
+      let monthMinutes = 0;
+      for (let dayNumber = 1; dayNumber <= daysInMonth; dayNumber += 1) {
+        const iso = `${year}-${pad(monthIndex + 1)}-${pad(dayNumber)}`;
+        const day = daysByIso.get(iso);
+        const cell = document.createElement(day ? "button" : "span");
+        cell.className = "month-day";
+        const number = document.createElement("span");
+        number.className = "month-day-number";
+        number.textContent = String(dayNumber);
+        cell.append(number);
+        if (!day) {
+          cell.classList.add("is-outside");
+        } else {
+          monthMinutes += day.minutes;
+          cell.type = "button";
+          cell.classList.add(`day-${day.kind}`);
+          if (iso === data.end_date) cell.classList.add("day-end");
+          const hours = document.createElement("span");
+          hours.className = "month-day-hours";
+          hours.textContent = day.minutes ? formatCompact(day.minutes) : "–";
+          cell.append(hours);
+          const parts = [`${WEEKDAY_SHORT[(isoToDate(iso).getDay() + 6) % 7]} ${displayDate(iso)}`, KIND_LABELS[day.kind]];
+          if (day.label) parts.push(day.label);
+          parts.push(day.minutes ? formatMinutes(day.minutes) : "sense hores");
+          if (day.partial) parts.push("darrer dia parcial");
+          cell.title = parts.join(" · ");
+          cell.setAttribute("aria-label", cell.title);
+          cell.dataset.date = iso;
+          cell.addEventListener("click", () => openEditor(day));
+        }
+        days.append(cell);
+      }
+      monthTotal.textContent = formatMinutes(monthMinutes);
+      month.append(days);
+      grid.append(month);
+    }
+  }
+
+  /* ---------- Per-day editor ---------- */
+
+  const editor = $("day-editor");
+
+  function openEditor(day) {
+    editingDate = day.date;
+    const isOverridden = Object.prototype.hasOwnProperty.call(state.overrides, day.date);
+    const current = isOverridden ? Number(state.overrides[day.date]) : day.default_minutes;
+    $("day-editor-title").textContent = `${WEEKDAY_SHORT[(isoToDate(day.date).getDay() + 6) % 7]} ${displayDate(day.date)}`;
+    const notes = [KIND_LABELS[day.kind]];
+    if (day.label) notes.push(day.label);
+    notes.push(`Horari per defecte: ${day.default_minutes ? formatMinutes(day.default_minutes) : "sense hores"}`);
+    if (day.partial) notes.push(`Darrer dia: només calen ${formatMinutes(day.minutes)}`);
+    $("day-editor-note").textContent = notes.join(" · ");
+    $("day-editor-hours").value = String(Math.floor(current / 60));
+    $("day-editor-minutes").value = String(current % 60);
+    $("day-editor-reset").hidden = !isOverridden;
+    editor.showModal();
+  }
+
+  editor.addEventListener("close", () => {
+    if (!editingDate) return;
+    const action = editor.returnValue;
+    focusDateAfterRender = editingDate;
+    if (action === "save") {
+      const minutes = (Number($("day-editor-hours").value) || 0) * 60 + (Number($("day-editor-minutes").value) || 0);
+      const day = lastResult?.days.find((item) => item.date === editingDate);
+      if (day && minutes === day.default_minutes) delete state.overrides[editingDate];
+      else state.overrides[editingDate] = minutes;
+      changed({ immediate: true });
+    } else if (action === "reset") {
+      delete state.overrides[editingDate];
+      changed({ immediate: true });
+    }
+    editingDate = null;
+    editor.returnValue = "";
+  });
+
+  state = loadState();
+  renderInputs();
+  changed({ immediate: true });
+})();
+</script>
+{% endblock %}

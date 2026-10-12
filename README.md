@@ -23,6 +23,7 @@ Aquest projecte s'ha desenvolupat amb direcció i revisió humanes, amb suport d
 - repartir Resultats d'Aprenentatge en seqüència o en blocs paral·lels
 - revisar la distribució abans de generar el fitxer final
 - exportar la planificació en un llibre XLSX preparat per a revisió manual
+- calcular el calendari de pràctiques d'un alumne (data de fi, festius i ajustos per dia) i exportar-lo en XLSX amb fórmules
 
 ## Flux visual
 
@@ -127,6 +128,7 @@ bash scripts/deploy_preview.sh
 - `/` mostra el formulari inicial de configuració del mòdul
 - `/plan` permet ordenar, repartir i validar els RAs abans d'exportar
 - l'exportació final es fa cap a un llibre XLSX
+- `/practiques` calcula el calendari de pràctiques a partir de la data d'inici, les hores totals i l'horari setmanal (amb minuts), reutilitza els períodes no lectius configurats i permet ajustar les hores de qualsevol dia
 
 ### Administració
 
