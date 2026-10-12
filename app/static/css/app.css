@@ -737,7 +737,7 @@ button:disabled {
 }
 
 .block-card.block-theme .block-weekday-field.is-unavailable select {
-  background: var(--bg);
+  background-color: var(--bg);
   border-color: var(--line);
   color: var(--muted-faint);
 }
@@ -767,7 +767,7 @@ button:disabled {
 
 .block-time-field {
   display: grid;
-  grid-template-columns: minmax(4rem, 4rem) auto;
+  grid-template-columns: minmax(4.5rem, 4.5rem) auto;
   grid-template-areas:
     "hours hours_label"
     "minutes minutes_label";
@@ -795,7 +795,15 @@ button:disabled {
 .block-time-field select {
   width: 100%;
   min-width: 0;
-  padding: 0.55rem 1.65rem 0.55rem 0.45rem;
+  /* Draw our own chevron: native arrows (notably Safari/macOS) are added on
+     top of the padding and leave too little room for "00". */
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%23607165' stroke-width='1.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.5rem center;
+  background-size: 0.6rem auto;
+  padding: 0.55rem 1.4rem 0.55rem 0.5rem;
   text-align: center;
   font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
@@ -812,7 +820,7 @@ button:disabled {
 }
 
 .block-weekday-field.is-unavailable select {
-  background: var(--bg);
+  background-color: var(--bg);
   border-color: var(--line);
   color: var(--muted-faint);
   cursor: not-allowed;
