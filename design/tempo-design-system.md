@@ -127,7 +127,7 @@ This construction is deliberate: it encodes Tempo's core idea — that time is l
 
 ### Construction geometry
 
-All coordinates below are defined on a 100×100 unit grid (`viewBox="0 0 100 100"`). This grid is the single source of truth — never redraw the mark freehand or trace it from a raster export.
+All coordinates below are defined on a 100×100 unit grid (`viewBox="0 0 100 100"`). This grid is the single source of truth — never redraw the mark freehand or trace it from a raster export. Every production SVG is generated from these values (and the *Relief* values below) by `design/brand/build_svgs.py`; change them there and regenerate rather than editing files by hand.
 
 | Element | x | y | width | height | corner radius |
 |---|---|---|---|---|---|
