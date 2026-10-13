@@ -2203,6 +2203,13 @@ button.month-day:focus-visible {
   padding: 0.6rem 0.95rem;
 }
 
+/* Five h + min pickers need about 1150px; below that the weekdays wrap to three columns. */
+@media (max-width: 1180px) {
+  .internship-weekdays {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
 @media (max-width: 900px) {
   .non-working-layout,
   .internship-summary {
@@ -2218,9 +2225,14 @@ button.month-day:focus-visible {
   }
 }
 
+@media (max-width: 600px) {
+  .internship-weekdays {
+    grid-template-columns: 1fr;
+  }
+}
+
 @media (max-width: 520px) {
   .internship-summary,
-  .internship-weekdays,
   .extra-period-form {
     grid-template-columns: 1fr;
   }
