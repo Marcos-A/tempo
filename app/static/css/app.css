@@ -18,7 +18,8 @@
 
 /* Color values follow design/tempo-design-system.md Section 5 (Paper,
    Surface, Border, Primary, Warning, Danger, Muted). --line-strong,
-   --muted-faint, --tab-a/--tab-b have no equivalent token in that system
+   --muted-faint, --tab-a/--tab-b and the internship Sand background have no
+   equivalent token in that system
    (dual-block color coding and stronger borders are app-specific, not part
    of the frozen brand palette) and keep their prior values. */
 :root {
@@ -49,6 +50,18 @@ body {
   font-family: var(--font-body);
   color: var(--text);
   background: var(--bg);
+}
+
+/* The internship planner sits on a warm Sand instead of Paper so it reads as a
+   separate tool. Sand matches Paper's contrast (Muted 4.53:1, Surface/Sand
+   1.105), so cards, text and hover states keep working unchanged. The clay
+   line under the header reuses --tab-b. */
+.section-internship {
+  --bg: #f4efe5;
+}
+
+.section-internship .site-header {
+  border-bottom: 3px solid var(--tab-b);
 }
 
 .container {
