@@ -46,7 +46,7 @@ Tempo has two tools, both reachable from the app header.
 
 **[Internship Hours Planner](#internship-hours-planner)** (`/practiques`)
 
-- works out a student's internship end date from a start date, total hours and a weekly schedule
+- works out a student's internship end date from a start date, total hours and a weekly schedule, which can change between the agreement's periods
 - skips the school calendar's days without internship and lets users add others
 - lets users adjust any day's hours directly on the calendar
 - exports it as an editable XLSX that recalculates itself
@@ -97,7 +97,7 @@ Enter the start date, total hours (minutes supported) and the hours for each wee
 
 ### 2. Review Days Without Internship And The Calendar
 
-The school calendar's periods are pre-selected and can be unticked when they do not affect the company (e.g. an internship that runs through school holidays). Other days can be added too, such as the company's local holidays or holidays after classes end. The calendar recalculates live and shows the end date, planned hours and internship days; the last day only receives the hours still needed.
+The school calendar's periods are pre-selected and can be unticked when they do not affect the company (e.g. an internship that runs through school holidays). Other days can be added too, such as the company's local holidays or holidays after classes end. If the internship runs past the non-teaching days configured in the school calendar, a warning in this same section reminds users to add the later holidays. The calendar recalculates live and shows the end date, planned hours and internship days; the last day only receives the hours still needed. When there are several periods, the first day of each one is marked on the calendar.
 
 ![Days without internship and the resulting calendar with its end date](docs/screenshots/tempo-practiques-step-2-calendari.png)
 
@@ -116,7 +116,7 @@ Internships cannot run in August, so the calendar never goes past 31 July of the
 - **Totals as `4h30`:** weekly, monthly, planned and remaining hours recalculate when any day is edited, as does the end date.
 - **Automatic colours:** days with hours are green and days without internship (`0`, shown as `-`) are red. "Hores planificades" and "Hores restants" turn red until the target is met.
 - **Instructions** in the top right corner and **sheet protection** without a password: only real days' hours and the header details can be edited.
-- The **Detall** sheet (one day per row with running and remaining totals) and the **Configuració** sheet (schedule and applied days without internship) complete the workbook.
+- The **Detall** sheet (one day per row with running and remaining totals) and the **Configuració** sheet (each period's schedule with its dates, and the applied days without internship) complete the workbook.
 
 ## Visual Assets
 
@@ -187,7 +187,7 @@ bash scripts/deploy_preview.sh
 - `/` shows the initial module configuration form
 - `/plan` lets users sort, distribute, and validate learning outcomes before export
 - the final export is generated as an XLSX workbook
-- `/practiques` computes an internship calendar from a start date, total hours and a weekly schedule (minutes supported), reuses the configured non-teaching periods, lets users adjust any day's hours and exports an editable XLSX (see [Internship Hours Planner](#internship-hours-planner))
+- `/practiques` computes an internship calendar from a start date, total hours and a weekly schedule (minutes supported, with optional periods that each have their own schedule), reuses the configured non-teaching periods, lets users adjust any day's hours and exports an editable XLSX (see [Internship Hours Planner](#internship-hours-planner))
 
 ### Admin Flow
 

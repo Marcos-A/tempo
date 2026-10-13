@@ -46,7 +46,7 @@ Tempo té dues eines, accessibles des de la capçalera de l'aplicació.
 
 **[Planificador d'hores de pràctiques](#planificador-dhores-de-pràctiques)** (`/practiques`)
 
-- calcular la data de fi de les pràctiques d'un estudiant a partir de la data d'inici, les hores totals i l'horari setmanal
+- calcular la data de fi de les pràctiques d'un estudiant a partir de la data d'inici, les hores totals i l'horari setmanal, que pot canviar d'un període a un altre del conveni
 - descomptar els dies sense pràctiques del calendari del centre i afegir-ne d'altres
 - ajustar les hores de qualsevol dia directament al calendari
 - exportar-lo en un XLSX editable que es recalcula sol
@@ -97,7 +97,7 @@ Indica la data d'inici, les hores totals (amb minuts) i les hores de cada dia de
 
 ### 2. Revisa els dies sense pràctiques i el calendari
 
-Els períodes del calendari del centre surten marcats i es poden desmarcar si no afecten l'empresa (p. ex. pràctiques durant les vacances escolars). També s'hi poden afegir altres dies, com festius locals de l'empresa o festius posteriors a les classes. El calendari es recalcula en directe i mostra la data de fi, les hores planificades i els dies amb pràctiques; el darrer dia només rep les hores que falten.
+Els períodes del calendari del centre surten marcats i es poden desmarcar si no afecten l'empresa (p. ex. pràctiques durant les vacances escolars). També s'hi poden afegir altres dies, com festius locals de l'empresa o festius posteriors a les classes. Si les pràctiques van més enllà dels dies no lectius configurats al calendari del centre, un avís en aquesta mateixa secció recorda afegir-hi els festius posteriors. El calendari es recalcula en directe i mostra la data de fi, les hores planificades i els dies amb pràctiques; el darrer dia només rep les hores que falten. Quan hi ha diversos períodes, el primer dia de cadascun queda marcat al calendari.
 
 ![Dies sense pràctiques i calendari resultant amb la data de fi](docs/screenshots/tempo-practiques-step-2-calendari.png)
 
@@ -116,7 +116,7 @@ A l'agost no es poden fer pràctiques, així que el calendari no passa mai del 3
 - **Totals en format `4h30`:** setmanes, mesos, hores planificades i hores restants es recalculen en editar qualsevol dia, igual que la data de fi.
 - **Colors automàtics:** els dies amb hores es mostren en verd i els dies sense pràctiques (`0`, que es mostra com `-`) en vermell. «Hores planificades» i «Hores restants» es marquen en vermell mentre no s'arriba a l'objectiu.
 - **Instruccions** a la cantonada superior dreta i **protecció del full** sense contrasenya: només es poden editar les hores dels dies reals i les dades de la capçalera.
-- Els fulls **Detall** (un dia per fila amb acumulat i hores restants) i **Configuració** (horari i dies sense pràctiques aplicats) completen el llibre.
+- Els fulls **Detall** (un dia per fila amb acumulat i hores restants) i **Configuració** (l'horari de cada període amb les seves dates i els dies sense pràctiques aplicats) completen el llibre.
 
 ## Actius visuals
 
@@ -187,7 +187,7 @@ bash scripts/deploy_preview.sh
 - `/` mostra el formulari inicial de configuració del mòdul
 - `/plan` permet ordenar, repartir i validar els RAs abans d'exportar
 - l'exportació final es fa cap a un llibre XLSX
-- `/practiques` calcula el calendari de pràctiques a partir de la data d'inici, les hores totals i l'horari setmanal (amb minuts), reutilitza els períodes no lectius configurats, permet ajustar les hores de qualsevol dia i exporta un XLSX editable (vegeu [Planificador d'hores de pràctiques](#planificador-dhores-de-pràctiques))
+- `/practiques` calcula el calendari de pràctiques a partir de la data d'inici, les hores totals i l'horari setmanal (amb minuts i, si cal, diversos períodes amb horari propi), reutilitza els períodes no lectius configurats, permet ajustar les hores de qualsevol dia i exporta un XLSX editable (vegeu [Planificador d'hores de pràctiques](#planificador-dhores-de-pràctiques))
 
 ### Administració
 
