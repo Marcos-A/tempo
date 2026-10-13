@@ -392,6 +392,7 @@ def test_page_renders_with_nav_and_school_periods(client):
     assert "Correu del tutor/a del centre" not in response.text
     assert "Tutor/a del centre" not in response.text
     assert "Pots canviar les hores de qualsevol dia" in response.text
+    assert "<h2>Dies sense pràctiques</h2>" in response.text
     home = test_client.get("/")
     assert 'href="/" class="site-nav-link" aria-current="page"' in home.text
     assert "Planificador curricular" in home.text

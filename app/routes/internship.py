@@ -99,7 +99,7 @@ class InternshipRequest:
 
         raw_extra = payload.get("extra_periods") or []
         if len(raw_extra) > MAX_EXTRA_PERIODS:
-            raise ValueError("Hi ha massa dies no lectius afegits.")
+            raise ValueError("Hi ha massa dies sense pràctiques afegits.")
         self.extra_periods: list[tuple[date, date, str]] = []
         for item in raw_extra:
             start = parse_date_input(str(item.get("start") or ""))

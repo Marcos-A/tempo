@@ -506,7 +506,7 @@ def build_internship_workbook(
         minutes = weekday_minutes.get(index, 0)
         config.append([weekday, format_minutes_label(minutes) if minutes else "-"])
     config.append([])
-    config.append(["Dies no lectius aplicats"])
+    config.append(["Dies sense pràctiques aplicats"])
     config.cell(row=config.max_row, column=1).font = Font(bold=True)
     config.append(["Inici", "Fi", "Motiu", "Origen"])
     for cell in config[config.max_row]:
