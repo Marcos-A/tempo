@@ -414,6 +414,7 @@ def test_page_renders_with_nav_and_school_periods(client):
     assert "Pots canviar les hores de qualsevol dia" in response.text
     assert "<h2>Dies sense pràctiques</h2>" in response.text
     assert "Estudiant" in response.text and "Alumne/a" not in response.text
+    assert '<div class="restore-notice" id="restore-notice" role="status" hidden>' in response.text
     home = test_client.get("/")
     assert 'href="/" class="site-nav-link" aria-current="page"' in home.text
     assert "Planificador curricular" in home.text

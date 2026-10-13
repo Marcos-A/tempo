@@ -11,6 +11,11 @@
     </ul>
     <p class="step-intro-next">El calendari es recalcula automàticament. Fes clic en qualsevol dia per canviar-ne les hores.</p>
   </div>
+  <div class="restore-notice" id="restore-notice" role="status" hidden>
+    <span class="restore-notice-icon" aria-hidden="true">↺</span>
+    <span id="restore-notice-text"></span>
+    <button type="button" class="link-button" id="restore-reset">Comença de nou</button>
+  </div>
   {% if error %}
   <p class="error">{{ error }}</p>
   {% endif %}
@@ -325,11 +330,16 @@
     return merged;
   }
 
+  let restoredFromStorage = false;
+
   function loadState() {
     if (hasServerError) return normalizeState(serverState);
     try {
       const saved = window.localStorage.getItem(STORAGE_KEY);
-      if (saved) return normalizeState(JSON.parse(saved));
+      if (saved) {
+        restoredFromStorage = true;
+        return normalizeState(JSON.parse(saved));
+      }
     } catch (error) {
       // Storage can be unavailable (private mode); start fresh.
     }
@@ -494,7 +504,11 @@
     return hours * 60 + minutes;
   }
 
+  let initialised = false;
+
   function changed({ immediate = false } = {}) {
+    // Any edit means the user has taken over the restored data.
+    if (initialised) hideRestoreNotice();
     saveState();
     window.clearTimeout(debounceTimer);
     debounceTimer = window.setTimeout(recalculate, immediate ? 0 : 300);
@@ -585,8 +599,9 @@
     renderExtraPeriods();
     changed({ immediate: true });
   });
-  $("reset-all").addEventListener("click", () => {
+  function resetAll() {
     if (!window.confirm("Vols esborrar totes les dades i començar un calendari nou?")) return;
+    hideRestoreNotice();
     state = normalizeState(serverState);
     state.target_hours = "";
     state.weekday_minutes = { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0 };
@@ -596,7 +611,9 @@
     state.metadata = {};
     renderInputs();
     changed({ immediate: true });
-  });
+  }
+  $("reset-all").addEventListener("click", resetAll);
+  $("restore-reset").addEventListener("click", resetAll);
   $("clear-overrides").addEventListener("click", () => {
     state.overrides = {};
     changed({ immediate: true });
@@ -778,9 +795,43 @@
     editor.returnValue = "";
   });
 
+  /* ---------- Restored-data notice ---------- */
+
+  // The form is saved in the browser, so the next visit (maybe for another
+  // student, maybe on a shared computer) starts with the previous data. Say so,
+  // and offer the reset right there until the user starts editing (see `changed`).
+  function hasMeaningfulData() {
+    const weeklyMinutes = Object.values(state.weekday_minutes).reduce((sum, value) => sum + (Number(value) || 0), 0);
+    return (
+      Number(state.target_hours) > 0 ||
+      weeklyMinutes > 0 ||
+      Object.values(state.metadata).some((value) => String(value || "").trim()) ||
+      Object.keys(state.overrides).length > 0 ||
+      state.extra_periods.length > 0
+    );
+  }
+
+  function hideRestoreNotice() {
+    $("restore-notice").hidden = true;
+  }
+
+  function showRestoreNotice() {
+    const details = [];
+    const student = String(state.metadata.student_name || "").trim();
+    if (student) details.push(student);
+    if (parseDisplayDate(state.start_date)) details.push(`inici ${state.start_date}`);
+    const targetMinutes = (Number(state.target_hours) || 0) * 60 + (Number(state.target_minutes) || 0);
+    if (targetMinutes) details.push(formatMinutes(targetMinutes));
+    const summary = details.length ? ` (${details.join(" · ")})` : "";
+    $("restore-notice-text").textContent = `S'han recuperat les dades de l'última sessió${summary}.`;
+    $("restore-notice").hidden = false;
+  }
+
   state = loadState();
   renderInputs();
+  if (restoredFromStorage && hasMeaningfulData()) showRestoreNotice();
   changed({ immediate: true });
+  initialised = true;
 })();
 </script>
 {% endblock %}

@@ -1879,6 +1879,34 @@ select.time-select {
 .day-override { background: #f6e2b3; }
 .legend-swatch.day-end { background: var(--card); border: 2px solid var(--accent-dark); }
 
+.restore-notice {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.6rem;
+  align-items: baseline;
+  margin: 0 0 1rem;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--line-strong);
+  border-left: 4px solid var(--accent);
+  border-radius: 4px;
+  background: var(--card);
+  font-size: 0.95rem;
+  line-height: 1.45;
+}
+
+.restore-notice[hidden] {
+  display: none;
+}
+
+.restore-notice-icon {
+  color: var(--accent-dark);
+  font-weight: 700;
+}
+
+.restore-notice .link-button {
+  font-weight: 700;
+}
+
 .calendar-edit-hint {
   display: flex;
   gap: 0.6rem;
