@@ -91,7 +91,7 @@ La secció `/practiques` és independent de la planificació de mòduls i calcul
 
 ### 1. Configura les pràctiques
 
-Indica la data d'inici, les hores totals (amb minuts) i les hores de cada dia de la setmana. Si el conveni té períodes amb horaris diferents (p. ex. jornada intensiva a l'estiu), afegeix un altre horari i indica a partir de quin dia s'aplica. Opcionalment, afegeix les dades de l'estudiant i de l'empresa, que apareixen a la capçalera del full exportat. El formulari es conserva al navegador entre visites.
+Indica la data d'inici, les hores totals (amb minuts) i les hores de cada dia de la setmana. Si el conveni té períodes amb horaris diferents (p. ex. jornada intensiva a l'estiu), afegeix un nou període i indica a partir de quin dia s'aplica. Opcionalment, afegeix les dades de l'estudiant i de l'empresa, que apareixen a la capçalera del full exportat. El formulari es conserva al navegador entre visites.
 
 ![Formulari del planificador d'hores de pràctiques](docs/screenshots/tempo-practiques-step-1-formulari.png)
 

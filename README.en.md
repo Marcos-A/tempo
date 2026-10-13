@@ -91,7 +91,7 @@ The `/practiques` section is independent from module planning and works out when
 
 ### 1. Set Up The Internship
 
-Enter the start date, total hours (minutes supported) and the hours for each weekday. If the agreement has periods with different schedules (e.g. shorter summer hours), add another schedule and set the date it applies from. Optionally, add the student and company details shown in the exported sheet header. The form is kept in the browser between visits.
+Enter the start date, total hours (minutes supported) and the hours for each weekday. If the agreement has periods with different schedules (e.g. shorter summer hours), add a new period and set the date it applies from. Optionally, add the student and company details shown in the exported sheet header. The form is kept in the browser between visits.
 
 ![Internship hours planner form](docs/screenshots/tempo-practiques-step-1-formulari.png)
 

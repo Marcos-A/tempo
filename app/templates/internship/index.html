@@ -7,7 +7,7 @@
   <div class="step-intro card-panel">
     <ul class="step-intro-list">
       <li>Indica la data d'inici i el total d'hores de pràctiques.</li>
-      <li>Defineix les hores de cada dia de la setmana; admeten minuts (p. ex. 4 h 30 min). Si el conveni té períodes amb horaris diferents, afegeix un altre horari.</li>
+      <li>Defineix les hores de cada dia de la setmana; admeten minuts (p. ex. 4 h 30 min). Si el conveni té períodes amb horaris diferents, afegeix un nou període.</li>
       <li>Revisa els dies sense pràctiques: els del calendari del centre ja estan marcats i en pots afegir més.</li>
     </ul>
     <p class="step-intro-next">El calendari es recalcula automàticament. Fes clic en qualsevol dia per canviar-ne les hores.</p>
@@ -76,7 +76,7 @@
       </div>
       <div class="schedule-list" id="schedule-list"></div>
       <div class="schedule-add-row">
-        <button type="button" class="secondary" id="schedule-add">+ Afegeix un altre horari</button>
+        <button type="button" class="secondary" id="schedule-add">+ Afegeix un nou període</button>
         <span class="hint" id="schedule-add-hint">Si el conveni canvia d'horari a partir d'una data (p. ex. jornada intensiva a l'estiu).</span>
       </div>
     </section>
@@ -450,7 +450,7 @@
     const startIso = displayToIso(state.start_date);
     if (startIso && iso <= startIso) return { iso: null, error: "Ha de començar després de la data d'inici de les pràctiques." };
     if (state.schedule_changes.some((other, otherIndex) => otherIndex < index && displayToIso(other.start) === iso)) {
-      return { iso: null, error: "Ja hi ha un altre horari que comença aquest dia." };
+      return { iso: null, error: "Ja hi ha un altre període que comença aquest dia." };
     }
     return { iso, error: "" };
   }
@@ -543,7 +543,7 @@
     ordered.forEach((entry, position) => {
       const block = blocks[entry.index];
       block.style.order = String(position);
-      block.querySelector(".schedule-title").textContent = `Horari ${position + 1}`;
+      block.querySelector(".schedule-title").textContent = `Període ${position + 1}`;
       const next = entry.iso ? ordered.slice(position + 1).find((other) => other.iso) : null;
       let until = "";
       if (next) {
@@ -922,8 +922,8 @@
           cell.append(hours);
           const parts = [`${WEEKDAY_SHORT[(isoToDate(iso).getDay() + 6) % 7]} ${displayDate(iso)}`, KIND_LABELS[day.kind]];
           if (day.label) parts.push(day.label);
-          if (scheduleStarts.has(iso)) parts.push(`comença l'horari ${day.schedule + 1}`);
-          else if (hasScheduleChanges) parts.push(`horari ${day.schedule + 1}`);
+          if (scheduleStarts.has(iso)) parts.push(`comença el període ${day.schedule + 1}`);
+          else if (hasScheduleChanges) parts.push(`període ${day.schedule + 1}`);
           parts.push(day.minutes ? formatMinutes(day.minutes) : "sense hores");
           if (day.partial) parts.push("darrer dia parcial");
           cell.setAttribute("aria-label", `${parts.join(" · ")}. Fes clic per canviar les hores.`);
@@ -950,7 +950,7 @@
     $("day-editor-title").textContent = `${WEEKDAY_SHORT[(isoToDate(day.date).getDay() + 6) % 7]} ${displayDate(day.date)}`;
     const notes = [KIND_LABELS[day.kind]];
     if (day.label) notes.push(day.label);
-    const scheduleName = lastResult?.days.some((item) => item.schedule > 0) ? `Horari ${day.schedule + 1}` : "Horari per defecte";
+    const scheduleName = lastResult?.days.some((item) => item.schedule > 0) ? `Període ${day.schedule + 1}` : "Horari per defecte";
     notes.push(`${scheduleName}: ${day.default_minutes ? formatMinutes(day.default_minutes) : "sense hores"}`);
     if (day.partial) notes.push(`Darrer dia: només calen ${formatMinutes(day.minutes)}`);
     $("day-editor-note").textContent = notes.join(" · ");
