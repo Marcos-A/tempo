@@ -213,7 +213,7 @@ def _coverage_warning(db: Session, result: InternshipCalendar) -> str | None:
     if last_year_end is not None and result.end_date > last_year_end:
         return (
             f"El calendari del centre només té dies no lectius configurats fins al {format_display_date(last_year_end)}. "
-            "Afegeix a mà els festius posteriors."
+            "Afegeix aquí els festius posteriors."
         )
     return None
 

@@ -1874,6 +1874,11 @@ select.time-select {
   color: var(--muted);
 }
 
+.non-working-warning {
+  font-size: 0.92rem;
+  font-weight: 600;
+}
+
 .extra-period-form {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

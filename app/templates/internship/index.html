@@ -114,6 +114,7 @@
           <div class="non-working-heading">
             <h3>Altres dies sense pràctiques</h3>
           </div>
+          <p class="warning-box non-working-warning" id="coverage-warning" hidden></p>
           <p class="hint">Afegeix altres dies sense pràctiques, com ara festius de la localitat de l'empresa o festius posteriors a les classes si les pràctiques s'allarguen (p. ex. Sant Joan, al juny).</p>
           <div class="extra-period-form">
             <label>
@@ -166,7 +167,6 @@
       </div>
     </div>
     <p class="warning-box warning-box-danger" id="result-incomplete" hidden></p>
-    <p class="warning-box" id="result-warning" hidden></p>
     <ul class="calendar-legend" aria-label="Llegenda">
       <li><span class="legend-swatch day-working"></span>Laborable</li>
       <li><span class="legend-swatch day-holiday"></span>Festiu / no lectiu</li>
@@ -803,6 +803,7 @@
     const seq = ++requestSeq;
     if (!hasEnoughInput()) {
       lastResult = null;
+      $("coverage-warning").hidden = true;
       refreshSchedules({ showErrors: false });
       $("result-placeholder").hidden = false;
       $("result-error").hidden = true;
@@ -822,6 +823,7 @@
         $("result-error").textContent = data.error;
         $("result-error").hidden = false;
         $("result-body").hidden = true;
+        $("coverage-warning").hidden = true;
         return;
       }
       $("result-error").hidden = true;
@@ -857,8 +859,9 @@
     const overrideCount = data.days.filter((day) => day.kind === "override").length;
     $("summary-overrides").textContent = String(overrideCount);
     $("clear-overrides").hidden = Object.keys(state.overrides).length === 0;
-    $("result-warning").textContent = data.warning || "";
-    $("result-warning").hidden = !data.warning;
+    // The warning asks for holidays the school calendar lacks, so it sits where they are added.
+    $("coverage-warning").textContent = data.warning || "";
+    $("coverage-warning").hidden = !data.warning;
 
     const daysByIso = new Map(data.days.map((day) => [day.date, day]));
     // Mark the first day of every schedule after the first one.
