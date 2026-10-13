@@ -7,6 +7,7 @@ The workbook has three sheets:
   week uses two rows, the dates and the editable hours below them. Week, month
   and overall totals are formulas, so editing any day's hours recalculates
   everything, and conditional formatting colours each day by its hours.
+  Hours are spreadsheet time values shown as h:mm, so a day is typed as 4:30.
 - "Detall": one row per editable date. Hours link back to the grid and the
   running and remaining totals are formulas.
 - "Configuració": the weekly schedule and the non-teaching periods that were applied.
@@ -21,16 +22,18 @@ from io import BytesIO
 from openpyxl import Workbook
 from openpyxl.comments import Comment
 from openpyxl.formatting.rule import CellIsRule, FormulaRule
+from openpyxl.worksheet.datavalidation import DataValidation
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
 
 from app.date_utils import format_display_date, format_month_label
-from app.services.hours import MINUTES_PER_HOUR, format_minutes_label
+from app.services.hours import format_minutes_label
 from app.services.internship import (
     DAY_KIND_HOLIDAY,
     DAY_KIND_OVERRIDE,
     DAY_KIND_WEEKEND,
     DAY_KIND_WORKING,
+    MAX_DAILY_HOURS,
     InternshipCalendar,
     classify_day,
     default_minutes_for,
@@ -81,8 +84,11 @@ GRID_INSTRUCTIONS = (
     "Podeu canviar les hores de qualsevol dia escrivint-les a la casella de sota la data. "
     "Els totals, les hores restants i la data de fi es recalculen automàticament.",
     "També podeu afegir hores en dies posteriors a la data de fi prevista: el calendari inclou el mes següent.",
-    "Escriviu les hores en format decimal: 4 h 30 min → 4,5; 4 h 15 min → 4,25; 4 h 45 min → 4,75.",
-    "Els dies amb hores es mostren en verd i els dies sense pràctiques (0 o «-»), en vermell.",
+    "Escriviu les hores en format hores:minuts (h:mm): 4:30 per a 4 h 30 min, 7:00 per a 7 h o 0:45 per a 45 min. "
+    "No feu servir decimals: 4,5 no s'accepta. Cada dia admet entre 0:00 i 12:00.",
+    "Per indicar que un dia no hi ha pràctiques, escriviu 0: es mostra com «-». Per treure un dia, esborreu-ne el contingut.",
+    "Els dies amb hores es mostren en verd i els dies sense pràctiques (0, que es mostra «-»), en vermell.",
+    "Els totals també es mostren en format h:mm (p. ex. 350:00 són 350 hores).",
     "«Hores planificades» es marca en vermell si no arriba a les hores totals objectiu, "
     "i «Hores restants» si encara queden hores per fer.",
 )
@@ -91,29 +97,34 @@ INSTRUCTIONS_FIRST_COLUMN = GRID_COLUMNS + 2
 INSTRUCTIONS_LAST_COLUMN = INSTRUCTIONS_FIRST_COLUMN + 7
 
 
-def minutes_to_hours(minutes: int) -> int | float:
-    """Return an exact hour number: integers stay integers, minutes become fractions."""
-
-    if minutes % MINUTES_PER_HOUR == 0:
-        return minutes // MINUTES_PER_HOUR
-    return minutes / MINUTES_PER_HOUR
-
-
-def _hour_format(minutes: int) -> str:
-    """Show whole and quarter hours naturally, other minute values with two decimals."""
-
-    return "General" if minutes % 15 == 0 else "0.00"
+# Hours are stored as spreadsheet time values (fractions of a day) so cells
+# accept and show "4:30". [h] keeps totals above 24 h from wrapping around.
+MINUTES_PER_DAY = 24 * 60
+TIME_FORMAT = "[h]:mm"
+DAY_TIME_FORMAT = '[h]:mm;-[h]:mm;"-"'
+TOTAL_TIME_FORMAT = "[h]:mm;-[h]:mm;;@"  # Hides zero week totals outside the internship.
 
 
-def _day_hour_format(minutes: int) -> str:
-    """Like `_hour_format`, but a zero shows as "-" in the calendar grid."""
+def minutes_to_time(minutes: int) -> float:
+    """Return minutes as a spreadsheet time value (a fraction of a day)."""
 
-    number_format = _hour_format(minutes)
-    return f'{number_format};-{number_format};"-"'
+    return minutes / MINUTES_PER_DAY
+
+
+def _round_to_minute(expression: str) -> str:
+    """Wrap a time formula so sums of time values compare exactly against the target."""
+
+    return f"ROUND(({expression})*{MINUTES_PER_DAY},0)/{MINUTES_PER_DAY}"
 
 
 def _fill(color: str) -> PatternFill:
     return PatternFill(fill_type="solid", fgColor=color)
+
+
+def _rule_fill(color: str) -> PatternFill:
+    """Conditional-formatting fill: Excel paints solid rule fills with bgColor, not fgColor."""
+
+    return PatternFill(fill_type="solid", fgColor=color, bgColor=color)
 
 
 def _next_month_start(current: date) -> date:
@@ -164,7 +175,7 @@ def _grid_day_value(current: date, minutes: int | None, weekday_minutes: dict[in
 
 
 def _add_day_colour_rules(sheet, date_ranges: list[str], hour_ranges: list[str]) -> None:
-    """Colour each day green when it has hours and red when it shows 0 or "-".
+    """Colour each day green when it has hours and red when it shows 0 ("-").
 
     The date cells check the hours cell right below them, so both cells of a
     day change colour together as soon as its hours are edited.
@@ -178,12 +189,30 @@ def _add_day_colour_rules(sheet, date_ranges: list[str], hour_ranges: list[str])
         target = f"{column}{int(first[len(column):]) + offset}"
         sqref = " ".join(ranges)
         sheet.conditional_formatting.add(
-            sqref, FormulaRule(formula=[f"AND(ISNUMBER({target}),{target}>0)"], fill=_fill(HOURS_FILL_COLOR))
+            sqref, FormulaRule(formula=[f"AND(ISNUMBER({target}),{target}>0)"], fill=_rule_fill(HOURS_FILL_COLOR))
         )
         sheet.conditional_formatting.add(
-            sqref,
-            FormulaRule(formula=[f'OR(AND(ISNUMBER({target}),{target}=0),TRIM({target})="-")'], fill=_fill(NO_HOURS_FILL_COLOR)),
+            sqref, FormulaRule(formula=[f"AND(ISNUMBER({target}),{target}=0)"], fill=_rule_fill(NO_HOURS_FILL_COLOR))
         )
+
+
+def _add_hours_validation(sheet, cells: list[str]) -> None:
+    """Only accept times between 0:00 and the daily maximum, so "4" or "4,5" are rejected."""
+
+    validation = DataValidation(
+        type="time",
+        operator="between",
+        formula1="0",
+        formula2=str(MAX_DAILY_HOURS / 24),
+        allow_blank=True,
+        showErrorMessage=True,
+        errorStyle="stop",
+        errorTitle="Format d'hores",
+        error=f"Escriviu les hores en format h:mm, p. ex. 4:30 o 7:00 (entre 0:00 i {MAX_DAILY_HOURS}:00).",
+    )
+    sheet.add_data_validation(validation)
+    for cell in cells:
+        validation.add(cell)
 
 
 def build_internship_workbook(
@@ -233,8 +262,8 @@ def build_internship_workbook(
     grid.cell(row=row, column=4).number_format = "DD/MM/YYYY"
     row += 1
     target_row = row
-    _label_value_row(grid, target_row, "Hores totals objectiu", minutes_to_hours(result.target_minutes), bold_value=True)
-    grid.cell(row=target_row, column=4).number_format = _hour_format(result.target_minutes)
+    _label_value_row(grid, target_row, "Hores totals objectiu", minutes_to_time(result.target_minutes), bold_value=True)
+    grid.cell(row=target_row, column=4).number_format = TIME_FORMAT
     row += 1
     planned_row = row
     _label_value_row(grid, planned_row, "Hores planificades", None, bold_value=True)
@@ -250,17 +279,17 @@ def build_internship_workbook(
     planned_ref = f"$D${planned_row}"
     remaining_ref = f"$D${remaining_row}"
     grid.conditional_formatting.add(
-        planned_ref.replace("$", ""), CellIsRule(operator="lessThan", formula=[target_ref], fill=_fill(NO_HOURS_FILL_COLOR))
+        planned_ref.replace("$", ""), CellIsRule(operator="lessThan", formula=[target_ref], fill=_rule_fill(NO_HOURS_FILL_COLOR))
     )
     grid.conditional_formatting.add(
-        remaining_ref.replace("$", ""), CellIsRule(operator="greaterThan", formula=["0"], fill=_fill(NO_HOURS_FILL_COLOR))
+        remaining_ref.replace("$", ""), CellIsRule(operator="greaterThan", formula=["0"], fill=_rule_fill(NO_HOURS_FILL_COLOR))
     )
 
     # Instructions box in the top right corner, next to the summary block.
     instructions_title = grid.cell(row=1, column=INSTRUCTIONS_FIRST_COLUMN, value="Instruccions")
     instructions_title.font = Font(bold=True, size=12)
     grid.merge_cells(
-        start_row=3, start_column=INSTRUCTIONS_FIRST_COLUMN, end_row=end_row, end_column=INSTRUCTIONS_LAST_COLUMN
+        start_row=3, start_column=INSTRUCTIONS_FIRST_COLUMN, end_row=end_row + 2, end_column=INSTRUCTIONS_LAST_COLUMN
     )
     instructions = grid.cell(row=3, column=INSTRUCTIONS_FIRST_COLUMN, value="\n".join(f"• {line}" for line in GRID_INSTRUCTIONS))
     instructions.alignment = Alignment(wrap_text=True, vertical="top")
@@ -333,8 +362,8 @@ def build_internship_workbook(
                 minutes = day.minutes if day is not None else None
                 value = _grid_day_value(current, minutes, weekday_minutes, non_working_dates)
                 if value is not None:
-                    hours_cell.value = minutes_to_hours(value)
-                hours_cell.number_format = _day_hour_format(value or 0)
+                    hours_cell.value = minutes_to_time(value)
+                hours_cell.number_format = DAY_TIME_FORMAT
                 if value is None and not weekday_minutes.get(current.weekday(), 0):
                     # Conditional formatting colours green/red once hours are typed in.
                     date_cell.fill = _fill(NO_SCHEDULE_FILL_COLOR)
@@ -355,10 +384,10 @@ def build_internship_workbook(
 
             # One tall weekly-total cell spanning the date and hours rows.
             grid.merge_cells(start_row=date_row, start_column=GRID_COLUMNS, end_row=hours_row, end_column=GRID_COLUMNS)
-            week_total = grid.cell(row=date_row, column=GRID_COLUMNS, value=f"=ROUND(SUM(A{hours_row}:G{hours_row}),2)")
+            week_total = grid.cell(row=date_row, column=GRID_COLUMNS, value=f"={_round_to_minute(f'SUM(A{hours_row}:G{hours_row})')}")
             week_total.alignment = Alignment(horizontal="center", vertical="center")
             # Weeks outside the internship would otherwise show a column of zeros.
-            week_total.number_format = "General;-General;;@"
+            week_total.number_format = TOTAL_TIME_FORMAT
             week_total.font = Font(bold=True)
             week_total.border = THIN_BORDER
             grid.cell(row=hours_row, column=GRID_COLUMNS).border = THIN_BORDER
@@ -371,7 +400,9 @@ def build_internship_workbook(
         month_label = grid.cell(row=row, column=1, value=f"Total {format_month_label(month_start).lower()}")
         month_label.font = Font(bold=True)
         month_label.alignment = Alignment(horizontal="right")
-        month_total = grid.cell(row=row, column=GRID_COLUMNS, value=f"=ROUND(SUM({','.join(week_total_cells)}),2)")
+        week_sum = f"SUM({','.join(week_total_cells)})"
+        month_total = grid.cell(row=row, column=GRID_COLUMNS, value=f"={_round_to_minute(week_sum)}")
+        month_total.number_format = TIME_FORMAT
         month_total.font = Font(bold=True)
         month_total.alignment = Alignment(horizontal="center")
         month_total.border = THIN_BORDER
@@ -379,10 +410,14 @@ def build_internship_workbook(
         row += 2
 
     _add_day_colour_rules(grid, date_ranges, hour_ranges)
-    grid.cell(row=planned_row, column=4).value = f"=ROUND(SUM({','.join(month_total_cells)}),2)"
-    grid.cell(row=remaining_row, column=4).value = f"=ROUND({target_ref}-{planned_ref},2)"
+    _add_hours_validation(grid, list(hour_cell_by_date.values()))
+    month_sum = f"SUM({','.join(month_total_cells)})"
+    grid.cell(row=planned_row, column=4).value = f"={_round_to_minute(month_sum)}"
+    # Spreadsheets show negative times as "####", so extra hours leave 0:00 remaining.
+    grid.cell(row=remaining_row, column=4).value = f"=MAX(0,{_round_to_minute(f'{target_ref}-{planned_ref}')})"
     for cell_row in (target_row, planned_row, remaining_row):
         grid.cell(row=cell_row, column=4).alignment = Alignment(horizontal="left")
+        grid.cell(row=cell_row, column=4).number_format = TIME_FORMAT
 
     # Detail sheet: one row per editable date, linked to the grid's hour cells.
     detail_headers = ("Data", "Dia", "Tipus", "Motiu", "Hores", "Acumulat", "Restants")
@@ -394,9 +429,6 @@ def build_internship_workbook(
         cell.alignment = Alignment(horizontal="center")
     detail.freeze_panes = "A2"
     first_detail_row = 2
-    # Running totals mix every day's minutes, so they share one format.
-    all_quarter_hours = all(day.minutes % 15 == 0 for day in result.days) and result.target_minutes % 15 == 0
-    detail_hour_format = "General" if all_quarter_hours else "0.00"
     detail_dates = sorted(hour_cell_by_date)
     for index, current in enumerate(detail_dates):
         detail_row = first_detail_row + index
@@ -416,8 +448,8 @@ def build_internship_workbook(
                 KIND_LABELS[kind],
                 label or None,
                 f"=IF(ISNUMBER({hours_ref}),{hours_ref},0)",
-                f"=ROUND({previous}E{detail_row},2)",
-                f"=ROUND(Calendari!{target_ref}-F{detail_row},2)",
+                f"={_round_to_minute(f'{previous}E{detail_row}')}",
+                f"=MAX(0,{_round_to_minute(f'Calendari!{target_ref}-F{detail_row}')})",
             ]
         )
         # Dates after the planned end stay unfilled: they only count if hours are added.
@@ -431,11 +463,12 @@ def build_internship_workbook(
                 cell.alignment = Alignment(horizontal="center")
         detail.cell(row=detail_row, column=1).number_format = "DD/MM/YYYY"
         for column in (5, 6, 7):
-            detail.cell(row=detail_row, column=column).number_format = detail_hour_format
+            detail.cell(row=detail_row, column=column).number_format = TIME_FORMAT
     last_detail_row = first_detail_row + len(detail_dates) - 1
     total_row = last_detail_row + 1
     detail.cell(row=total_row, column=4, value="Total").font = Font(bold=True)
-    detail_total = detail.cell(row=total_row, column=5, value=f"=ROUND(SUM(E{first_detail_row}:E{last_detail_row}),2)")
+    detail_total = detail.cell(row=total_row, column=5, value=f"={_round_to_minute(f'SUM(E{first_detail_row}:E{last_detail_row})')}")
+    detail_total.number_format = TIME_FORMAT
     detail_total.font = Font(bold=True)
     detail_total.alignment = Alignment(horizontal="center")
     detail.cell(row=total_row + 2, column=1, value="Les hores d'aquest full provenen del full Calendari: modifiqueu-les allà.").font = Font(

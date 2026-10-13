@@ -14,6 +14,7 @@ from app.services.calendar import WEEKDAY_NAMES
 # Safety net so an all-zero schedule cannot loop forever: no internship
 # realistically spans more than two years.
 MAX_INTERNSHIP_DAYS = 2 * 366
+MAX_DAILY_HOURS = 12
 
 DAY_KIND_WORKING = "working"
 DAY_KIND_HOLIDAY = "holiday"

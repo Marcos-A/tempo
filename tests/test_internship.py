@@ -1,7 +1,7 @@
 """Tests for the internship calendar: day-by-day calculation, overrides and XLSX export."""
 
 import json
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 
 import pytest
 from fastapi.testclient import TestClient
@@ -217,11 +217,12 @@ def test_workbook_structure_and_formulas():
     # Metadata and summary values.
     assert grid.cell(row=_find(grid, "Alumne/a:").row, column=4).value == "Núria"
     target_cell = grid.cell(row=_find(grid, "Hores totals objectiu:").row, column=4)
-    assert target_cell.value == 37.5
+    assert target_cell.value == timedelta(minutes=37 * 60 + 30)  # Time values load back as timedelta.
+    assert target_cell.number_format == "[h]:mm"
     planned = grid.cell(row=_find(grid, "Hores planificades:").row, column=4).value
-    assert planned.startswith("=ROUND(SUM(H")
+    assert planned.startswith("=ROUND((SUM(H") and planned.endswith(")*1440,0)/1440")
     remaining = grid.cell(row=_find(grid, "Hores restants:").row, column=4).value
-    assert remaining == f"=ROUND($D${target_cell.row}-$D${target_cell.row + 1},2)"
+    assert remaining == f"=MAX(0,ROUND(($D${target_cell.row}-$D${target_cell.row + 1})*1440,0)/1440)"
     end_formula = grid.cell(row=_find(grid, "Data de fi:").row, column=4).value
     assert "_xlfn.MINIFS(Detall!" in end_formula
 
@@ -232,14 +233,15 @@ def test_workbook_structure_and_formulas():
     # Each day's hours sit right below its date; non-teaching weekdays show 0 as "-".
     monday = _find_day(grid, date(2026, 10, 12))
     monday_hours = grid.cell(row=monday.row + 1, column=monday.column)
-    assert monday_hours.value == 7
+    assert monday_hours.value == timedelta(hours=7)
+    assert monday_hours.number_format == '[h]:mm;-[h]:mm;"-"'
     holiday_cell = _find_day(grid, holiday)
     holiday_hours = grid.cell(row=holiday_cell.row + 1, column=holiday_cell.column)
-    assert holiday_hours.value == 0
+    assert holiday_hours.value == timedelta(0)
     assert holiday_hours.number_format.endswith(';"-"')
     assert holiday_cell.comment.text.startswith("Festa local")
     saturday = _find_day(grid, date(2026, 10, 17))
-    assert grid.cell(row=saturday.row + 1, column=saturday.column).value == 2.5
+    assert grid.cell(row=saturday.row + 1, column=saturday.column).value == timedelta(hours=2, minutes=30)
     assert "Dia modificat" in saturday.comment.text
     # Days without a schedule are grey; the rest are coloured by conditional formatting.
     sunday = _find_day(grid, date(2026, 10, 18))
@@ -255,10 +257,20 @@ def test_workbook_structure_and_formulas():
     # Rules are anchored on the first grid week (1 October) and apply across every week.
     first_week = _find_day(grid, date(2026, 10, 1)).row
     assert f"AND(ISNUMBER(A{first_week + 1}),A{first_week + 1}>0)" in day_rules
-    assert f'OR(AND(ISNUMBER(A{first_week + 1}),A{first_week + 1}=0),TRIM(A{first_week + 1})="-")' in day_rules
+    assert f"AND(ISNUMBER(A{first_week + 1}),A{first_week + 1}=0)" in day_rules
+    # Excel paints solid conditional-formatting fills with bgColor.
+    assert all(
+        rule.dxf.fill.bgColor.rgb.endswith(("DCEBDD", "F4D6D2")) for cf in grid.conditional_formatting for rule in cf.rules
+    )
+
+    # Hour cells only accept times between 0:00 and 12:00.
+    validation = grid.data_validations.dataValidation[0]
+    assert (validation.type, validation.formula1, validation.formula2) == ("time", "0", "0.5")
+    assert monday_hours.coordinate in validation.sqref
+    assert "4:30" in validation.error
 
     # Week and month totals are formulas over the hour rows.
-    assert grid.cell(row=monday.row, column=8).value == f"=ROUND(SUM(A{monday.row + 1}:G{monday.row + 1}),2)"
+    assert grid.cell(row=monday.row, column=8).value == f"=ROUND((SUM(A{monday.row + 1}:G{monday.row + 1}))*1440,0)/1440"
     assert f"H{monday.row}:H{monday.row + 1}" in {str(merged) for merged in grid.merged_cells.ranges}
     assert _find(grid, "Total octubre 2026").row > monday.row
 
@@ -267,9 +279,9 @@ def test_workbook_structure_and_formulas():
     assert [cell.value for cell in detail[1]] == ["Data", "Dia", "Tipus", "Motiu", "Hores", "Acumulat", "Restants"]
     hours_ref = f"Calendari!{monday_hours.coordinate}"
     assert detail["E2"].value == f"=IF(ISNUMBER({hours_ref}),{hours_ref},0)"
-    assert detail["F2"].value == "=ROUND(E2,2)"
-    assert detail["F3"].value == "=ROUND(F2+E3,2)"
-    assert detail["G2"].value == f"=ROUND(Calendari!$D${target_cell.row}-F2,2)"
+    assert detail["F2"].value == "=ROUND((E2)*1440,0)/1440"
+    assert detail["F3"].value == "=ROUND((F2+E3)*1440,0)/1440"
+    assert detail["G2"].value == f"=MAX(0,ROUND((Calendari!$D${target_cell.row}-F2)*1440,0)/1440)"
     # The detail runs from the start date to the end of the month after the end date.
     assert detail.cell(row=2 + len(result.days), column=1).value.date() == date(2026, 10, 20)
     assert detail.cell(row=51, column=1).value.date() == date(2026, 11, 30)
@@ -292,7 +304,7 @@ def test_workbook_extends_to_following_month_for_extra_hours():
     after_end_hours = grid.cell(row=after_end.row + 1, column=after_end.column)
     assert after_end_hours.value is None
     holiday = _find_day(grid, local_holiday)
-    assert grid.cell(row=holiday.row + 1, column=holiday.column).value == 0
+    assert grid.cell(row=holiday.row + 1, column=holiday.column).value == timedelta(0)
     assert holiday.comment.text.startswith("Festa local")
 
     detail = workbook["Detall"]
@@ -314,7 +326,7 @@ def test_workbook_summary_instructions_and_print_area():
     instructions = _find(grid, "Instruccions")
     assert instructions.column > 8 and instructions.row == 1
     box = grid.cell(row=3, column=instructions.column).value
-    assert "4,5" in box and "Hores restants" in box and "posteriors a la data de fi" in box
+    assert "4:30" in box and "h:mm" in box and "4,5 no s'accepta" in box and "Hores restants" in box and "posteriors a la data de fi" in box
 
     target_row = _find(grid, "Hores totals objectiu:").row
     rules = {str(cf.sqref): cf.rules[0] for cf in grid.conditional_formatting}
@@ -326,16 +338,16 @@ def test_workbook_summary_instructions_and_print_area():
 
 
 def test_workbook_grid_hours_add_up_to_target_with_minutes():
-    """4 h 30 min days are written as exact fractions, so the grid sums to the target."""
+    """4 h 30 min days are written as time values that sum exactly to the target."""
 
     result = _calendar(37 * 60 + 30, weekday_minutes={index: 270 for index in range(5)})
     grid = _export(result)["Calendari"]
-    total = 0.0
+    total = timedelta(0)
     for day in result.days:
         date_cell = _find_day(grid, day.date)
         value = grid.cell(row=date_cell.row + 1, column=date_cell.column).value
-        total += value or 0
-    assert round(total, 2) == 37.5
+        total += value or timedelta(0)
+    assert total == timedelta(minutes=37 * 60 + 30)
 
 
 @pytest.fixture()

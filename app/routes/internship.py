@@ -25,13 +25,12 @@ from app.routes.teacher import templates
 from app.services.academic_years import get_active_academic_year
 from app.services.calendar import daterange
 from app.services.hours import BLOCK_MINUTE_CHOICES, MINUTES_PER_HOUR, format_minutes_label
-from app.services.internship import InternshipCalendar, build_internship_calendar
+from app.services.internship import MAX_DAILY_HOURS, InternshipCalendar, build_internship_calendar
 from app.services.internship_export import METADATA_FIELDS, build_internship_workbook, calendar_grid_end
 
 
 router = APIRouter(prefix="/practiques", tags=["internship"])
 
-MAX_DAILY_HOURS = 12
 MAX_TARGET_HOURS = 3000
 MAX_EXTRA_PERIODS = 100
 MAX_LABEL_LENGTH = 120
