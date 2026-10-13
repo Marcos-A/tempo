@@ -346,6 +346,26 @@ def test_workbook_summary_instructions_and_print_area():
     assert grid.print_area.startswith("'Calendari'!$A$1:$H$")
 
 
+def test_workbook_only_day_cells_and_student_data_are_editable():
+    result = _calendar(14 * 60)  # 12/10/2026 to 13/10/2026; the grid runs to 30/11/2026.
+    grid = _export(result)["Calendari"]
+    assert grid.protection.sheet is True
+    assert grid.protection.password is None
+
+    first_day = _find_day(grid, date(2026, 10, 12))
+    last_day = _find_day(grid, date(2026, 11, 30))
+    before_start = _find_day(grid, date(2026, 10, 9))
+    assert grid.cell(row=first_day.row + 1, column=first_day.column).protection.locked is False
+    assert grid.cell(row=last_day.row + 1, column=last_day.column).protection.locked is False
+    # Days before the start, padding cells outside the month and totals stay locked.
+    assert grid.cell(row=before_start.row + 1, column=before_start.column).protection.locked is True
+    padding = _find_day(grid, date(2026, 11, 2))  # Monday of November's first full week.
+    assert grid.cell(row=padding.row - 1, column=1).protection.locked is True
+    assert grid.cell(row=first_day.row, column=8).protection.locked is True
+    assert grid.cell(row=_find(grid, "Alumne/a:").row, column=4).protection.locked is False
+    assert grid.cell(row=_find(grid, "Hores planificades:").row, column=4).protection.locked is True
+
+
 def test_workbook_grid_hours_add_up_to_target_with_minutes():
     """4 h 30 min days are written as time values that sum exactly to the target."""
 

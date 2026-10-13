@@ -23,7 +23,7 @@ from openpyxl import Workbook
 from openpyxl.comments import Comment
 from openpyxl.formatting.rule import CellIsRule, FormulaRule
 from openpyxl.worksheet.datavalidation import DataValidation
-from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
+from openpyxl.styles import Alignment, Border, Font, PatternFill, Protection, Side
 from openpyxl.utils import get_column_letter
 
 from app.date_utils import format_display_date, format_month_label
@@ -88,9 +88,12 @@ GRID_INSTRUCTIONS = (
     "Per indicar que un dia no hi ha pràctiques, escriviu 0: es mostra com «-». Per treure un dia, esborreu-ne el contingut.",
     "Els dies amb hores es mostren en verd i els dies sense pràctiques (0, que es mostra «-»), en vermell.",
     "Els totals es calculen sols i es mostren com 4h30 (p. ex. 350h00 són 350 hores).",
+    "El full està protegit perquè només es puguin editar les hores dels dies i les dades de l'alumne. "
+    "Per desprotegir-lo: Revisió › Desprotegeix el full (no té contrasenya).",
     "«Hores planificades» es marca en vermell si no arriba a les hores totals objectiu, "
     "i «Hores restants» si encara queden hores per fer.",
 )
+UNLOCKED = Protection(locked=False)
 # The instructions sit to the right of the printable grid, after a spacer column.
 INSTRUCTIONS_FIRST_COLUMN = GRID_COLUMNS + 2
 INSTRUCTIONS_LAST_COLUMN = INSTRUCTIONS_FIRST_COLUMN + 7
@@ -256,6 +259,7 @@ def build_internship_workbook(
     row = 3
     for key, label in METADATA_FIELDS:
         _label_value_row(grid, row, label, (metadata.get(key) or "").strip() or None)
+        grid.cell(row=row, column=4).protection = UNLOCKED
         row += 1
 
     row += 1
@@ -412,6 +416,13 @@ def build_internship_workbook(
 
     _add_day_colour_rules(grid, date_ranges, hour_ranges)
     _add_hours_validation(grid, list(hour_cell_by_date.values()))
+    for coordinate in hour_cell_by_date.values():
+        grid[coordinate].protection = UNLOCKED
+    # Lock everything else (padding cells, totals, formulas). No password: it only
+    # prevents accidental edits, and resizing rows and columns stays allowed.
+    grid.protection.sheet = True
+    grid.protection.formatColumns = False
+    grid.protection.formatRows = False
     month_sum = f"SUM({','.join(month_total_cells)})"
     grid.cell(row=planned_row, column=4).value = f"={_round_to_minute(month_sum)}"
     # Spreadsheets show negative times as "####", so extra hours leave 0:00 remaining.
