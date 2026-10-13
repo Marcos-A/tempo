@@ -266,6 +266,19 @@ All ratios below are computed from the actual token hex values — re-run this c
 - Color alone must never be the only signal for state — always pair Success/Warning/Danger with an icon or text label (see Section 12, Accessibility).
 - Never introduce a new named color, or change an existing token's hex value, without re-running the contrast check above against every documented use case for that token — a color that "looks about the same" can silently cross an AA threshold.
 
+### Secondary tools
+
+The curriculum planner is the default look. A secondary tool (currently only the internship hours planner) is marked by **one** consistent signal, so users can tell where they are without the product splitting into two visual identities:
+
+| Element | Default (curriculum planner) | Secondary tool |
+| --- | --- | --- |
+| Page background | Paper `#eef0ea` | Paper Deep `#e5e8de` (Paper's hue at 89% lightness) |
+| Header bottom edge | 1px Border | 3px Primary Strong (Deep Pine `#1e3a2d`) |
+
+- **Paper Deep is a page background only.** Surface/Paper Deep is 1.196:1, so cards read as clearly elevated, but Muted on Paper Deep is only 4.18:1. Never place text directly on it, and never use it for hover, selection or other states — those keep using Paper.
+- Everything else (cards, buttons, links, semantic colors, the active nav state) is identical across tools.
+- Don't give each tool its own accent color. A new tool reuses this same secondary treatment; if it ever needs to be told apart from the internship planner, solve it with the page title and navigation, not a third palette.
+
 ---
 
 ## 6. Typography
