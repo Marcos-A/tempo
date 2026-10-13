@@ -88,7 +88,7 @@ GRID_INSTRUCTIONS = (
     "No feu servir decimals: 4,5 no s'accepta. Cada dia admet entre 0:00 i 12:00.",
     "Per indicar que un dia no hi ha pràctiques, escriviu 0: es mostra com «-». Per treure un dia, esborreu-ne el contingut.",
     "Els dies amb hores es mostren en verd i els dies sense pràctiques (0, que es mostra «-»), en vermell.",
-    "Els totals també es mostren en format h:mm (p. ex. 350:00 són 350 hores).",
+    "Els totals es calculen sols i es mostren com 4h30 (p. ex. 350h00 són 350 hores).",
     "«Hores planificades» es marca en vermell si no arriba a les hores totals objectiu, "
     "i «Hores restants» si encara queden hores per fer.",
 )
@@ -97,12 +97,14 @@ INSTRUCTIONS_FIRST_COLUMN = GRID_COLUMNS + 2
 INSTRUCTIONS_LAST_COLUMN = INSTRUCTIONS_FIRST_COLUMN + 7
 
 
-# Hours are stored as spreadsheet time values (fractions of a day) so cells
-# accept and show "4:30". [h] keeps totals above 24 h from wrapping around.
+# Hours are stored as spreadsheet time values (fractions of a day) so day cells
+# accept and show "4:30"; calculated totals read "4h30" so they are not mistaken
+# for editable cells. [h] keeps totals above 24 h from wrapping around.
 MINUTES_PER_DAY = 24 * 60
 TIME_FORMAT = "[h]:mm"
 DAY_TIME_FORMAT = '[h]:mm;-[h]:mm;"-"'
-TOTAL_TIME_FORMAT = "[h]:mm;-[h]:mm;;@"  # Hides zero week totals outside the internship.
+TOTAL_FORMAT = '[h]"h"mm'
+WEEK_TOTAL_FORMAT = '[h]"h"mm;-[h]"h"mm;;@'  # Hides zero week totals outside the internship.
 
 
 def minutes_to_time(minutes: int) -> float:
@@ -263,7 +265,7 @@ def build_internship_workbook(
     row += 1
     target_row = row
     _label_value_row(grid, target_row, "Hores totals objectiu", minutes_to_time(result.target_minutes), bold_value=True)
-    grid.cell(row=target_row, column=4).number_format = TIME_FORMAT
+    grid.cell(row=target_row, column=4).number_format = TOTAL_FORMAT
     row += 1
     planned_row = row
     _label_value_row(grid, planned_row, "Hores planificades", None, bold_value=True)
@@ -387,7 +389,7 @@ def build_internship_workbook(
             week_total = grid.cell(row=date_row, column=GRID_COLUMNS, value=f"={_round_to_minute(f'SUM(A{hours_row}:G{hours_row})')}")
             week_total.alignment = Alignment(horizontal="center", vertical="center")
             # Weeks outside the internship would otherwise show a column of zeros.
-            week_total.number_format = TOTAL_TIME_FORMAT
+            week_total.number_format = WEEK_TOTAL_FORMAT
             week_total.font = Font(bold=True)
             week_total.border = THIN_BORDER
             grid.cell(row=hours_row, column=GRID_COLUMNS).border = THIN_BORDER
@@ -402,7 +404,7 @@ def build_internship_workbook(
         month_label.alignment = Alignment(horizontal="right")
         week_sum = f"SUM({','.join(week_total_cells)})"
         month_total = grid.cell(row=row, column=GRID_COLUMNS, value=f"={_round_to_minute(week_sum)}")
-        month_total.number_format = TIME_FORMAT
+        month_total.number_format = TOTAL_FORMAT
         month_total.font = Font(bold=True)
         month_total.alignment = Alignment(horizontal="center")
         month_total.border = THIN_BORDER
@@ -417,7 +419,7 @@ def build_internship_workbook(
     grid.cell(row=remaining_row, column=4).value = f"=MAX(0,{_round_to_minute(f'{target_ref}-{planned_ref}')})"
     for cell_row in (target_row, planned_row, remaining_row):
         grid.cell(row=cell_row, column=4).alignment = Alignment(horizontal="left")
-        grid.cell(row=cell_row, column=4).number_format = TIME_FORMAT
+        grid.cell(row=cell_row, column=4).number_format = TOTAL_FORMAT
 
     # Detail sheet: one row per editable date, linked to the grid's hour cells.
     detail_headers = ("Data", "Dia", "Tipus", "Motiu", "Hores", "Acumulat", "Restants")
@@ -462,13 +464,15 @@ def build_internship_workbook(
             if column != 4:
                 cell.alignment = Alignment(horizontal="center")
         detail.cell(row=detail_row, column=1).number_format = "DD/MM/YYYY"
-        for column in (5, 6, 7):
-            detail.cell(row=detail_row, column=column).number_format = TIME_FORMAT
+        # Daily hours match the grid; running and remaining totals use the total format.
+        detail.cell(row=detail_row, column=5).number_format = TIME_FORMAT
+        for column in (6, 7):
+            detail.cell(row=detail_row, column=column).number_format = TOTAL_FORMAT
     last_detail_row = first_detail_row + len(detail_dates) - 1
     total_row = last_detail_row + 1
     detail.cell(row=total_row, column=4, value="Total").font = Font(bold=True)
     detail_total = detail.cell(row=total_row, column=5, value=f"={_round_to_minute(f'SUM(E{first_detail_row}:E{last_detail_row})')}")
-    detail_total.number_format = TIME_FORMAT
+    detail_total.number_format = TOTAL_FORMAT
     detail_total.font = Font(bold=True)
     detail_total.alignment = Alignment(horizontal="center")
     detail.cell(row=total_row + 2, column=1, value="Les hores d'aquest full provenen del full Calendari: modifiqueu-les allà.").font = Font(

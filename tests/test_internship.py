@@ -218,7 +218,7 @@ def test_workbook_structure_and_formulas():
     assert grid.cell(row=_find(grid, "Alumne/a:").row, column=4).value == "Núria"
     target_cell = grid.cell(row=_find(grid, "Hores totals objectiu:").row, column=4)
     assert target_cell.value == timedelta(minutes=37 * 60 + 30)  # Time values load back as timedelta.
-    assert target_cell.number_format == "[h]:mm"
+    assert target_cell.number_format == '[h]"h"mm'  # Totals read 4h30; day cells stay h:mm.
     planned = grid.cell(row=_find(grid, "Hores planificades:").row, column=4).value
     assert planned.startswith("=ROUND((SUM(H") and planned.endswith(")*1440,0)/1440")
     remaining = grid.cell(row=_find(grid, "Hores restants:").row, column=4).value
@@ -272,7 +272,12 @@ def test_workbook_structure_and_formulas():
     # Week and month totals are formulas over the hour rows.
     assert grid.cell(row=monday.row, column=8).value == f"=ROUND((SUM(A{monday.row + 1}:G{monday.row + 1}))*1440,0)/1440"
     assert f"H{monday.row}:H{monday.row + 1}" in {str(merged) for merged in grid.merged_cells.ranges}
-    assert _find(grid, "Total octubre 2026").row > monday.row
+    month_label = _find(grid, "Total octubre 2026")
+    assert month_label.row > monday.row
+    assert grid.cell(row=month_label.row, column=8).number_format == '[h]"h"mm'
+    assert grid.cell(row=monday.row, column=8).number_format == '[h]"h"mm;-[h]"h"mm;;@'
+    for label in ("Hores planificades:", "Hores restants:"):
+        assert grid.cell(row=_find(grid, label).row, column=4).number_format == '[h]"h"mm'
 
     # Detail sheet: hours link to the grid, running and remaining totals are formulas.
     detail = workbook["Detall"]
@@ -282,6 +287,7 @@ def test_workbook_structure_and_formulas():
     assert detail["F2"].value == "=ROUND((E2)*1440,0)/1440"
     assert detail["F3"].value == "=ROUND((F2+E3)*1440,0)/1440"
     assert detail["G2"].value == f"=MAX(0,ROUND((Calendari!$D${target_cell.row}-F2)*1440,0)/1440)"
+    assert [detail[f"{column}2"].number_format for column in "EFG"] == ["[h]:mm", '[h]"h"mm', '[h]"h"mm']
     # The detail runs from the start date to the end of the month after the end date.
     assert detail.cell(row=2 + len(result.days), column=1).value.date() == date(2026, 10, 20)
     assert detail.cell(row=51, column=1).value.date() == date(2026, 11, 30)
