@@ -1714,6 +1714,100 @@ select.time-select {
   font-variant-numeric: tabular-nums;
 }
 
+/* One block per weekly schedule. A single schedule shows no frame or header,
+   so the common case looks like a plain weekday grid. */
+.schedule-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.schedule-block {
+  display: grid;
+  gap: 1rem;
+}
+
+.schedule-list.has-changes .schedule-block {
+  padding: 0.9rem 1rem 1rem;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+
+.schedule-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem 0.9rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid var(--line);
+}
+
+.schedule-title {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.schedule-range {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem 0.6rem;
+  color: var(--muted);
+}
+
+.schedule-start {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0;
+  font-weight: 500;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.schedule-start input {
+  width: 9.5rem;
+  padding: 0.45rem 0.6rem;
+}
+
+.schedule-until {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Inside a framed schedule the quick fill is a plain row, not a box in a box. */
+.schedule-list.has-changes .quick-fill {
+  padding: 0;
+  border: 0;
+}
+
+/* Narrower selects so five weekdays still fit on one row inside a framed schedule. */
+.internship-weekdays select.time-select {
+  width: 4.2rem;
+}
+
+.schedule-remove {
+  margin-left: auto;
+}
+
+.schedule-error {
+  margin: -0.4rem 0 0;
+}
+
+.schedule-add-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 1rem;
+}
+
+.schedule-add-row button {
+  padding: 0.55rem 0.9rem;
+}
+
+.internship-panel .schedule-add-row .hint {
+  margin: 0;
+}
+
 .link-button {
   border: 0;
   padding: 0.2rem 0.3rem;
@@ -1891,6 +1985,7 @@ select.time-select {
 .day-weekend { background: #e6e6e6; }
 .day-override { background: #f6e2b3; }
 .legend-swatch.day-end { background: var(--card); border: 2px solid var(--accent-dark); }
+.legend-swatch.day-schedule-start { background: var(--card); box-shadow: inset 3px 0 0 var(--accent-dark); }
 
 .restore-notice {
   display: flex;
@@ -2038,6 +2133,11 @@ button.month-day:focus-visible {
 
 .month-day.day-end {
   border: 2px solid var(--accent-dark);
+}
+
+/* First day of a new weekly schedule. */
+.month-day.day-schedule-start {
+  box-shadow: inset 3px 0 0 var(--accent-dark);
 }
 
 .month-day.is-outside {

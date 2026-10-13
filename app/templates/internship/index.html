@@ -7,7 +7,7 @@
   <div class="step-intro card-panel">
     <ul class="step-intro-list">
       <li>Indica la data d'inici i el total d'hores de pràctiques.</li>
-      <li>Defineix les hores de cada dia de la setmana; admeten minuts (p. ex. 4 h 30 min).</li>
+      <li>Defineix les hores de cada dia de la setmana; admeten minuts (p. ex. 4 h 30 min). Si el conveni té períodes amb horaris diferents, afegeix un altre horari.</li>
       <li>Revisa els dies sense pràctiques: els del calendari del centre ja estan marcats i en pots afegir més.</li>
     </ul>
     <p class="step-intro-next">El calendari es recalcula automàticament. Fes clic en qualsevol dia per canviar-ne les hores.</p>
@@ -74,38 +74,11 @@
           <p class="hint">Hores de pràctiques de cada dia laborable. Els caps de setmana compten com a dies sense horari, però pots afegir-hi hores a dies concrets des del calendari.</p>
         </div>
       </div>
-      <div class="quick-fill">
-        <span class="quick-fill-label">Mateix nombre d'hores per a tots els dies</span>
-        <span class="time-field">
-          <select id="quick-fill-hours" class="time-select" aria-label="Hores">
-            {% for hour in range(0, max_daily_hours + 1) %}<option value="{{ hour }}">{{ hour }}</option>{% endfor %}
-          </select>
-          <span class="block-time-separator">h</span>
-          <select id="quick-fill-minutes" class="time-select" aria-label="Minuts">
-            {% for minute in block_minute_choices %}<option value="{{ minute }}">{{ '%02d'|format(minute) }}</option>{% endfor %}
-          </select>
-          <span class="block-time-separator">min</span>
-        </span>
-        <button type="button" class="secondary" id="quick-fill-apply">Aplica a dl.–dv.</button>
+      <div class="schedule-list" id="schedule-list"></div>
+      <div class="schedule-add-row">
+        <button type="button" class="secondary" id="schedule-add">+ Afegeix un altre horari</button>
+        <span class="hint" id="schedule-add-hint">Si el conveni canvia d'horari a partir d'una data (p. ex. jornada intensiva a l'estiu).</span>
       </div>
-      <div class="weekday-grid internship-weekdays">
-        {% for weekday_label, weekday_index in [('Dilluns', 0), ('Dimarts', 1), ('Dimecres', 2), ('Dijous', 3), ('Divendres', 4)] %}
-        <div class="field-group">
-          <span class="field-group-label">{{ weekday_label }}</span>
-          <span class="time-field">
-            <select class="time-select" data-weekday-hours="{{ weekday_index }}" aria-label="Hores {{ weekday_label|lower }}">
-              {% for hour in range(0, max_daily_hours + 1) %}<option value="{{ hour }}">{{ hour }}</option>{% endfor %}
-            </select>
-            <span class="block-time-separator">h</span>
-            <select class="time-select" data-weekday-minutes="{{ weekday_index }}" aria-label="Minuts {{ weekday_label|lower }}">
-              {% for minute in block_minute_choices %}<option value="{{ minute }}">{{ '%02d'|format(minute) }}</option>{% endfor %}
-            </select>
-            <span class="block-time-separator">min</span>
-          </span>
-        </div>
-        {% endfor %}
-      </div>
-      <p class="hint weekly-total" id="weekly-total"></p>
     </section>
 
     <section class="card-panel form-span internship-panel">
@@ -200,6 +173,7 @@
       <li><span class="legend-swatch day-weekend"></span>Sense horari</li>
       <li><span class="legend-swatch day-override"></span>Hores canviades a mà</li>
       <li><span class="legend-swatch day-end"></span>Darrer dia</li>
+      <li id="legend-schedule-start" hidden><span class="legend-swatch day-schedule-start"></span>Canvi d'horari</li>
     </ul>
     <p class="calendar-edit-hint">
       <span class="calendar-edit-icon" aria-hidden="true">✎</span>
@@ -213,6 +187,56 @@
     </form>
   </div>
 </section>
+
+<template id="schedule-template">
+  <div class="schedule-block">
+    <div class="schedule-head">
+      <h3 class="schedule-title"></h3>
+      <span class="schedule-range">
+        <span class="schedule-from-start">Des de l'inici de les pràctiques</span>
+        <label class="schedule-start">
+          A partir del
+          <input class="date-input" type="text" data-schedule-start placeholder="DD/MM/AAAA" inputmode="numeric" />
+        </label>
+        <span class="schedule-until"></span>
+      </span>
+      <button type="button" class="link-button schedule-remove">Elimina</button>
+    </div>
+    <p class="error-text schedule-error" hidden></p>
+    <div class="quick-fill">
+      <span class="quick-fill-label">Mateix nombre d'hores per a tots els dies</span>
+      <span class="time-field">
+        <select class="time-select" data-quick-fill-hours aria-label="Hores">
+          {% for hour in range(0, max_daily_hours + 1) %}<option value="{{ hour }}">{{ hour }}</option>{% endfor %}
+        </select>
+        <span class="block-time-separator">h</span>
+        <select class="time-select" data-quick-fill-minutes aria-label="Minuts">
+          {% for minute in block_minute_choices %}<option value="{{ minute }}">{{ '%02d'|format(minute) }}</option>{% endfor %}
+        </select>
+        <span class="block-time-separator">min</span>
+      </span>
+      <button type="button" class="secondary" data-quick-fill-apply>Aplica a dl.–dv.</button>
+    </div>
+    <div class="weekday-grid internship-weekdays">
+      {% for weekday_label, weekday_index in [('Dilluns', 0), ('Dimarts', 1), ('Dimecres', 2), ('Dijous', 3), ('Divendres', 4)] %}
+      <div class="field-group">
+        <span class="field-group-label">{{ weekday_label }}</span>
+        <span class="time-field">
+          <select class="time-select" data-weekday-hours="{{ weekday_index }}" aria-label="Hores {{ weekday_label|lower }}">
+            {% for hour in range(0, max_daily_hours + 1) %}<option value="{{ hour }}">{{ hour }}</option>{% endfor %}
+          </select>
+          <span class="block-time-separator">h</span>
+          <select class="time-select" data-weekday-minutes="{{ weekday_index }}" aria-label="Minuts {{ weekday_label|lower }}">
+            {% for minute in block_minute_choices %}<option value="{{ minute }}">{{ '%02d'|format(minute) }}</option>{% endfor %}
+          </select>
+          <span class="block-time-separator">min</span>
+        </span>
+      </div>
+      {% endfor %}
+    </div>
+    <p class="hint weekly-total"></p>
+  </div>
+</template>
 
 <dialog class="day-editor" id="day-editor">
   <form method="dialog" class="day-editor-form">
@@ -244,6 +268,7 @@
   const STORAGE_KEY = "tempo.internship.v1";
   const MONTH_NAMES = ["Gener", "Febrer", "Març", "Abril", "Maig", "Juny", "Juliol", "Agost", "Setembre", "Octubre", "Novembre", "Desembre"];
   const WEEKDAY_SHORT = ["dl.", "dt.", "dc.", "dj.", "dv.", "ds.", "dg."];
+  const MAX_SCHEDULE_CHANGES = 20;
   const KIND_LABELS = { working: "Laborable", holiday: "Festiu / no lectiu", weekend: "Sense horari", override: "Hores canviades a mà" };
   const serverState = {{ state|tojson }};
   const hasServerError = {{ 'true' if error else 'false' }};
@@ -310,6 +335,7 @@
       target_hours: "",
       target_minutes: 0,
       weekday_minutes: { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0 },
+      schedule_changes: [],
       unchecked_period_ids: [],
       extra_periods: [],
       overrides: {},
@@ -326,6 +352,10 @@
     }
     delete merged.excluded_period_ids;
     merged.weekday_minutes = { ...base.weekday_minutes, ...(raw.weekday_minutes || {}) };
+    merged.schedule_changes = (Array.isArray(raw.schedule_changes) ? raw.schedule_changes : []).map((change) => ({
+      start: String(change.start || ""),
+      weekday_minutes: { ...base.weekday_minutes, ...(change.weekday_minutes || {}) },
+    }));
     merged.overrides = { ...(raw.overrides || {}) };
     merged.metadata = { ...(raw.metadata || {}) };
     merged.extra_periods = Array.isArray(raw.extra_periods) ? raw.extra_periods : [];
@@ -363,6 +393,10 @@
       target_hours: state.target_hours,
       target_minutes: Number(state.target_minutes) || 0,
       weekday_minutes: state.weekday_minutes,
+      // Changes still missing a valid date wait in the form until they have one.
+      schedule_changes: state.schedule_changes
+        .filter((_, index) => scheduleChangeStatus(index).iso)
+        .map((change) => ({ start: change.start, weekday_minutes: change.weekday_minutes })),
       excluded_period_ids: allPeriodIds.filter((id) => !unchecked.has(id)),
       extra_periods: state.extra_periods,
       overrides: state.overrides,
@@ -376,11 +410,6 @@
     $("start-date").value = state.start_date || "";
     $("target-hours").value = state.target_hours || "";
     $("target-minutes").value = String(state.target_minutes || 0);
-    for (let index = 0; index < 5; index += 1) {
-      const minutes = Number(state.weekday_minutes[index]) || 0;
-      document.querySelector(`[data-weekday-hours="${index}"]`).value = String(Math.floor(minutes / 60));
-      document.querySelector(`[data-weekday-minutes="${index}"]`).value = String(minutes % 60);
-    }
     metadataInputs.forEach((input) => {
       input.value = state.metadata[input.dataset.metadata] || "";
     });
@@ -389,14 +418,152 @@
     periodCheckboxes.forEach((box) => {
       box.checked = !unchecked.has(Number(box.dataset.periodId));
     });
-    renderWeeklyTotal();
+    renderSchedules();
     renderSchoolPeriodVisibility();
     renderExtraPeriods();
   }
 
-  function renderWeeklyTotal() {
-    const total = Object.values(state.weekday_minutes).reduce((sum, value) => sum + (Number(value) || 0), 0);
-    $("weekly-total").textContent = total ? `Total setmanal: ${formatMinutes(total)}` : "";
+  /* ---------- Weekly schedules ---------- */
+
+  // The first schedule applies from the start date. Each entry in
+  // `state.schedule_changes` replaces it from its own date onwards, so the
+  // periods never overlap or leave gaps.
+  function weekdaysOf(index) {
+    return index === 0 ? state.weekday_minutes : state.schedule_changes[index - 1].weekday_minutes;
+  }
+
+  function weeklyTotal(weekdayMinutes) {
+    return Object.values(weekdayMinutes).reduce((sum, value) => sum + (Number(value) || 0), 0);
+  }
+
+  function displayToIso(text) {
+    const parsed = parseDisplayDate(text);
+    return parsed ? dateToIso(parsed) : null;
+  }
+
+  /* `iso` is set when the change can be applied; `error` explains why not. */
+  function scheduleChangeStatus(index) {
+    const text = (state.schedule_changes[index].start || "").trim();
+    if (!text) return { iso: null, error: "" };
+    const iso = displayToIso(text);
+    if (!iso) return { iso: null, error: "Indica una data vàlida (DD/MM/AAAA)." };
+    const startIso = displayToIso(state.start_date);
+    if (startIso && iso <= startIso) return { iso: null, error: "Ha de començar després de la data d'inici de les pràctiques." };
+    if (state.schedule_changes.some((other, otherIndex) => otherIndex < index && displayToIso(other.start) === iso)) {
+      return { iso: null, error: "Ja hi ha un altre horari que comença aquest dia." };
+    }
+    return { iso, error: "" };
+  }
+
+  function sortScheduleChanges() {
+    // Changes without a valid date keep their place at the end.
+    const key = (change) => displayToIso(change.start) || "9999";
+    state.schedule_changes.sort((left, right) => key(left).localeCompare(key(right)));
+  }
+
+  function renderSchedules() {
+    sortScheduleChanges();
+    const list = $("schedule-list");
+    list.replaceChildren();
+    for (let index = 0; index <= state.schedule_changes.length; index += 1) list.append(buildScheduleBlock(index));
+    list.classList.toggle("has-changes", state.schedule_changes.length > 0);
+    $("schedule-add").hidden = state.schedule_changes.length >= MAX_SCHEDULE_CHANGES;
+    $("schedule-add-hint").hidden = state.schedule_changes.length > 0;
+    refreshSchedules();
+  }
+
+  function buildScheduleBlock(index) {
+    const block = $("schedule-template").content.firstElementChild.cloneNode(true);
+    const hasChanges = state.schedule_changes.length > 0;
+    block.querySelector(".schedule-head").hidden = !hasChanges;
+    block.querySelector(".schedule-from-start").hidden = index > 0;
+    block.querySelector(".schedule-start").hidden = index === 0;
+
+    for (let day = 0; day < 5; day += 1) {
+      const hours = block.querySelector(`[data-weekday-hours="${day}"]`);
+      const minutes = block.querySelector(`[data-weekday-minutes="${day}"]`);
+      const value = Number(weekdaysOf(index)[day]) || 0;
+      hours.value = String(Math.floor(value / 60));
+      minutes.value = String(value % 60);
+      [hours, minutes].forEach((select) => {
+        select.addEventListener("change", () => {
+          weekdaysOf(index)[day] = (Number(hours.value) || 0) * 60 + (Number(minutes.value) || 0);
+          refreshSchedules();
+          changed();
+        });
+      });
+    }
+    block.querySelector("[data-quick-fill-apply]").addEventListener("click", () => {
+      const value = (Number(block.querySelector("[data-quick-fill-hours]").value) || 0) * 60
+        + (Number(block.querySelector("[data-quick-fill-minutes]").value) || 0);
+      for (let day = 0; day < 5; day += 1) weekdaysOf(index)[day] = value;
+      renderSchedules();
+      changed({ immediate: true });
+    });
+
+    if (index > 0) {
+      const change = state.schedule_changes[index - 1];
+      const input = block.querySelector("[data-schedule-start]");
+      input.value = change.start;
+      input.addEventListener("input", () => {
+        change.start = input.value.trim();
+        // Don't flag a date while it is still being typed; see "change".
+        refreshSchedules({ showErrors: false });
+        changed();
+      });
+      input.addEventListener("change", () => refreshSchedules());
+    }
+
+    block.querySelector(".schedule-remove").addEventListener("click", () => {
+      if (index === 0) {
+        // The next schedule now applies from the start date.
+        state.weekday_minutes = state.schedule_changes.shift().weekday_minutes;
+      } else {
+        state.schedule_changes.splice(index - 1, 1);
+      }
+      renderSchedules();
+      changed({ immediate: true });
+    });
+    return block;
+  }
+
+  /* Number the schedules by date and describe the days each one covers.
+   * Blocks are reordered visually (CSS order) rather than rebuilt, so editing
+   * a date never moves the focus. */
+  function refreshSchedules({ showErrors = true } = {}) {
+    const blocks = [...$("schedule-list").children];
+    const entries = [{ index: 0, iso: displayToIso(state.start_date), error: "" }];
+    state.schedule_changes.forEach((_, changeIndex) => entries.push({ index: changeIndex + 1, ...scheduleChangeStatus(changeIndex) }));
+    const changes = entries.slice(1);
+    const ordered = [
+      entries[0],
+      ...changes.filter((entry) => entry.iso).sort((left, right) => left.iso.localeCompare(right.iso)),
+      ...changes.filter((entry) => !entry.iso),
+    ];
+    ordered.forEach((entry, position) => {
+      const block = blocks[entry.index];
+      block.style.order = String(position);
+      block.querySelector(".schedule-title").textContent = `Horari ${position + 1}`;
+      const next = entry.iso ? ordered.slice(position + 1).find((other) => other.iso) : null;
+      let until = "";
+      if (next) {
+        const lastDay = isoToDate(next.iso);
+        lastDay.setDate(lastDay.getDate() - 1);
+        until = `fins al ${displayDate(dateToIso(lastDay))}`;
+      } else if (entry.index > 0 && !entry.iso && !entry.error) {
+        until = "Indica des de quin dia s'aplica.";
+      }
+      if (entry.index > 0 && entry.iso && lastResult?.complete && entry.iso > lastResult.end_date) {
+        until = "Comença després de la data de fi: no afecta el calendari.";
+      }
+      block.querySelector(".schedule-until").textContent = until;
+      const errorBox = block.querySelector(".schedule-error");
+      if (!entry.error) errorBox.hidden = true;
+      else if (showErrors) errorBox.hidden = false;
+      errorBox.textContent = entry.error;
+      const total = weeklyTotal(weekdaysOf(entry.index));
+      block.querySelector(".weekly-total").textContent = total ? `Total setmanal: ${formatMinutes(total)}` : "";
+    });
   }
 
   function renderSchoolPeriodVisibility() {
@@ -500,12 +667,6 @@
     });
   }
 
-  function readWeekday(index) {
-    const hours = Number(document.querySelector(`[data-weekday-hours="${index}"]`).value) || 0;
-    const minutes = Number(document.querySelector(`[data-weekday-minutes="${index}"]`).value) || 0;
-    return hours * 60 + minutes;
-  }
-
   let initialised = false;
 
   function changed({ immediate = false } = {}) {
@@ -521,6 +682,7 @@
   $("start-date").addEventListener("input", (event) => {
     state.start_date = event.target.value.trim();
     renderSchoolPeriodVisibility();
+    refreshSchedules();
     changed();
   });
   $("target-hours").addEventListener("input", (event) => {
@@ -531,19 +693,14 @@
     state.target_minutes = Number(event.target.value) || 0;
     changed();
   });
-  document.querySelectorAll("[data-weekday-hours], [data-weekday-minutes]").forEach((select) => {
-    select.addEventListener("change", () => {
-      const index = select.dataset.weekdayHours ?? select.dataset.weekdayMinutes;
-      state.weekday_minutes[index] = readWeekday(index);
-      renderWeeklyTotal();
-      changed();
-    });
-  });
-  $("quick-fill-apply").addEventListener("click", () => {
-    const minutes = (Number($("quick-fill-hours").value) || 0) * 60 + (Number($("quick-fill-minutes").value) || 0);
-    for (let index = 0; index < 5; index += 1) state.weekday_minutes[index] = minutes;
-    renderInputs();
-    changed({ immediate: true });
+  $("schedule-add").addEventListener("click", () => {
+    sortScheduleChanges();
+    // Start from the latest schedule: usually only a few days change.
+    const latest = weekdaysOf(state.schedule_changes.length);
+    state.schedule_changes.push({ start: "", weekday_minutes: { ...latest } });
+    renderSchedules();
+    $("schedule-list").lastElementChild.querySelector("[data-schedule-start]").focus();
+    changed();
   });
   metadataInputs.forEach((input) => {
     input.addEventListener("input", () => {
@@ -609,6 +766,7 @@
     state = normalizeState(serverState);
     state.target_hours = "";
     state.weekday_minutes = { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0 };
+    state.schedule_changes = [];
     state.unchecked_period_ids = [];
     state.extra_periods = [];
     state.overrides = {};
@@ -628,8 +786,12 @@
 
   /* ---------- Calculation ---------- */
 
+  function scheduledWeeklyMinutes() {
+    return weeklyTotal(state.weekday_minutes) + state.schedule_changes.reduce((sum, change) => sum + weeklyTotal(change.weekday_minutes), 0);
+  }
+
   function hasEnoughInput() {
-    const weeklyMinutes = Object.values(state.weekday_minutes).reduce((sum, value) => sum + (Number(value) || 0), 0);
+    const weeklyMinutes = scheduledWeeklyMinutes();
     const hasOverrideTime = Object.values(state.overrides).some((value) => Number(value) > 0);
     const target = (Number(state.target_hours) || 0) * 60 + (Number(state.target_minutes) || 0);
     return Boolean(parseDisplayDate(state.start_date)) && target > 0 && (weeklyMinutes > 0 || hasOverrideTime);
@@ -641,6 +803,7 @@
     const seq = ++requestSeq;
     if (!hasEnoughInput()) {
       lastResult = null;
+      refreshSchedules({ showErrors: false });
       $("result-placeholder").hidden = false;
       $("result-error").hidden = true;
       $("result-body").hidden = true;
@@ -664,6 +827,7 @@
       $("result-error").hidden = true;
       lastResult = data;
       renderResult(data);
+      refreshSchedules({ showErrors: false });
       if (focusDateAfterRender) {
         // The grid is rebuilt after an edit, so return focus to the same day.
         document.querySelector(`#month-grid [data-date="${focusDateAfterRender}"]`)?.focus();
@@ -697,6 +861,10 @@
     $("result-warning").hidden = !data.warning;
 
     const daysByIso = new Map(data.days.map((day) => [day.date, day]));
+    // Mark the first day of every schedule after the first one.
+    const hasScheduleChanges = data.days.some((day) => day.schedule > 0);
+    const scheduleStarts = new Set(data.days.filter((day, index) => index > 0 && day.schedule !== data.days[index - 1].schedule).map((day) => day.date));
+    $("legend-schedule-start").hidden = scheduleStarts.size === 0;
     const start = isoToDate(data.start_date);
     const end = isoToDate(data.end_date);
     const grid = $("month-grid");
@@ -747,12 +915,15 @@
           cell.type = "button";
           cell.classList.add(`day-${day.kind}`);
           if (data.complete && iso === data.end_date) cell.classList.add("day-end");
+          if (scheduleStarts.has(iso)) cell.classList.add("day-schedule-start");
           const hours = document.createElement("span");
           hours.className = "month-day-hours";
           hours.textContent = day.minutes ? formatCompact(day.minutes) : "–";
           cell.append(hours);
           const parts = [`${WEEKDAY_SHORT[(isoToDate(iso).getDay() + 6) % 7]} ${displayDate(iso)}`, KIND_LABELS[day.kind]];
           if (day.label) parts.push(day.label);
+          if (scheduleStarts.has(iso)) parts.push(`comença l'horari ${day.schedule + 1}`);
+          else if (hasScheduleChanges) parts.push(`horari ${day.schedule + 1}`);
           parts.push(day.minutes ? formatMinutes(day.minutes) : "sense hores");
           if (day.partial) parts.push("darrer dia parcial");
           cell.setAttribute("aria-label", `${parts.join(" · ")}. Fes clic per canviar les hores.`);
@@ -779,7 +950,8 @@
     $("day-editor-title").textContent = `${WEEKDAY_SHORT[(isoToDate(day.date).getDay() + 6) % 7]} ${displayDate(day.date)}`;
     const notes = [KIND_LABELS[day.kind]];
     if (day.label) notes.push(day.label);
-    notes.push(`Horari per defecte: ${day.default_minutes ? formatMinutes(day.default_minutes) : "sense hores"}`);
+    const scheduleName = lastResult?.days.some((item) => item.schedule > 0) ? `Horari ${day.schedule + 1}` : "Horari per defecte";
+    notes.push(`${scheduleName}: ${day.default_minutes ? formatMinutes(day.default_minutes) : "sense hores"}`);
     if (day.partial) notes.push(`Darrer dia: només calen ${formatMinutes(day.minutes)}`);
     $("day-editor-note").textContent = notes.join(" · ");
     $("day-editor-hours").value = String(Math.floor(current / 60));
@@ -812,12 +984,13 @@
   // student, maybe on a shared computer) starts with the previous data. Say so,
   // and offer the reset right there until the user starts editing (see `changed`).
   function hasMeaningfulData() {
-    const weeklyMinutes = Object.values(state.weekday_minutes).reduce((sum, value) => sum + (Number(value) || 0), 0);
+    const weeklyMinutes = scheduledWeeklyMinutes();
     return (
       Number(state.target_hours) > 0 ||
       weeklyMinutes > 0 ||
       Object.values(state.metadata).some((value) => String(value || "").trim()) ||
       Object.keys(state.overrides).length > 0 ||
+      state.schedule_changes.length > 0 ||
       state.extra_periods.length > 0
     );
   }

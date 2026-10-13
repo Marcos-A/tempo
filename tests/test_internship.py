@@ -19,6 +19,7 @@ from app.services.internship import (
     DAY_KIND_OVERRIDE,
     DAY_KIND_WEEKEND,
     DAY_KIND_WORKING,
+    InternshipSchedule,
     build_internship_calendar,
     internship_deadline,
 )
@@ -207,7 +208,7 @@ def _export(result, **kwargs):
     workbook_bytes = build_internship_workbook(
         result,
         metadata=kwargs.get("metadata", {"student_name": "Núria", "company_name": "Acme"}),
-        weekday_minutes=WEEKDAYS_7H,
+        schedule=WEEKDAYS_7H,
         applied_periods=kwargs.get("applied_periods", []),
         non_working_dates=kwargs.get("non_working_dates"),
         labels_by_date=kwargs.get("labels_by_date"),
@@ -534,3 +535,87 @@ def test_export_error_rerenders_page_without_script_injection(client):
     assert response.status_code == 400
     assert "Indica el total" in response.text
     assert "<script>alert(1)</script>" not in response.text
+
+
+def test_schedule_change_applies_from_its_date():
+    """7 h/day the first week, then 4 h on Monday to Thursday only."""
+
+    change = date(2026, 10, 19)
+    schedule = InternshipSchedule(WEEKDAYS_7H, [(change, {0: 240, 1: 240, 2: 240, 3: 240})])
+    result = _calendar(35 * 60 + 16 * 60, weekday_minutes=schedule)
+    minutes = {day.date: day.minutes for day in result.days}
+    assert minutes[date(2026, 10, 16)] == 420
+    assert minutes[change] == 240
+    assert result.end_date == date(2026, 10, 22)
+    assert _calendar(35 * 60 + 17 * 60, weekday_minutes=schedule).end_date == date(2026, 10, 26)  # No Friday hours.
+    assert {day.schedule_index for day in result.days if day.date < change} == {0}
+    assert {day.schedule_index for day in result.days if day.date >= change} == {1}
+
+
+def test_schedule_changes_are_applied_in_date_order():
+    later, earlier = date(2026, 11, 2), date(2026, 10, 26)
+    schedule = InternshipSchedule(WEEKDAYS_7H, [(later, {0: 60}), (earlier, {0: 120})])
+    assert schedule.minutes_on(date(2026, 10, 19)) == 420
+    assert schedule.minutes_on(earlier) == 120
+    assert schedule.minutes_on(later) == 60
+
+
+def test_override_on_a_later_schedule_keeps_that_schedule_as_default():
+    change = date(2026, 10, 19)
+    schedule = InternshipSchedule(WEEKDAYS_7H, [(change, {index: 240 for index in range(5)})])
+    result = _calendar(100 * 60, weekday_minutes=schedule, overrides={date(2026, 10, 20): 60})
+    day = next(day for day in result.days if day.date == date(2026, 10, 20))
+    assert (day.kind, day.default_minutes, day.minutes) == (DAY_KIND_OVERRIDE, 240, 60)
+
+
+def test_request_parses_schedule_changes():
+    request = InternshipRequest(
+        _payload(target_hours="51", schedule_changes=[{"start": "19/10/2026", "weekday_minutes": {"0": 240, "1": 240, "2": 240, "3": 240}}]),
+        [],
+    )
+    result = request.calculate()
+    assert result.end_date == date(2026, 10, 22)
+
+
+@pytest.mark.parametrize(
+    "changes",
+    [
+        [{"start": "12/10/2026", "weekday_minutes": {"0": 60}}],
+        [{"start": "01/10/2026", "weekday_minutes": {"0": 60}}],
+        [{"start": "19/10/2026", "weekday_minutes": {"0": 60}}, {"start": "19/10/2026", "weekday_minutes": {"0": 120}}],
+        [{"start": "19/10/2026", "weekday_minutes": {"0": 13 * 60}}],
+        [{"start": "", "weekday_minutes": {"0": 60}}],
+    ],
+)
+def test_request_rejects_bad_schedule_changes(changes):
+    with pytest.raises(ValueError):
+        InternshipRequest(_payload(schedule_changes=changes), []).calculate()
+
+
+def test_calcul_endpoint_reports_schedule_of_each_day(client):
+    test_client, _ = client
+    response = test_client.post(
+        "/practiques/calcul",
+        json=_payload(target_hours="50", schedule_changes=[{"start": "19/10/2026", "weekday_minutes": {"0": 300}}]),
+    )
+    days = {day["date"]: day for day in response.json()["days"]}
+    assert days["2026-10-16"]["schedule"] == 0
+    assert days["2026-10-19"]["schedule"] == 1
+    assert days["2026-10-19"]["minutes"] == 300
+
+
+def test_workbook_lists_every_schedule_with_its_dates():
+    change = date(2026, 10, 19)
+    schedule = InternshipSchedule(WEEKDAYS_7H, [(change, {0: 240})])
+    result = _calendar(60 * 60, weekday_minutes=schedule)
+    workbook = load_workbook(
+        build_internship_workbook(result, metadata={}, schedule=schedule, applied_periods=[])
+    )
+    config = workbook["Configuració"]
+    first = _find(config, "Del 12/10/2026 al 18/10/2026")
+    second = _find(config, "A partir del 19/10/2026")
+    assert config.cell(row=first.row + 1, column=2).value == "7 h"
+    assert config.cell(row=second.row + 1, column=2).value == "4 h"
+    assert config.cell(row=second.row + 2, column=2).value == "-"
+    # Tuesday after the change has no schedule, so its grid cell stays blank.
+    assert _find_day(workbook["Calendari"], date(2026, 10, 20)).offset(row=1).value is None

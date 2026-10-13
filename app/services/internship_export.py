@@ -11,7 +11,7 @@ The workbook has three sheets:
   Hours are spreadsheet time values shown as h:mm, so a day is typed as 4:30.
 - "Detall": one row per editable date. Hours link back to the grid and the
   running and remaining totals are formulas.
-- "Configuració": the weekly schedule and the non-teaching periods that were applied.
+- "Configuració": the weekly schedules and the non-teaching periods that were applied.
 """
 
 from __future__ import annotations
@@ -36,6 +36,7 @@ from app.services.internship import (
     DAY_KIND_WORKING,
     MAX_DAILY_HOURS,
     InternshipCalendar,
+    InternshipSchedule,
     classify_day,
     default_minutes_for,
 )
@@ -165,7 +166,7 @@ def _label_value_row(sheet, row: int, label: str, value, *, bold_value: bool = F
         value_cell.font = Font(bold=True)
 
 
-def _grid_day_value(current: date, minutes: int | None, weekday_minutes: dict[int, int], non_working_dates: set[date]) -> int | None:
+def _grid_day_value(current: date, minutes: int | None, schedule: InternshipSchedule, non_working_dates: set[date]) -> int | None:
     """Return the grid value of a day in whole minutes, or None for a blank cell.
 
     Non-teaching days that would normally have practice time show 0 (rendered
@@ -175,7 +176,7 @@ def _grid_day_value(current: date, minutes: int | None, weekday_minutes: dict[in
     if minutes:
         return minutes
     # `minutes == 0` on a scheduled day not marked non-teaching means it was set to zero by hand.
-    if weekday_minutes.get(current.weekday(), 0) and (current in non_working_dates or minutes == 0):
+    if schedule.minutes_on(current) and (current in non_working_dates or minutes == 0):
         return 0
     return None
 
@@ -221,11 +222,28 @@ def _add_hours_validation(sheet, cells: list[str]) -> None:
         validation.add(cell)
 
 
+def _schedule_sections(result: InternshipCalendar, schedule: InternshipSchedule) -> list[tuple[str, dict[int, int]]]:
+    """Title each weekly schedule with the dates it covers; a single schedule needs no title."""
+
+    if not schedule.changes:
+        return [("", schedule.base)]
+    starts = [result.start_date] + [start for start, _ in schedule.changes]
+    sections = []
+    for index, weekday_minutes in enumerate(schedule.weekly_minutes):
+        start = format_display_date(starts[index])
+        if index + 1 < len(starts):
+            title = f"Del {start} al {format_display_date(starts[index + 1] - timedelta(days=1))}"
+        else:
+            title = f"A partir del {start}"
+        sections.append((title, weekday_minutes))
+    return sections
+
+
 def build_internship_workbook(
     result: InternshipCalendar,
     *,
     metadata: dict[str, str],
-    weekday_minutes: dict[int, int],
+    schedule: InternshipSchedule | dict[int, int],
     applied_periods: list[dict[str, str]],
     non_working_dates: set[date] | None = None,
     labels_by_date: dict[date, str] | None = None,
@@ -238,6 +256,7 @@ def build_internship_workbook(
     the planned end date, which the grid also shows.
     """
 
+    schedule = InternshipSchedule.coerce(schedule)
     non_working_dates = non_working_dates or set()
     labels_by_date = labels_by_date or {}
 
@@ -384,11 +403,11 @@ def build_internship_workbook(
                     continue
                 day = days_by_date.get(current)
                 minutes = day.minutes if day is not None else None
-                value = _grid_day_value(current, minutes, weekday_minutes, non_working_dates)
+                value = _grid_day_value(current, minutes, schedule, non_working_dates)
                 if value is not None:
                     hours_cell.value = minutes_to_time(value)
                 hours_cell.number_format = DAY_TIME_FORMAT
-                if value is None and not weekday_minutes.get(current.weekday(), 0):
+                if value is None and not schedule.minutes_on(current):
                     # Conditional formatting colours green/red once hours are typed in.
                     date_cell.fill = _fill(NO_SCHEDULE_FILL_COLOR)
                     hours_cell.fill = _fill(NO_SCHEDULE_FILL_COLOR)
@@ -467,7 +486,7 @@ def build_internship_workbook(
         if day is not None:
             kind, label = day.kind, day.label
         else:
-            default_minutes = default_minutes_for(current, weekday_minutes, non_working_dates)
+            default_minutes = default_minutes_for(current, schedule, non_working_dates)
             kind = classify_day(current, default_minutes, default_minutes, False, non_working_dates)
             label = labels_by_date.get(current, "")
         hours_ref = f"Calendari!{hour_cell_by_date[current]}"
@@ -532,9 +551,13 @@ def build_internship_workbook(
     # Configuration sheet: what produced this calendar.
     config.append(["Horari setmanal"])
     config["A1"].font = Font(bold=True)
-    for index, weekday in enumerate(("Dilluns", "Dimarts", "Dimecres", "Dijous", "Divendres")):
-        minutes = weekday_minutes.get(index, 0)
-        config.append([weekday, format_minutes_label(minutes) if minutes else "-"])
+    for title, weekday_minutes in _schedule_sections(result, schedule):
+        if title:
+            config.append([title])
+            config.cell(row=config.max_row, column=1).font = Font(italic=True, color="607165")
+        for index, weekday in enumerate(("Dilluns", "Dimarts", "Dimecres", "Dijous", "Divendres")):
+            minutes = weekday_minutes.get(index, 0)
+            config.append([weekday, format_minutes_label(minutes) if minutes else "-"])
     config.append([])
     config.append(["Dies sense pràctiques aplicats"])
     config.cell(row=config.max_row, column=1).font = Font(bold=True)

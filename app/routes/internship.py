@@ -25,7 +25,7 @@ from app.routes.teacher import templates
 from app.services.academic_years import get_active_academic_year
 from app.services.calendar import daterange
 from app.services.hours import BLOCK_MINUTE_CHOICES, MINUTES_PER_HOUR, format_minutes_label
-from app.services.internship import MAX_DAILY_HOURS, InternshipCalendar, build_internship_calendar
+from app.services.internship import MAX_DAILY_HOURS, InternshipCalendar, InternshipSchedule, build_internship_calendar
 from app.services.internship_export import METADATA_FIELDS, build_internship_workbook, calendar_grid_end
 
 
@@ -33,6 +33,8 @@ router = APIRouter(prefix="/practiques", tags=["internship"])
 
 MAX_TARGET_HOURS = 3000
 MAX_EXTRA_PERIODS = 100
+MAX_SCHEDULE_CHANGES = 20
+WEEKDAY_LABELS = ("Dilluns", "Dimarts", "Dimecres", "Dijous", "Divendres")
 MAX_LABEL_LENGTH = 120
 MAX_METADATA_LENGTH = 200
 METADATA_KEYS = tuple(key for key, _ in METADATA_FIELDS)
@@ -50,6 +52,17 @@ def _parse_minutes(value: object, *, max_hours: int, field_label: str) -> int:
     if minutes % BLOCK_MINUTE_CHOICES[1]:
         raise ValueError(f"{field_label}: els minuts han d'avançar en trams de 5.")
     return minutes
+
+
+def _parse_weekdays(raw: object, *, label_prefix: str = "") -> dict[int, int]:
+    """Validate Monday-to-Friday minutes sent as {"0": minutes, ...}."""
+
+    if not isinstance(raw, dict):
+        raise ValueError("Horari setmanal no vàlid.")
+    return {
+        index: _parse_minutes(raw.get(str(index)), max_hours=MAX_DAILY_HOURS, field_label=f"{label_prefix}{label}")
+        for index, label in enumerate(WEEKDAY_LABELS)
+    }
 
 
 def _school_periods(db: Session) -> list[ExcludedPeriod]:
@@ -84,12 +97,22 @@ class InternshipRequest:
         if self.target_minutes <= 0:
             raise ValueError("Indica el total d'hores de pràctiques.")
 
-        raw_weekdays = payload.get("weekday_minutes") or {}
-        weekday_labels = ("Dilluns", "Dimarts", "Dimecres", "Dijous", "Divendres")
-        self.weekday_minutes = {
-            index: _parse_minutes(raw_weekdays.get(str(index)), max_hours=MAX_DAILY_HOURS, field_label=label)
-            for index, label in enumerate(weekday_labels)
-        }
+        # The agreement's first schedule applies from the start date; each
+        # change replaces it from its own date until the next change.
+        self.weekday_minutes = _parse_weekdays(payload.get("weekday_minutes") or {})
+        raw_changes = payload.get("schedule_changes") or []
+        if len(raw_changes) > MAX_SCHEDULE_CHANGES:
+            raise ValueError("Hi ha massa canvis d'horari.")
+        changes: dict[date, dict[int, int]] = {}
+        for item in raw_changes:
+            change_start = parse_date_input(str(item.get("start") or ""))
+            display = format_display_date(change_start)
+            if change_start <= self.start_date:
+                raise ValueError(f"L'horari que comença el {display} ha de començar després de la data d'inici de les pràctiques.")
+            if change_start in changes:
+                raise ValueError(f"Hi ha dos horaris que comencen el {display}.")
+            changes[change_start] = _parse_weekdays(item.get("weekday_minutes") or {}, label_prefix=f"Horari del {display}, ")
+        self.schedule = InternshipSchedule(self.weekday_minutes, list(changes.items()))
 
         try:
             selected_ids = {int(value) for value in payload.get("excluded_period_ids") or []}
@@ -141,7 +164,7 @@ class InternshipRequest:
         return build_internship_calendar(
             self.start_date,
             self.target_minutes,
-            self.weekday_minutes,
+            self.schedule,
             dates,
             self.overrides,
             labels,
@@ -219,6 +242,7 @@ def _serialize_result(result: InternshipCalendar, warning: str | None) -> dict[s
                 "kind": day.kind,
                 "label": day.label,
                 "partial": day.is_partial,
+                "schedule": day.schedule_index,
             }
             for day in result.days
         ],
@@ -241,6 +265,7 @@ def _render_page(request: Request, db: Session, *, state: dict | None = None, er
         "target_hours": "",
         "target_minutes": 0,
         "weekday_minutes": {str(index): 0 for index in range(5)},
+        "schedule_changes": [],
         "excluded_period_ids": [period.id for period in periods],
         "extra_periods": [],
         "overrides": {},
@@ -321,7 +346,7 @@ async def export_internship(request: Request, db: Session = Depends(get_db)):
     workbook = build_internship_workbook(
         result,
         metadata=inputs.metadata,
-        weekday_minutes=inputs.weekday_minutes,
+        schedule=inputs.schedule,
         applied_periods=inputs.applied_periods(result),
         non_working_dates=non_working_dates,
         labels_by_date=labels_by_date,
