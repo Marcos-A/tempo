@@ -72,7 +72,7 @@ WEEKDAY_SHORT = ("dl.", "dt.", "dc.", "dj.", "dv.", "ds.", "dg.")
 GRID_COLUMNS = 8  # Monday..Sunday plus the weekly total.
 GRID_COLUMN_WIDTH = 11
 METADATA_FIELDS = (
-    ("student_name", "Alumne/a"),
+    ("student_name", "Estudiant"),
     ("training_cycle", "Cicle formatiu"),
     ("group_name", "Grup"),
     ("company_name", "Empresa"),
@@ -88,7 +88,7 @@ GRID_INSTRUCTIONS = (
     "Per indicar que un dia no hi ha pràctiques, escriviu 0: es mostra com «-». Per treure un dia, esborreu-ne el contingut.",
     "Els dies amb hores es mostren en verd i els dies sense pràctiques (0, que es mostra «-»), en vermell.",
     "Els totals es calculen sols i es mostren com 4h30 (p. ex. 350h00 són 350 hores).",
-    "El full està protegit perquè només es puguin editar les hores dels dies i les dades de l'alumne. "
+    "El full està protegit perquè només es puguin editar les hores dels dies i les dades de l'estudiant i de l'empresa. "
     "Per desprotegir-lo: Revisió › Desprotegeix el full (no té contrasenya).",
     "«Hores planificades» es marca en vermell si no arriba a les hores totals objectiu, "
     "i «Hores restants» si encara queden hores per fer.",

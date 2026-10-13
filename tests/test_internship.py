@@ -215,7 +215,7 @@ def test_workbook_structure_and_formulas():
     grid = workbook["Calendari"]
 
     # Metadata and summary values.
-    assert grid.cell(row=_find(grid, "Alumne/a:").row, column=4).value == "Núria"
+    assert grid.cell(row=_find(grid, "Estudiant:").row, column=4).value == "Núria"
     target_cell = grid.cell(row=_find(grid, "Hores totals objectiu:").row, column=4)
     assert target_cell.value == timedelta(minutes=37 * 60 + 30)  # Time values load back as timedelta.
     assert target_cell.number_format == '[h]"h"mm'  # Totals read 4h30; day cells stay h:mm.
@@ -362,7 +362,7 @@ def test_workbook_only_day_cells_and_student_data_are_editable():
     padding = _find_day(grid, date(2026, 11, 2))  # Monday of November's first full week.
     assert grid.cell(row=padding.row - 1, column=1).protection.locked is True
     assert grid.cell(row=first_day.row, column=8).protection.locked is True
-    assert grid.cell(row=_find(grid, "Alumne/a:").row, column=4).protection.locked is False
+    assert grid.cell(row=_find(grid, "Estudiant:").row, column=4).protection.locked is False
     assert grid.cell(row=_find(grid, "Hores planificades:").row, column=4).protection.locked is True
 
 
@@ -413,6 +413,7 @@ def test_page_renders_with_nav_and_school_periods(client):
     assert "Tutor/a del centre" not in response.text
     assert "Pots canviar les hores de qualsevol dia" in response.text
     assert "<h2>Dies sense pràctiques</h2>" in response.text
+    assert "Estudiant" in response.text and "Alumne/a" not in response.text
     home = test_client.get("/")
     assert 'href="/" class="site-nav-link" aria-current="page"' in home.text
     assert "Planificador curricular" in home.text
