@@ -66,6 +66,12 @@ body {
   border-bottom: 3px solid var(--accent-dark);
 }
 
+/* Module planning gets a lighter Pine line (the logo's light tint) so each
+   tool has its own header accent. */
+.section-modules .site-header {
+  border-bottom: 3px solid #4f806a;
+}
+
 .container {
   width: min(1100px, calc(100vw - 2rem));
   margin: 0 auto;
