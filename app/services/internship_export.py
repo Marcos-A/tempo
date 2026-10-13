@@ -76,7 +76,6 @@ METADATA_FIELDS = (
     ("training_cycle", "Cicle formatiu"),
     ("group_name", "Grup"),
     ("company_name", "Empresa"),
-    ("school_tutor", "Tutor/a del centre"),
     ("company_tutor", "Tutor/a de l'empresa"),
     ("company_tutor_email", "Correu del tutor/a de l'empresa"),
 )
@@ -291,9 +290,9 @@ def build_internship_workbook(
     instructions_title = grid.cell(row=1, column=INSTRUCTIONS_FIRST_COLUMN, value="Instruccions")
     instructions_title.font = Font(bold=True, size=12)
     grid.merge_cells(
-        start_row=3, start_column=INSTRUCTIONS_FIRST_COLUMN, end_row=end_row + 2, end_column=INSTRUCTIONS_LAST_COLUMN
+        start_row=2, start_column=INSTRUCTIONS_FIRST_COLUMN, end_row=end_row + 2, end_column=INSTRUCTIONS_LAST_COLUMN
     )
-    instructions = grid.cell(row=3, column=INSTRUCTIONS_FIRST_COLUMN, value="\n".join(f"• {line}" for line in GRID_INSTRUCTIONS))
+    instructions = grid.cell(row=2, column=INSTRUCTIONS_FIRST_COLUMN, value="\n".join(f"• {line}" for line in GRID_INSTRUCTIONS))
     instructions.alignment = Alignment(wrap_text=True, vertical="top")
     instructions.font = Font(size=10)
     instructions.fill = HEADER_FILL

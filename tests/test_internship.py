@@ -323,15 +323,18 @@ def test_workbook_extends_to_following_month_for_extra_hours():
 
 
 def test_workbook_summary_instructions_and_print_area():
-    workbook = _export(_calendar(14 * 60), metadata={"school_tutor_email": "tutor@example.com"})
+    workbook = _export(
+        _calendar(14 * 60), metadata={"school_tutor": "Joan Tutor", "school_tutor_email": "tutor@example.com"}
+    )
     grid = workbook["Calendari"]
-    assert "school_tutor_email" not in dict(METADATA_FIELDS)
-    with pytest.raises(AssertionError):
-        _find(grid, "tutor@example.com")
+    assert not {"school_tutor", "school_tutor_email"} & set(dict(METADATA_FIELDS))
+    for value in ("Joan Tutor", "tutor@example.com", "Tutor/a del centre:"):
+        with pytest.raises(AssertionError):
+            _find(grid, value)
 
     instructions = _find(grid, "Instruccions")
     assert instructions.column > 8 and instructions.row == 1
-    box = grid.cell(row=3, column=instructions.column).value
+    box = grid.cell(row=2, column=instructions.column).value
     assert "4:30" in box and "h:mm" in box and "4,5 no s'accepta" in box and "Hores restants" in box and "posteriors a la data de fi" in box
 
     target_row = _find(grid, "Hores totals objectiu:").row
@@ -387,6 +390,7 @@ def test_page_renders_with_nav_and_school_periods(client):
     assert "Festa" in response.text
     assert "Planificador d&#39;hores de pràctiques" in response.text
     assert "Correu del tutor/a del centre" not in response.text
+    assert "Tutor/a del centre" not in response.text
     home = test_client.get("/")
     assert 'href="/" class="site-nav-link" aria-current="page"' in home.text
     assert "Planificador curricular" in home.text
