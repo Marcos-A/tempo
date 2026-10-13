@@ -56,14 +56,14 @@ body {
    instead of 93%) so it reads as a separate tool, and its cards stand out more
    (Surface/background 1.196 vs 1.107). Only the page background changes, not
    --bg: Muted text would drop to 4.18:1 on it, and no text sits directly on
-   the page background here, while hover states keep using Paper. The clay line
-   under the header reuses --tab-b. */
+   the page background here, while hover states keep using Paper. The line
+   under the header is Deep Pine. */
 .section-internship {
   background: #e5e8de;
 }
 
 .section-internship .site-header {
-  border-bottom: 3px solid var(--tab-b);
+  border-bottom: 3px solid var(--accent-dark);
 }
 
 .container {
