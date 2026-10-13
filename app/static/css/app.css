@@ -1899,6 +1899,8 @@ select.time-select {
 }
 
 .restore-notice-icon {
+  font-size: 1.15rem;
+  line-height: 1;
   color: var(--accent-dark);
   font-weight: 700;
 }
