@@ -14,7 +14,8 @@
       <div class="container">
         <a class="brand" href="/">
           <img class="brand-mark" src="{{ url_for('static', path='/img/tempo-lockup-pine.svg') }}?v=20261012d" alt="{{ app_name }}" />
-          <span class="brand-tagline">{{ "Planificador curricular · " ~ school_name if school_name else "Planificador curricular" }}</span>
+          {% set tagline = brand_tagline if brand_tagline is defined else "Planificador curricular" %}
+          <span class="brand-tagline">{{ tagline ~ " · " ~ school_name if school_name else tagline }}</span>
         </a>
         {% set current_path = request.url.path if request is defined else "" %}
         {% if not current_path.startswith("/admin") %}

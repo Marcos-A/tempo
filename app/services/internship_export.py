@@ -2,11 +2,13 @@
 
 The workbook has three sheets:
 
-- "Calendari": one Monday-to-Sunday grid per month. Each week uses two rows,
-  the dates and the editable hours below them. Week, month and overall totals
-  are formulas, so editing any day's hours recalculates everything.
-- "Detall": one row per date from the start to the end date. Hours link back to
-  the grid and the running and remaining totals are formulas.
+- "Calendari": one Monday-to-Sunday grid per month, from the start month to the
+  month after the end date so hours can be added past the planned end. Each
+  week uses two rows, the dates and the editable hours below them. Week, month
+  and overall totals are formulas, so editing any day's hours recalculates
+  everything, and conditional formatting colours each day by its hours.
+- "Detall": one row per editable date. Hours link back to the grid and the
+  running and remaining totals are formulas.
 - "Configuració": the weekly schedule and the non-teaching periods that were applied.
 """
 
@@ -18,6 +20,7 @@ from io import BytesIO
 
 from openpyxl import Workbook
 from openpyxl.comments import Comment
+from openpyxl.formatting.rule import CellIsRule, FormulaRule
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
 
@@ -29,6 +32,8 @@ from app.services.internship import (
     DAY_KIND_WEEKEND,
     DAY_KIND_WORKING,
     InternshipCalendar,
+    classify_day,
+    default_minutes_for,
 )
 
 
@@ -44,6 +49,16 @@ KIND_LABELS = {
     DAY_KIND_WEEKEND: "Sense horari (cap de setmana)",
     DAY_KIND_OVERRIDE: "Dia modificat",
 }
+# The grid itself only distinguishes days with hours (green), days without
+# practice time (0 shown as "-", red) and days without a schedule (grey, blank).
+HOURS_FILL_COLOR = KIND_FILLS[DAY_KIND_WORKING]
+NO_HOURS_FILL_COLOR = KIND_FILLS[DAY_KIND_HOLIDAY]
+NO_SCHEDULE_FILL_COLOR = KIND_FILLS[DAY_KIND_WEEKEND]
+GRID_LEGEND = (
+    ("Dia amb hores", HOURS_FILL_COLOR),
+    ("Sense pràctiques (0 / -)", NO_HOURS_FILL_COLOR),
+    ("Sense horari", NO_SCHEDULE_FILL_COLOR),
+)
 OUTSIDE_FONT_COLOR = "A0A69A"
 MONTH_TITLE_FILL = PatternFill(fill_type="solid", fgColor="1E3A2D")
 HEADER_FILL = PatternFill(fill_type="solid", fgColor="F2ECE0")
@@ -59,14 +74,21 @@ METADATA_FIELDS = (
     ("group_name", "Grup"),
     ("company_name", "Empresa"),
     ("school_tutor", "Tutor/a del centre"),
-    ("school_tutor_email", "Correu del tutor/a del centre"),
     ("company_tutor", "Tutor/a de l'empresa"),
     ("company_tutor_email", "Correu del tutor/a de l'empresa"),
 )
-GRID_INSTRUCTION = (
-    "Modifiqueu les hores de qualsevol dia (fila sota cada data) per recalcular els totals, "
-    "les hores restants i la data de fi."
+GRID_INSTRUCTIONS = (
+    "Podeu canviar les hores de qualsevol dia escrivint-les a la casella de sota la data. "
+    "Els totals, les hores restants i la data de fi es recalculen automàticament.",
+    "També podeu afegir hores en dies posteriors a la data de fi prevista: el calendari inclou el mes següent.",
+    "Escriviu les hores en format decimal: 4 h 30 min → 4,5; 4 h 15 min → 4,25; 4 h 45 min → 4,75.",
+    "Els dies amb hores es mostren en verd i els dies sense pràctiques (0 o «-»), en vermell.",
+    "«Hores planificades» es marca en vermell si no arriba a les hores totals objectiu, "
+    "i «Hores restants» si encara queden hores per fer.",
 )
+# The instructions sit to the right of the printable grid, after a spacer column.
+INSTRUCTIONS_FIRST_COLUMN = GRID_COLUMNS + 2
+INSTRUCTIONS_LAST_COLUMN = INSTRUCTIONS_FIRST_COLUMN + 7
 
 
 def minutes_to_hours(minutes: int) -> int | float:
@@ -83,8 +105,19 @@ def _hour_format(minutes: int) -> str:
     return "General" if minutes % 15 == 0 else "0.00"
 
 
+def _day_hour_format(minutes: int) -> str:
+    """Like `_hour_format`, but a zero shows as "-" in the calendar grid."""
+
+    number_format = _hour_format(minutes)
+    return f'{number_format};-{number_format};"-"'
+
+
 def _fill(color: str) -> PatternFill:
     return PatternFill(fill_type="solid", fgColor=color)
+
+
+def _next_month_start(current: date) -> date:
+    return (current.replace(day=28) + timedelta(days=4)).replace(day=1)
 
 
 def _month_starts(start: date, end: date) -> list[date]:
@@ -92,8 +125,14 @@ def _month_starts(start: date, end: date) -> list[date]:
     current = start.replace(day=1)
     while current <= end:
         months.append(current)
-        current = (current.replace(day=28) + timedelta(days=4)).replace(day=1)
+        current = _next_month_start(current)
     return months
+
+
+def calendar_grid_end(result: InternshipCalendar) -> date:
+    """Last date in the exported grid: the end of the month after the end date."""
+
+    return _next_month_start(_next_month_start(result.end_date)) - timedelta(days=1)
 
 
 def _label_value_row(sheet, row: int, label: str, value, *, bold_value: bool = False) -> None:
@@ -109,18 +148,63 @@ def _label_value_row(sheet, row: int, label: str, value, *, bold_value: bool = F
         value_cell.font = Font(bold=True)
 
 
+def _grid_day_value(current: date, minutes: int | None, weekday_minutes: dict[int, int], non_working_dates: set[date]) -> int | None:
+    """Return the grid value of a day in whole minutes, or None for a blank cell.
+
+    Non-teaching days that would normally have practice time show 0 (rendered
+    as "-") so they stand out; days without a schedule stay blank.
+    """
+
+    if minutes:
+        return minutes
+    # `minutes == 0` on a scheduled day not marked non-teaching means it was set to zero by hand.
+    if weekday_minutes.get(current.weekday(), 0) and (current in non_working_dates or minutes == 0):
+        return 0
+    return None
+
+
+def _add_day_colour_rules(sheet, date_ranges: list[str], hour_ranges: list[str]) -> None:
+    """Colour each day green when it has hours and red when it shows 0 or "-".
+
+    The date cells check the hours cell right below them, so both cells of a
+    day change colour together as soon as its hours are edited.
+    """
+
+    for ranges, offset in ((date_ranges, 1), (hour_ranges, 0)):
+        if not ranges:
+            continue
+        first = ranges[0].split(":")[0]
+        column = "".join(char for char in first if char.isalpha())
+        target = f"{column}{int(first[len(column):]) + offset}"
+        sqref = " ".join(ranges)
+        sheet.conditional_formatting.add(
+            sqref, FormulaRule(formula=[f"AND(ISNUMBER({target}),{target}>0)"], fill=_fill(HOURS_FILL_COLOR))
+        )
+        sheet.conditional_formatting.add(
+            sqref,
+            FormulaRule(formula=[f'OR(AND(ISNUMBER({target}),{target}=0),TRIM({target})="-")'], fill=_fill(NO_HOURS_FILL_COLOR)),
+        )
+
+
 def build_internship_workbook(
     result: InternshipCalendar,
     *,
     metadata: dict[str, str],
     weekday_minutes: dict[int, int],
     applied_periods: list[dict[str, str]],
+    non_working_dates: set[date] | None = None,
+    labels_by_date: dict[date, str] | None = None,
 ) -> BytesIO:
     """Create the internship workbook and return it as an in-memory file.
 
     `applied_periods` lists the non-working periods that were applied, as
     dictionaries with `start`, `end`, `label` and `source` display strings.
+    `non_working_dates` and `labels_by_date` mark the non-teaching days after
+    the planned end date, which the grid also shows.
     """
+
+    non_working_dates = non_working_dates or set()
+    labels_by_date = labels_by_date or {}
 
     workbook = Workbook()
     grid = workbook.active
@@ -129,6 +213,9 @@ def build_internship_workbook(
     config = workbook.create_sheet("Configuració")
 
     for column in range(1, GRID_COLUMNS + 1):
+        grid.column_dimensions[get_column_letter(column)].width = GRID_COLUMN_WIDTH
+    grid.column_dimensions[get_column_letter(GRID_COLUMNS + 1)].width = 3
+    for column in range(INSTRUCTIONS_FIRST_COLUMN, INSTRUCTIONS_LAST_COLUMN + 1):
         grid.column_dimensions[get_column_letter(column)].width = GRID_COLUMN_WIDTH
 
     grid.merge_cells(start_row=1, start_column=1, end_row=1, end_column=GRID_COLUMNS)
@@ -161,31 +248,46 @@ def build_internship_workbook(
 
     target_ref = f"$D${target_row}"
     planned_ref = f"$D${planned_row}"
+    remaining_ref = f"$D${remaining_row}"
+    grid.conditional_formatting.add(
+        planned_ref.replace("$", ""), CellIsRule(operator="lessThan", formula=[target_ref], fill=_fill(NO_HOURS_FILL_COLOR))
+    )
+    grid.conditional_formatting.add(
+        remaining_ref.replace("$", ""), CellIsRule(operator="greaterThan", formula=["0"], fill=_fill(NO_HOURS_FILL_COLOR))
+    )
+
+    # Instructions box in the top right corner, next to the summary block.
+    instructions_title = grid.cell(row=1, column=INSTRUCTIONS_FIRST_COLUMN, value="Instruccions")
+    instructions_title.font = Font(bold=True, size=12)
+    grid.merge_cells(
+        start_row=3, start_column=INSTRUCTIONS_FIRST_COLUMN, end_row=end_row, end_column=INSTRUCTIONS_LAST_COLUMN
+    )
+    instructions = grid.cell(row=3, column=INSTRUCTIONS_FIRST_COLUMN, value="\n".join(f"• {line}" for line in GRID_INSTRUCTIONS))
+    instructions.alignment = Alignment(wrap_text=True, vertical="top")
+    instructions.font = Font(size=10)
+    instructions.fill = HEADER_FILL
 
     legend_row = row
     grid.cell(row=legend_row, column=1, value="Llegenda:").font = Font(bold=True)
     legend_column = 2
-    for kind in (DAY_KIND_WORKING, DAY_KIND_HOLIDAY, DAY_KIND_WEEKEND, DAY_KIND_OVERRIDE):
+    for label, color in GRID_LEGEND:
         grid.merge_cells(start_row=legend_row, start_column=legend_column, end_row=legend_row, end_column=legend_column + 1)
-        cell = grid.cell(row=legend_row, column=legend_column, value=KIND_LABELS[kind])
-        cell.fill = _fill(KIND_FILLS[kind])
+        cell = grid.cell(row=legend_row, column=legend_column, value=label)
+        cell.fill = _fill(color)
         cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
         cell.font = Font(size=9)
         legend_column += 2
     grid.row_dimensions[legend_row].height = 26
-    row += 1
-    grid.merge_cells(start_row=row, start_column=1, end_row=row, end_column=GRID_COLUMNS)
-    instruction_cell = grid.cell(row=row, column=1, value=GRID_INSTRUCTION)
-    instruction_cell.font = Font(italic=True, color="607165", size=9)
-    instruction_cell.alignment = Alignment(wrap_text=True, vertical="center")
-    grid.row_dimensions[row].height = 26
     row += 2
 
     days_by_date = {day.date: day for day in result.days}
+    grid_end = calendar_grid_end(result)
     hour_cell_by_date: dict[date, str] = {}
     month_total_cells: list[str] = []
+    date_ranges: list[str] = []
+    hour_ranges: list[str] = []
 
-    for month_start in _month_starts(result.start_date, result.end_date):
+    for month_start in _month_starts(result.start_date, grid_end):
         grid.merge_cells(start_row=row, start_column=1, end_row=row, end_column=GRID_COLUMNS)
         month_cell = grid.cell(row=row, column=1, value=format_month_label(month_start))
         month_cell.font = Font(bold=True, color="FFFFFF")
@@ -209,6 +311,8 @@ def build_internship_workbook(
         week_total_cells: list[str] = []
         for week in month_calendar.Calendar(firstweekday=0).monthdatescalendar(month_start.year, month_start.month):
             date_row, hours_row = row, row + 1
+            date_ranges.append(f"A{date_row}:G{date_row}")
+            hour_ranges.append(f"A{hours_row}:G{hours_row}")
             for column, current in enumerate(week, start=1):
                 if current.month != month_start.month:
                     continue
@@ -222,18 +326,28 @@ def build_internship_workbook(
                 date_cell.border = Border(left=THIN_SIDE, right=THIN_SIDE, top=THIN_SIDE)
                 hours_cell.border = Border(left=THIN_SIDE, right=THIN_SIDE, bottom=THIN_SIDE)
 
-                day = days_by_date.get(current)
-                if day is None:
+                if current < result.start_date:
                     date_cell.font = Font(size=8, color=OUTSIDE_FONT_COLOR)
                     continue
-                if day.minutes:
-                    hours_cell.value = minutes_to_hours(day.minutes)
-                    hours_cell.number_format = _hour_format(day.minutes)
-                fill = _fill(KIND_FILLS[day.kind])
-                date_cell.fill = fill
-                hours_cell.fill = fill
-                if day.label:
-                    date_cell.comment = Comment(day.label, "Tempo")
+                day = days_by_date.get(current)
+                minutes = day.minutes if day is not None else None
+                value = _grid_day_value(current, minutes, weekday_minutes, non_working_dates)
+                if value is not None:
+                    hours_cell.value = minutes_to_hours(value)
+                hours_cell.number_format = _day_hour_format(value or 0)
+                if value is None and not weekday_minutes.get(current.weekday(), 0):
+                    # Conditional formatting colours green/red once hours are typed in.
+                    date_cell.fill = _fill(NO_SCHEDULE_FILL_COLOR)
+                    hours_cell.fill = _fill(NO_SCHEDULE_FILL_COLOR)
+
+                notes = []
+                label = day.label if day is not None else labels_by_date.get(current, "")
+                if label:
+                    notes.append(label)
+                if day is not None and day.kind == DAY_KIND_OVERRIDE:
+                    notes.append(f"Dia modificat (horari habitual: {format_minutes_label(day.default_minutes)})")
+                if notes:
+                    date_cell.comment = Comment("\n".join(notes), "Tempo")
                 if current == result.end_date:
                     date_cell.border = Border(left=END_DAY_SIDE, right=END_DAY_SIDE, top=END_DAY_SIDE)
                     hours_cell.border = Border(left=END_DAY_SIDE, right=END_DAY_SIDE, bottom=END_DAY_SIDE)
@@ -264,12 +378,13 @@ def build_internship_workbook(
         month_total_cells.append(f"H{row}")
         row += 2
 
+    _add_day_colour_rules(grid, date_ranges, hour_ranges)
     grid.cell(row=planned_row, column=4).value = f"=ROUND(SUM({','.join(month_total_cells)}),2)"
     grid.cell(row=remaining_row, column=4).value = f"=ROUND({target_ref}-{planned_ref},2)"
     for cell_row in (target_row, planned_row, remaining_row):
         grid.cell(row=cell_row, column=4).alignment = Alignment(horizontal="left")
 
-    # Detail sheet: one row per date, linked to the grid's hour cells.
+    # Detail sheet: one row per editable date, linked to the grid's hour cells.
     detail_headers = ("Data", "Dia", "Tipus", "Motiu", "Hores", "Acumulat", "Restants")
     detail.append(detail_headers)
     for cell in detail[1]:
@@ -282,32 +397,42 @@ def build_internship_workbook(
     # Running totals mix every day's minutes, so they share one format.
     all_quarter_hours = all(day.minutes % 15 == 0 for day in result.days) and result.target_minutes % 15 == 0
     detail_hour_format = "General" if all_quarter_hours else "0.00"
-    for index, day in enumerate(result.days):
+    detail_dates = sorted(hour_cell_by_date)
+    for index, current in enumerate(detail_dates):
         detail_row = first_detail_row + index
-        hours_ref = f"Calendari!{hour_cell_by_date[day.date]}"
+        day = days_by_date.get(current)
+        if day is not None:
+            kind, label = day.kind, day.label
+        else:
+            default_minutes = default_minutes_for(current, weekday_minutes, non_working_dates)
+            kind = classify_day(current, default_minutes, default_minutes, False, non_working_dates)
+            label = labels_by_date.get(current, "")
+        hours_ref = f"Calendari!{hour_cell_by_date[current]}"
         previous = f"F{detail_row - 1}+" if index else ""
         detail.append(
             [
-                day.date,
-                WEEKDAY_SHORT[day.date.weekday()],
-                KIND_LABELS[day.kind],
-                day.label or None,
-                f"=IF({hours_ref}=\"\",0,{hours_ref})",
+                current,
+                WEEKDAY_SHORT[current.weekday()],
+                KIND_LABELS[kind],
+                label or None,
+                f"=IF(ISNUMBER({hours_ref}),{hours_ref},0)",
                 f"=ROUND({previous}E{detail_row},2)",
                 f"=ROUND(Calendari!{target_ref}-F{detail_row},2)",
             ]
         )
-        fill = _fill(KIND_FILLS[day.kind])
+        # Dates after the planned end stay unfilled: they only count if hours are added.
+        fill = _fill(KIND_FILLS[kind]) if day is not None else None
         for column in range(1, len(detail_headers) + 1):
             cell = detail.cell(row=detail_row, column=column)
-            cell.fill = fill
+            if fill is not None:
+                cell.fill = fill
             cell.border = THIN_BORDER
             if column != 4:
                 cell.alignment = Alignment(horizontal="center")
         detail.cell(row=detail_row, column=1).number_format = "DD/MM/YYYY"
         for column in (5, 6, 7):
             detail.cell(row=detail_row, column=column).number_format = detail_hour_format
-    last_detail_row = first_detail_row + len(result.days) - 1
+    last_detail_row = first_detail_row + len(detail_dates) - 1
     total_row = last_detail_row + 1
     detail.cell(row=total_row, column=4, value="Total").font = Font(bold=True)
     detail_total = detail.cell(row=total_row, column=5, value=f"=ROUND(SUM(E{first_detail_row}:E{last_detail_row}),2)")
@@ -331,6 +456,8 @@ def build_internship_workbook(
     end_cell.number_format = "DD/MM/YYYY"
     end_cell.alignment = Alignment(horizontal="left")
 
+    # Print only the calendar: the instructions are for editing the file.
+    grid.print_area = f"A1:{get_column_letter(GRID_COLUMNS)}{row}"
     grid.page_setup.orientation = "portrait"
     grid.page_setup.fitToWidth = 1
     grid.page_setup.fitToHeight = 0

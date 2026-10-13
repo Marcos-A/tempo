@@ -106,7 +106,6 @@
       <div class="section-heading">
         <div>
           <h2>Dies no lectius</h2>
-          <p class="hint">Desmarca els períodes del calendari del centre que no afectin l'empresa (p. ex. si l'alumne fa pràctiques durant les vacances escolars).</p>
         </div>
       </div>
       <div class="non-working-layout">
@@ -118,6 +117,7 @@
               <button type="button" class="link-button" data-toggle-periods="off">Desmarca-ho tot</button>
             </span>
           </div>
+          <p class="hint">Desmarca els períodes del calendari del centre que no afectin l'empresa (p. ex. si l'alumne fa pràctiques durant les vacances escolars).</p>
           <ul class="period-list" id="school-period-list">
             {% for period in school_periods %}
             <li data-period-start="{{ period.start }}" data-period-end="{{ period.end }}" data-period-label="{{ period.label }}">
@@ -128,13 +128,14 @@
             </li>
             {% endfor %}
           </ul>
-          <p class="hint" id="school-period-none" hidden>El centre encara no té cap període no lectiu configurat. Pots afegir dies a mà a «Dies afegits».</p>
+          <p class="hint" id="school-period-none" hidden>El centre encara no té cap període no lectiu configurat. Pots afegir dies a mà a «Altres dies sense pràctiques».</p>
           <p class="hint" id="school-period-empty" hidden>Cap període no lectiu del centre afecta aquestes dates.</p>
         </div>
         <div>
           <div class="non-working-heading">
-            <h3>Dies afegits</h3>
+            <h3>Altres dies sense pràctiques</h3>
           </div>
+          <p class="hint">Afegeix altres dies sense pràctiques, com ara festius de la localitat de l'empresa o festius posteriors a les classes si les pràctiques s'allarguen (p. ex. Sant Joan, al juny).</p>
           <div class="extra-period-form">
             <label>
               <span>Des de</span>

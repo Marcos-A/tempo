@@ -21,7 +21,7 @@ from app.services.internship import (
     DAY_KIND_WORKING,
     build_internship_calendar,
 )
-from app.services.internship_export import build_internship_workbook
+from app.services.internship_export import METADATA_FIELDS, build_internship_workbook
 
 WEEKDAYS_7H = {0: 420, 1: 420, 2: 420, 3: 420, 4: 420}
 
@@ -180,6 +180,8 @@ def _export(result, **kwargs):
         metadata=kwargs.get("metadata", {"student_name": "Núria", "company_name": "Acme"}),
         weekday_minutes=WEEKDAYS_7H,
         applied_periods=kwargs.get("applied_periods", []),
+        non_working_dates=kwargs.get("non_working_dates"),
+        labels_by_date=kwargs.get("labels_by_date"),
     )
     return load_workbook(workbook_bytes)
 
@@ -224,20 +226,36 @@ def test_workbook_structure_and_formulas():
     assert "_xlfn.MINIFS(Detall!" in end_formula
 
     # Legend lists every colour category.
-    for label in ("Laborable", "Festiu / no lectiu", "Dia modificat"):
+    for label in ("Dia amb hores", "Sense pràctiques (0 / -)", "Sense horari"):
         _find(grid, label)
 
-    # Each day's hours sit right below its date; kinds are coloured distinctly.
+    # Each day's hours sit right below its date; non-teaching weekdays show 0 as "-".
     monday = _find_day(grid, date(2026, 10, 12))
     monday_hours = grid.cell(row=monday.row + 1, column=monday.column)
     assert monday_hours.value == 7
     holiday_cell = _find_day(grid, holiday)
-    assert grid.cell(row=holiday_cell.row + 1, column=holiday_cell.column).value is None
+    holiday_hours = grid.cell(row=holiday_cell.row + 1, column=holiday_cell.column)
+    assert holiday_hours.value == 0
+    assert holiday_hours.number_format.endswith(';"-"')
+    assert holiday_cell.comment.text.startswith("Festa local")
     saturday = _find_day(grid, date(2026, 10, 17))
     assert grid.cell(row=saturday.row + 1, column=saturday.column).value == 2.5
-    fills = {monday.fill.fgColor.rgb, holiday_cell.fill.fgColor.rgb, saturday.fill.fgColor.rgb}
-    assert len(fills) == 3
-    assert holiday_cell.comment.text.startswith("Festa local")
+    assert "Dia modificat" in saturday.comment.text
+    # Days without a schedule are grey; the rest are coloured by conditional formatting.
+    sunday = _find_day(grid, date(2026, 10, 18))
+    assert grid.cell(row=sunday.row + 1, column=sunday.column).value is None
+    assert sunday.fill.fgColor.rgb.endswith("E6E6E6")
+    assert monday.fill.fill_type is None and saturday.fill.fill_type is None
+    day_rules = {
+        rule.formula[0]
+        for cf in grid.conditional_formatting
+        if str(cf.sqref).startswith("A") and len(cf.sqref.ranges) > 1
+        for rule in cf.rules
+    }
+    # Rules are anchored on the first grid week (1 October) and apply across every week.
+    first_week = _find_day(grid, date(2026, 10, 1)).row
+    assert f"AND(ISNUMBER(A{first_week + 1}),A{first_week + 1}>0)" in day_rules
+    assert f'OR(AND(ISNUMBER(A{first_week + 1}),A{first_week + 1}=0),TRIM(A{first_week + 1})="-")' in day_rules
 
     # Week and month totals are formulas over the hour rows.
     assert grid.cell(row=monday.row, column=8).value == f"=ROUND(SUM(A{monday.row + 1}:G{monday.row + 1}),2)"
@@ -248,13 +266,63 @@ def test_workbook_structure_and_formulas():
     detail = workbook["Detall"]
     assert [cell.value for cell in detail[1]] == ["Data", "Dia", "Tipus", "Motiu", "Hores", "Acumulat", "Restants"]
     hours_ref = f"Calendari!{monday_hours.coordinate}"
-    assert detail["E2"].value == f'=IF({hours_ref}="",0,{hours_ref})'
+    assert detail["E2"].value == f"=IF(ISNUMBER({hours_ref}),{hours_ref},0)"
     assert detail["F2"].value == "=ROUND(E2,2)"
     assert detail["F3"].value == "=ROUND(F2+E3,2)"
     assert detail["G2"].value == f"=ROUND(Calendari!$D${target_cell.row}-F2,2)"
-    assert detail.cell(row=2 + len(result.days), column=4).value == "Total"
+    # The detail runs from the start date to the end of the month after the end date.
+    assert detail.cell(row=2 + len(result.days), column=1).value.date() == date(2026, 10, 20)
+    assert detail.cell(row=51, column=1).value.date() == date(2026, 11, 30)
+    assert detail.cell(row=52, column=4).value == "Total"
     assert detail["C4"].value == "Festiu / no lectiu"
     assert detail["D4"].value == "Festa local"
+
+
+def test_workbook_extends_to_following_month_for_extra_hours():
+    result = _calendar(14 * 60)  # Ends on Tuesday 13/10/2026.
+    local_holiday = date(2026, 11, 2)
+    workbook = _export(result, non_working_dates={local_holiday}, labels_by_date={local_holiday: "Festa local"})
+    grid = workbook["Calendari"]
+    _find(grid, "Total novembre 2026")
+    with pytest.raises(AssertionError):
+        _find(grid, "Total desembre 2026")
+
+    # Days after the end date are editable blanks; non-teaching weekdays show 0.
+    after_end = _find_day(grid, date(2026, 10, 14))
+    after_end_hours = grid.cell(row=after_end.row + 1, column=after_end.column)
+    assert after_end_hours.value is None
+    holiday = _find_day(grid, local_holiday)
+    assert grid.cell(row=holiday.row + 1, column=holiday.column).value == 0
+    assert holiday.comment.text.startswith("Festa local")
+
+    detail = workbook["Detall"]
+    tail = _find(detail, local_holiday)
+    assert detail.cell(row=tail.row, column=3).value == "Festiu / no lectiu"
+    hours_ref = f"Calendari!{after_end_hours.coordinate}"
+    assert _find(detail, f"=IF(ISNUMBER({hours_ref}),{hours_ref},0)").row == 4
+    end_formula = grid.cell(row=_find(grid, "Data de fi:").row, column=4).value
+    assert f"Detall!$A$2:$A${tail.row + 28}" in end_formula  # 2 Nov + 28 days = 30 Nov.
+
+
+def test_workbook_summary_instructions_and_print_area():
+    workbook = _export(_calendar(14 * 60), metadata={"school_tutor_email": "tutor@example.com"})
+    grid = workbook["Calendari"]
+    assert "school_tutor_email" not in dict(METADATA_FIELDS)
+    with pytest.raises(AssertionError):
+        _find(grid, "tutor@example.com")
+
+    instructions = _find(grid, "Instruccions")
+    assert instructions.column > 8 and instructions.row == 1
+    box = grid.cell(row=3, column=instructions.column).value
+    assert "4,5" in box and "Hores restants" in box and "posteriors a la data de fi" in box
+
+    target_row = _find(grid, "Hores totals objectiu:").row
+    rules = {str(cf.sqref): cf.rules[0] for cf in grid.conditional_formatting}
+    planned_rule = rules[f"D{target_row + 1}"]
+    assert (planned_rule.operator, planned_rule.formula) == ("lessThan", [f"$D${target_row}"])
+    remaining_rule = rules[f"D{target_row + 2}"]
+    assert (remaining_rule.operator, remaining_rule.formula) == ("greaterThan", ["0"])
+    assert grid.print_area.startswith("'Calendari'!$A$1:$H$")
 
 
 def test_workbook_grid_hours_add_up_to_target_with_minutes():
@@ -299,8 +367,11 @@ def test_page_renders_with_nav_and_school_periods(client):
     assert response.status_code == 200
     assert 'href="/practiques" class="site-nav-link" aria-current="page"' in response.text
     assert "Festa" in response.text
+    assert "Planificador d&#39;hores de pràctiques" in response.text
+    assert "Correu del tutor/a del centre" not in response.text
     home = test_client.get("/")
     assert 'href="/" class="site-nav-link" aria-current="page"' in home.text
+    assert "Planificador curricular" in home.text
 
 
 def test_calcul_endpoint_returns_days_and_end_date(client):

@@ -26,7 +26,7 @@ from app.services.academic_years import get_active_academic_year
 from app.services.calendar import daterange
 from app.services.hours import BLOCK_MINUTE_CHOICES, MINUTES_PER_HOUR, format_minutes_label
 from app.services.internship import InternshipCalendar, build_internship_calendar
-from app.services.internship_export import METADATA_FIELDS, build_internship_workbook
+from app.services.internship_export import METADATA_FIELDS, build_internship_workbook, calendar_grid_end
 
 
 router = APIRouter(prefix="/practiques", tags=["internship"])
@@ -149,11 +149,12 @@ class InternshipRequest:
         )
 
     def applied_periods(self, result: InternshipCalendar) -> list[dict[str, str]]:
-        """Describe the periods that overlap the internship, for the export."""
+        """Describe the periods that overlap the exported calendar, which runs past the end date."""
 
+        grid_end = calendar_grid_end(result)
         applied: list[dict[str, str]] = []
         for period in self.school_periods:
-            if period.end_date >= result.start_date and period.start_date <= result.end_date:
+            if period.end_date >= result.start_date and period.start_date <= grid_end:
                 applied.append(
                     {
                         "start": format_display_date(period.start_date),
@@ -163,7 +164,7 @@ class InternshipRequest:
                     }
                 )
         for start, end, label in self.extra_periods:
-            if end >= result.start_date and start <= result.end_date:
+            if end >= result.start_date and start <= grid_end:
                 applied.append(
                     {
                         "start": format_display_date(start),
@@ -247,6 +248,7 @@ def _render_page(request: Request, db: Session, *, state: dict | None = None, er
         "internship/index.html",
         {
             "title": "Calendari de pràctiques",
+            "brand_tagline": "Planificador d'hores de pràctiques",
             "error": error,
             "active_year": active_year,
             "metadata_fields": METADATA_FIELDS,
@@ -312,11 +314,14 @@ async def export_internship(request: Request, db: Session = Depends(get_db)):
         state = payload if isinstance(payload, dict) else None
         return _render_page(request, db, state=state, error=_error_message(exc), status_code=status.HTTP_400_BAD_REQUEST)
 
+    non_working_dates, labels_by_date = inputs.non_working()
     workbook = build_internship_workbook(
         result,
         metadata=inputs.metadata,
         weekday_minutes=inputs.weekday_minutes,
         applied_periods=inputs.applied_periods(result),
+        non_working_dates=non_working_dates,
+        labels_by_date=labels_by_date,
     )
     return StreamingResponse(
         workbook,
