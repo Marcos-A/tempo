@@ -23,7 +23,7 @@ This project was developed with human direction and review, with AI assistance u
 - distributes learning outcomes sequentially or in parallel blocks
 - lets teachers review the distribution before export
 - exports the final planning workbook as XLSX for manual review
-- builds a student's internship calendar (end date, holidays and per-day adjustments) and exports it as an XLSX with live formulas
+- builds a student's internship calendar (end date, days without internship and per-day adjustments) and exports it as an editable XLSX that recalculates itself
 
 ## Visual Walkthrough
 
@@ -58,6 +58,27 @@ In the second step, learning outcomes can be assigned, reordered, and validated 
 ![Learning-outcome allocation across parallel blocks](docs/screenshots/tempo-step-2-parallel.png)
 
 The entry screen is also available at [docs/screenshots/tempo-step-1-landing_page.png](docs/screenshots/tempo-step-1-landing_page.png). The remaining screenshots, including a second view of the exported workbook, live in [docs/screenshots/](docs/screenshots/) for more detailed documentation.
+
+## Internship Calendar
+
+The `/practiques` section is independent from module planning and works out when a student's internship ends.
+
+### In The App
+
+- **Inputs:** start date, total hours (minutes supported), hours for each weekday and, optionally, the student and company details shown in the exported sheet header.
+- **Days without internship:** the school calendar's periods are pre-selected and can be unticked when they do not affect the company (e.g. an internship that runs through school holidays). Other days can be added too, such as the company's local holidays or holidays after classes end.
+- **Live calendar:** shows the end date, planned hours and internship days. The last day only receives the hours still needed.
+- **Per-day adjustments:** clicking any day changes its hours, including setting it to 0 or adding hours on a holiday or weekend. Removing hours moves the end date later, and the calendar adds the months it needs on its own.
+- The form is kept in the browser between visits.
+
+### Exported XLSX
+
+- **Calendar:** one grid per month, from the start month to the month after the end date, so hours can be added past the planned end.
+- **Hours as `h:mm`:** each day is typed as `4:30`; cells only accept values between `0:00` and `12:00`, so `4` or `4,5` are rejected with a message.
+- **Totals as `4h30`:** weekly, monthly, planned and remaining hours recalculate when any day is edited, as does the end date.
+- **Automatic colours:** days with hours are green and days without internship (`0`, shown as `-`) are red. "Hores planificades" and "Hores restants" turn red until the target is met.
+- **Instructions** in the top right corner and **sheet protection** without a password: only real days' hours and the header details can be edited.
+- The **Detall** sheet (one day per row with running and remaining totals) and the **Configuració** sheet (schedule and applied days without internship) complete the workbook.
 
 ## Visual Assets
 
@@ -128,7 +149,7 @@ bash scripts/deploy_preview.sh
 - `/` shows the initial module configuration form
 - `/plan` lets users sort, distribute, and validate learning outcomes before export
 - the final export is generated as an XLSX workbook
-- `/practiques` computes an internship calendar from a start date, total hours and a weekly schedule (minutes supported), reuses the configured non-teaching periods and lets users adjust any day's hours
+- `/practiques` computes an internship calendar from a start date, total hours and a weekly schedule (minutes supported), reuses the configured non-teaching periods, lets users adjust any day's hours and exports an editable XLSX (see [Internship Calendar](#internship-calendar))
 
 ### Admin Flow
 
