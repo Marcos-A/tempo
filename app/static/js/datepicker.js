@@ -155,35 +155,48 @@
     }
   }
 
-  function attach(input) {
-    input.setAttribute("autocomplete", "off");
-    input.addEventListener("click", () => {
-      if (activeInput !== input) open(input);
-    });
-    input.addEventListener("focus", () => open(input));
-    input.addEventListener("blur", close);
-    input.addEventListener("keydown", (event) => {
-      if (event.key === "Escape" && activeInput === input) {
-        event.preventDefault();
-        close();
-      } else if (event.key === "Enter" && activeInput === input) {
-        close();
-      }
-    });
-    // Follow hand-typed dates so the calendar shows the month being typed.
-    input.addEventListener("input", () => {
-      if (activeInput !== input) return;
-      const typed = parseDate(input.value);
-      if (typed) {
-        viewYear = typed.getFullYear();
-        viewMonth = typed.getMonth();
-      }
-      render();
-    });
+  // Listeners are delegated from the document, so fields added after load
+  // (such as the internship planner's period dates) get the picker too.
+  function dateInputOf(event) {
+    const target = event.target;
+    return target instanceof HTMLInputElement && target.classList.contains("date-input") ? target : null;
   }
 
+  document.addEventListener("focusin", (event) => {
+    const input = dateInputOf(event);
+    if (input) open(input);
+  });
+  document.addEventListener("click", (event) => {
+    const input = dateInputOf(event);
+    if (input && activeInput !== input) open(input);
+  });
+  document.addEventListener("focusout", (event) => {
+    if (dateInputOf(event)) close();
+  });
+  document.addEventListener("keydown", (event) => {
+    const input = dateInputOf(event);
+    if (!input || activeInput !== input) return;
+    if (event.key === "Escape") {
+      event.preventDefault();
+      close();
+    } else if (event.key === "Enter") {
+      close();
+    }
+  });
+  // Follow hand-typed dates so the calendar shows the month being typed.
+  document.addEventListener("input", (event) => {
+    const input = dateInputOf(event);
+    if (!input || activeInput !== input) return;
+    const typed = parseDate(input.value);
+    if (typed) {
+      viewYear = typed.getFullYear();
+      viewMonth = typed.getMonth();
+    }
+    render();
+  });
+
   document.addEventListener("DOMContentLoaded", () => {
-    document.querySelectorAll("input.date-input").forEach(attach);
+    document.querySelectorAll("input.date-input").forEach((input) => input.setAttribute("autocomplete", "off"));
     window.addEventListener("resize", () => activeInput && position());
     window.addEventListener("scroll", () => activeInput && position(), { passive: true });
   });
