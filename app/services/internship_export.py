@@ -7,6 +7,7 @@ The workbook has three sheets:
   week uses two rows, the dates and the editable hours below them. Week, month
   and overall totals are formulas, so editing any day's hours recalculates
   everything, and conditional formatting colours each day by its hours.
+  The grid never goes past 31 July: internships cannot run in August.
   Hours are spreadsheet time values shown as h:mm, so a day is typed as 4:30.
 - "Detall": one row per editable date. Hours link back to the grid and the
   running and remaining totals are formulas.
@@ -82,7 +83,8 @@ METADATA_FIELDS = (
 GRID_INSTRUCTIONS = (
     "Podeu canviar les hores de qualsevol dia escrivint-les a la casella de sota la data. "
     "Els totals, les hores restants i la data de fi es recalculen automàticament.",
-    "També podeu afegir hores en dies posteriors a la data de fi prevista: el calendari inclou el mes següent.",
+    "També podeu afegir hores en dies posteriors a la data de fi prevista: el calendari inclou el mes següent, "
+    "fins al 31 de juliol (a l'agost no es poden fer pràctiques).",
     "Escriviu les hores en format hores:minuts (h:mm): 4:30 per a 4 h 30 min, 7:00 per a 7 h o 0:45 per a 45 min. "
     "No feu servir decimals: 4,5 no s'accepta. Cada dia admet entre 0:00 i 12:00.",
     "Per indicar que un dia no hi ha pràctiques, escriviu 0: es mostra com «-». Per treure un dia, esborreu-ne el contingut.",
@@ -145,9 +147,9 @@ def _month_starts(start: date, end: date) -> list[date]:
 
 
 def calendar_grid_end(result: InternshipCalendar) -> date:
-    """Last date in the exported grid: the end of the month after the end date."""
+    """Last date in the exported grid: the end of the month after the end date, but never past 31 July."""
 
-    return _next_month_start(_next_month_start(result.end_date)) - timedelta(days=1)
+    return min(_next_month_start(_next_month_start(result.end_date)) - timedelta(days=1), result.deadline)
 
 
 def _label_value_row(sheet, row: int, label: str, value, *, bold_value: bool = False) -> None:
@@ -278,7 +280,24 @@ def build_internship_workbook(
     row += 1
     end_row = row
     _label_value_row(grid, end_row, "Data de fi", None, bold_value=True)
-    row += 2
+    row += 1
+    if calendar_grid_end(result) == result.deadline:
+        # The grid stops at 31 July, so hours still missing there need a new agreement.
+        # A formula keeps the notice in step with edits to the grid.
+        grid.merge_cells(start_row=row, start_column=1, end_row=row, end_column=GRID_COLUMNS)
+        deadline_note = grid.cell(
+            row=row,
+            column=1,
+            value=(
+                f'=IF($D${remaining_row}>0,"Amb les hores actuals no s\'arriba a l\'objectiu abans del '
+                f"{format_display_date(result.deadline)} (a l'agost no es poden fer pràctiques). "
+                f'Les hores restants s\'hauran de fer amb un nou conveni el curs vinent.","")'
+            ),
+        )
+        deadline_note.font = Font(bold=True, color="B3473A")
+        deadline_note.alignment = Alignment(wrap_text=True, vertical="center")
+        grid.row_dimensions[row].height = 30
+    row += 1
 
     target_ref = f"$D${target_row}"
     planned_ref = f"$D${planned_row}"

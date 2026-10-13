@@ -175,7 +175,7 @@
   <div id="result-body" hidden>
     <div class="internship-summary">
       <div class="internship-stat internship-stat-main">
-        <span class="internship-stat-label">Data de fi</span>
+        <span class="internship-stat-label" id="summary-end-label">Data de fi</span>
         <span class="internship-stat-value" id="summary-end"></span>
       </div>
       <div class="internship-stat">
@@ -191,6 +191,7 @@
         <span class="internship-stat-value"><span id="summary-overrides"></span> <button type="button" class="link-button" id="clear-overrides" hidden>Restableix</button></span>
       </div>
     </div>
+    <p class="warning-box warning-box-danger" id="result-incomplete" hidden></p>
     <p class="warning-box" id="result-warning" hidden></p>
     <ul class="calendar-legend" aria-label="Llegenda">
       <li><span class="legend-swatch day-working"></span>Laborable</li>
@@ -202,7 +203,7 @@
     <p class="calendar-edit-hint">
       <span class="calendar-edit-icon" aria-hidden="true">✎</span>
       <span><strong>Pots canviar les hores de qualsevol dia:</strong> fes-hi clic i tria'n les hores (també 0 o hores en un festiu o cap de setmana).
-      Si treus hores, la data de fi s'endarrereix i el calendari afegeix sol els mesos que calguin.</span>
+      Si treus hores, la data de fi s'endarrereix i el calendari afegeix sol els mesos que calguin, fins al 31 de juliol (a l'agost no es poden fer pràctiques).</span>
     </p>
     <div class="month-grid" id="month-grid"></div>
     <form method="post" action="/practiques/export" class="export-actions" id="export-form">
@@ -678,7 +679,14 @@
 
   function renderResult(data) {
     $("result-body").hidden = false;
-    $("summary-end").textContent = data.end_date_display;
+    // Internships cannot run in August: past 31 July the remaining hours need a new agreement.
+    $("summary-end-label").textContent = data.complete ? "Data de fi" : "Darrer dia de pràctiques";
+    $("summary-end").textContent = data.complete ? data.end_date_display : data.last_working_display || "–";
+    $("result-incomplete").textContent = data.complete
+      ? ""
+      : `No hi ha prou dies fins al ${data.deadline_display} per completar les ${data.target_display}: en falten ${data.pending_display}. ` +
+        "A l'agost no es poden fer pràctiques, així que caldrà un nou conveni per continuar el curs vinent.";
+    $("result-incomplete").hidden = data.complete;
     $("summary-hours").textContent = `${data.scheduled_display} / ${data.target_display}`;
     $("summary-days").textContent = String(data.working_days);
     const overrideCount = data.days.filter((day) => day.kind === "override").length;
@@ -737,7 +745,7 @@
           monthMinutes += day.minutes;
           cell.type = "button";
           cell.classList.add(`day-${day.kind}`);
-          if (iso === data.end_date) cell.classList.add("day-end");
+          if (data.complete && iso === data.end_date) cell.classList.add("day-end");
           const hours = document.createElement("span");
           hours.className = "month-day-hours";
           hours.textContent = day.minutes ? formatCompact(day.minutes) : "–";

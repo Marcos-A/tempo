@@ -105,11 +105,13 @@ The school calendar's periods are pre-selected and can be unticked when they do 
 
 Clicking any day changes its hours, including setting it to 0 or adding hours on a holiday or weekend. Removing hours moves the end date later, and the calendar adds the months it needs on its own.
 
+Internships cannot run in August, so the calendar never goes past 31 July of the school year it starts in. If the hours do not fit, the app warns and shows the hours still pending, which need a new agreement next school year.
+
 ![Editor for a single day's hours](docs/screenshots/tempo-practiques-step-3-editor-dia.png)
 
 ### Exported XLSX
 
-- **Calendar:** one grid per month, from the start month to the month after the end date, so hours can be added past the planned end.
+- **Calendar:** one grid per month, from the start month to the month after the end date (31 July at the latest), so hours can be added past the planned end. If hours are still missing in July, the sheet says so.
 - **Hours as `h:mm`:** each day is typed as `4:30`; cells only accept values between `0:00` and `12:00`, so `4` or `4,5` are rejected with a message.
 - **Totals as `4h30`:** weekly, monthly, planned and remaining hours recalculate when any day is edited, as does the end date.
 - **Automatic colours:** days with hours are green and days without internship (`0`, shown as `-`) are red. "Hores planificades" and "Hores restants" turn red until the target is met.

@@ -105,11 +105,13 @@ Els períodes del calendari del centre surten marcats i es poden desmarcar si no
 
 En fer clic a qualsevol dia se'n poden canviar les hores, fins i tot posar-hi 0 o afegir-ne en un festiu o cap de setmana. Si es treuen hores, la data de fi s'endarrereix i el calendari afegeix sol els mesos necessaris.
 
+A l'agost no es poden fer pràctiques, així que el calendari no passa mai del 31 de juliol del curs en què comencen. Si les hores no hi caben, l'aplicació avisa i mostra les hores que falten, que s'hauran de fer amb un nou conveni el curs vinent.
+
 ![Editor de les hores d'un dia concret](docs/screenshots/tempo-practiques-step-3-editor-dia.png)
 
 ### Full XLSX exportat
 
-- **Calendari:** una graella per mes, des del mes d'inici fins al mes posterior a la data de fi, perquè es puguin afegir hores més enllà de la data prevista.
+- **Calendari:** una graella per mes, des del mes d'inici fins al mes posterior a la data de fi (com a màxim fins al 31 de juliol), perquè es puguin afegir hores més enllà de la data prevista. Si al juliol encara falten hores, el full ho indica.
 - **Hores en format `h:mm`:** cada dia s'escriu com `4:30`; les caselles només accepten valors entre `0:00` i `12:00`, de manera que `4` o `4,5` es rebutgen amb un avís.
 - **Totals en format `4h30`:** setmanes, mesos, hores planificades i hores restants es recalculen en editar qualsevol dia, igual que la data de fi.
 - **Colors automàtics:** els dies amb hores es mostren en verd i els dies sense pràctiques (`0`, que es mostra com `-`) en vermell. «Hores planificades» i «Hores restants» es marquen en vermell mentre no s'arriba a l'objectiu.

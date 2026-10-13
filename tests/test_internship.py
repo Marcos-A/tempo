@@ -20,6 +20,7 @@ from app.services.internship import (
     DAY_KIND_WEEKEND,
     DAY_KIND_WORKING,
     build_internship_calendar,
+    internship_deadline,
 )
 from app.services.internship_export import METADATA_FIELDS, build_internship_workbook
 
@@ -102,11 +103,39 @@ def test_zero_schedule_is_rejected():
         _calendar(10 * 60, weekday_minutes={index: 0 for index in range(5)})
 
 
-def test_schedule_that_never_finishes_is_rejected():
-    """Only a few override minutes cannot cover the target: stop at the safety limit."""
+def test_deadline_is_31_july_of_the_school_year():
+    assert internship_deadline(date(2026, 9, 1)) == date(2027, 7, 31)
+    assert internship_deadline(date(2026, 12, 31)) == date(2027, 7, 31)
+    assert internship_deadline(date(2027, 3, 1)) == date(2027, 7, 31)
+    assert internship_deadline(date(2027, 7, 31)) == date(2027, 7, 31)
+    with pytest.raises(ValueError, match="agost"):
+        internship_deadline(date(2027, 8, 2))
 
-    with pytest.raises(ValueError):
-        _calendar(100 * 60, weekday_minutes={index: 0 for index in range(5)}, overrides={date(2026, 10, 13): 60})
+
+def test_hours_that_do_not_fit_before_august_stop_on_31_july():
+    """10 h/week from June cannot reach 200 h: the calendar stops on 31 July with hours pending."""
+
+    result = _calendar(200 * 60, weekday_minutes={index: 120 for index in range(5)}, start=date(2027, 6, 1))
+    assert result.end_date == date(2027, 7, 31)
+    assert all(day.date.month != 8 for day in result.days)
+    assert not result.is_complete
+    assert result.last_working_date == date(2027, 7, 30)  # Friday; 31 July is a Saturday.
+    # June 2027 has 22 weekdays and July 22: 44 days of 2 h.
+    assert result.scheduled_minutes == 44 * 120
+    assert result.pending_minutes == 200 * 60 - 44 * 120
+
+
+def test_override_minutes_alone_stop_at_the_deadline():
+    result = _calendar(100 * 60, weekday_minutes={index: 0 for index in range(5)}, overrides={date(2026, 10, 13): 60})
+    assert result.end_date == date(2027, 7, 31)
+    assert result.scheduled_minutes == 60
+    assert result.pending_minutes == 99 * 60
+
+
+def test_completed_internship_has_no_pending_minutes():
+    result = _calendar(35 * 60)
+    assert result.is_complete and result.pending_minutes == 0
+    assert result.last_working_date == result.end_date
 
 
 def _period(period_id, start, end, label):
@@ -322,6 +351,34 @@ def test_workbook_extends_to_following_month_for_extra_hours():
     assert f"Detall!$A$2:$A${tail.row + 28}" in end_formula  # 2 Nov + 28 days = 30 Nov.
 
 
+def test_workbook_never_shows_august():
+    """Ending in July leaves no extra month: the grid stops on 31 July and warns about missing hours."""
+
+    result = _calendar(200 * 60, weekday_minutes={index: 120 for index in range(5)}, start=date(2027, 6, 1))
+    workbook = _export(result)
+    grid = workbook["Calendari"]
+    _find(grid, "Total juliol 2027")
+    with pytest.raises(AssertionError):
+        _find(grid, "Total agost 2027")
+    remaining_row = _find(grid, "Hores restants:").row
+    note = grid.cell(row=remaining_row + 2, column=1).value
+    assert note.startswith(f"=IF($D${remaining_row}>0,")
+    assert "31/07/2027" in note and "nou conveni" in note
+    detail = workbook["Detall"]
+    assert detail.cell(row=detail.max_row - 3, column=1).value.date() == date(2027, 7, 31)
+
+    # Ending in June still gets July as the extra month, and the grid stops there.
+    june = _export(_calendar(14 * 60, start=date(2027, 6, 7)))["Calendari"]
+    _find(june, "Total juliol 2027")
+    with pytest.raises(AssertionError):
+        _find(june, "Total agost 2027")
+
+    # Far from the deadline there is no deadline note.
+    early = _export(_calendar(14 * 60))["Calendari"]
+    early_remaining = _find(early, "Hores restants:").row
+    assert early.cell(row=early_remaining + 2, column=1).value is None
+
+
 def test_workbook_summary_instructions_and_print_area():
     workbook = _export(
         _calendar(14 * 60), metadata={"school_tutor": "Joan Tutor", "school_tutor_email": "tutor@example.com"}
@@ -439,6 +496,22 @@ def test_calcul_endpoint_reports_validation_errors_in_catalan(client):
     assert response.json() == {"ok": False, "error": "Introdueix una data en format D/M/AA o D/M/AAAA."}
     response = test_client.post("/practiques/calcul", content=b"not json", headers={"Content-Type": "application/json"})
     assert response.json()["error"] == "Dades de càlcul no vàlides."
+
+
+def test_calcul_reports_hours_that_do_not_fit_before_august(client):
+    test_client, _ = client
+    response = test_client.post(
+        "/practiques/calcul", json=_payload(start_date="01/07/2027", target_hours="350", weekday_minutes={"0": 420})
+    )
+    data = response.json()
+    assert data["complete"] is False
+    assert data["end_date"] == "2027-07-31"
+    assert data["deadline_display"] == "31/07/2027"
+    assert data["last_working_display"] == "26/07/2027"  # Last Monday of July.
+    assert data["pending_display"] == "322 h"  # Four Mondays of 7 h (28 h) fit.
+    assert test_client.post("/practiques/calcul", json=_payload()).json()["complete"] is True
+    august = test_client.post("/practiques/calcul", json=_payload(start_date="03/08/2027"))
+    assert august.status_code == 400 and "agost" in august.json()["error"]
 
 
 def test_calcul_warns_when_running_past_configured_years(client):
