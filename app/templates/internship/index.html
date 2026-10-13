@@ -182,7 +182,7 @@
         <span class="internship-stat-value" id="summary-days"></span>
       </div>
       <div class="internship-stat">
-        <span class="internship-stat-label">Dies modificats</span>
+        <span class="internship-stat-label">Dies amb hores canviades</span>
         <span class="internship-stat-value"><span id="summary-overrides"></span> <button type="button" class="link-button" id="clear-overrides" hidden>Restableix</button></span>
       </div>
     </div>
@@ -191,9 +191,14 @@
       <li><span class="legend-swatch day-working"></span>Laborable</li>
       <li><span class="legend-swatch day-holiday"></span>Festiu / no lectiu</li>
       <li><span class="legend-swatch day-weekend"></span>Sense horari</li>
-      <li><span class="legend-swatch day-override"></span>Dia modificat</li>
+      <li><span class="legend-swatch day-override"></span>Hores canviades a mà</li>
       <li><span class="legend-swatch day-end"></span>Darrer dia</li>
     </ul>
+    <p class="calendar-edit-hint">
+      <span class="calendar-edit-icon" aria-hidden="true">✎</span>
+      <span><strong>Pots canviar les hores de qualsevol dia:</strong> fes-hi clic i tria'n les hores (també 0 o hores en un festiu o cap de setmana).
+      Si treus hores, la data de fi s'endarrereix i el calendari afegeix sol els mesos que calguin.</span>
+    </p>
     <div class="month-grid" id="month-grid"></div>
     <form method="post" action="/practiques/export" class="export-actions" id="export-form">
       <input type="hidden" name="payload" id="export-payload" />
@@ -232,7 +237,7 @@
   const STORAGE_KEY = "tempo.internship.v1";
   const MONTH_NAMES = ["Gener", "Febrer", "Març", "Abril", "Maig", "Juny", "Juliol", "Agost", "Setembre", "Octubre", "Novembre", "Desembre"];
   const WEEKDAY_SHORT = ["dl.", "dt.", "dc.", "dj.", "dv.", "ds.", "dg."];
-  const KIND_LABELS = { working: "Laborable", holiday: "Festiu / no lectiu", weekend: "Sense horari", override: "Dia modificat" };
+  const KIND_LABELS = { working: "Laborable", holiday: "Festiu / no lectiu", weekend: "Sense horari", override: "Hores canviades a mà" };
   const serverState = {{ state|tojson }};
   const hasServerError = {{ 'true' if error else 'false' }};
 
@@ -722,8 +727,8 @@
           if (day.label) parts.push(day.label);
           parts.push(day.minutes ? formatMinutes(day.minutes) : "sense hores");
           if (day.partial) parts.push("darrer dia parcial");
-          cell.title = parts.join(" · ");
-          cell.setAttribute("aria-label", cell.title);
+          cell.setAttribute("aria-label", `${parts.join(" · ")}. Fes clic per canviar les hores.`);
+          cell.title = `${parts.join(" · ")}\nFes clic per canviar les hores.`;
           cell.dataset.date = iso;
           cell.addEventListener("click", () => openEditor(day));
         }

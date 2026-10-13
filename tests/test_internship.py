@@ -242,7 +242,7 @@ def test_workbook_structure_and_formulas():
     assert holiday_cell.comment.text.startswith("Festa local")
     saturday = _find_day(grid, date(2026, 10, 17))
     assert grid.cell(row=saturday.row + 1, column=saturday.column).value == timedelta(hours=2, minutes=30)
-    assert "Dia modificat" in saturday.comment.text
+    assert "Hores canviades a mà" in saturday.comment.text
     # Days without a schedule are grey; the rest are coloured by conditional formatting.
     sunday = _find_day(grid, date(2026, 10, 18))
     assert grid.cell(row=sunday.row + 1, column=sunday.column).value is None
@@ -391,6 +391,7 @@ def test_page_renders_with_nav_and_school_periods(client):
     assert "Planificador d&#39;hores de pràctiques" in response.text
     assert "Correu del tutor/a del centre" not in response.text
     assert "Tutor/a del centre" not in response.text
+    assert "Pots canviar les hores de qualsevol dia" in response.text
     home = test_client.get("/")
     assert 'href="/" class="site-nav-link" aria-current="page"' in home.text
     assert "Planificador curricular" in home.text

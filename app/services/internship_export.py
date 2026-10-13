@@ -50,7 +50,7 @@ KIND_LABELS = {
     DAY_KIND_WORKING: "Laborable",
     DAY_KIND_HOLIDAY: "Festiu / no lectiu",
     DAY_KIND_WEEKEND: "Sense horari (cap de setmana)",
-    DAY_KIND_OVERRIDE: "Dia modificat",
+    DAY_KIND_OVERRIDE: "Hores canviades a mà",
 }
 # The grid itself only distinguishes days with hours (green), days without
 # practice time (0 shown as "-", red) and days without a schedule (grey, blank).
@@ -375,7 +375,7 @@ def build_internship_workbook(
                 if label:
                     notes.append(label)
                 if day is not None and day.kind == DAY_KIND_OVERRIDE:
-                    notes.append(f"Dia modificat (horari habitual: {format_minutes_label(day.default_minutes)})")
+                    notes.append(f"Hores canviades a mà (horari habitual: {format_minutes_label(day.default_minutes)})")
                 if notes:
                     date_cell.comment = Comment("\n".join(notes), "Tempo")
                 if current == result.end_date:
