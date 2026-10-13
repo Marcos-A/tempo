@@ -5,8 +5,24 @@
 </p>
 
 <p align="center">
-  <strong>Planificador curricular compacte per distribuir hores lectives, excloure dies no lectius i exportar la planificació final en XLSX.</strong>
+  <strong>Planificador curricular compacte per distribuir hores lectives i exportar la planificació en XLSX, amb un planificador d'hores de pràctiques per calcular el calendari de pràctiques dels estudiants.</strong>
 </p>
+
+## Índex
+
+- [Què permet fer](#què-permet-fer)
+- [Planificador curricular](#planificador-curricular): reparteix les hores d'un mòdul entre els seus RAs
+- [Planificador d'hores de pràctiques](#planificador-dhores-de-pràctiques): calcula quan acaben les pràctiques d'un estudiant
+- [Actius visuals](#actius-visuals)
+- [Stack](#stack)
+- [Posada en marxa local](#posada-en-marxa-local)
+- [Desplegament tipus producció](#desplegament-tipus-producció)
+- [Flux de l'aplicació](#flux-de-laplicació)
+- [Variables d'entorn principals](#variables-dentorn-principals)
+- [Proves](#proves)
+- [Estructura del projecte](#estructura-del-projecte)
+- [Recursos de marca i disseny](#recursos-de-marca-i-disseny)
+- [Llicència](#llicència)
 
 ## Tempo
 
@@ -18,14 +34,24 @@ Aquest projecte s'ha desenvolupat amb direcció i revisió humanes, amb suport d
 
 ## Què permet fer
 
+Tempo té dues eines, accessibles des de la capçalera de l'aplicació.
+
+**[Planificador curricular](#planificador-curricular)** (`/`)
+
 - definir el calendari lectiu d'un mòdul a partir de dies reals de classe
 - excloure períodes no lectius i dates bloquejades des de l'àrea d'administració
 - repartir Resultats d'Aprenentatge en seqüència o en blocs paral·lels
 - revisar la distribució abans de generar el fitxer final
 - exportar la planificació en un llibre XLSX preparat per a revisió manual
-- calcular el calendari de pràctiques d'un estudiant (data de fi, dies sense pràctiques i ajustos per dia) i exportar-lo en un XLSX editable que es recalcula sol
 
-## Flux visual
+**[Planificador d'hores de pràctiques](#planificador-dhores-de-pràctiques)** (`/practiques`)
+
+- calcular la data de fi de les pràctiques d'un estudiant a partir de la data d'inici, les hores totals i l'horari setmanal
+- descomptar els dies sense pràctiques del calendari del centre i afegir-ne d'altres
+- ajustar les hores de qualsevol dia directament al calendari
+- exportar-lo en un XLSX editable que es recalcula sol
+
+## Planificador curricular
 
 Tempo concentra el flux habitual en dues decisions i un resultat exportable. Les captures següents expliquen aquest recorregut amb el mode seqüencial, que és el cas més habitual.
 
@@ -59,17 +85,27 @@ Al segon pas, els RAs es poden repartir, reordenar i validar dins de cada bloc a
 
 La pàgina d'entrada també està disponible a [docs/screenshots/tempo-step-1-landing_page.png](docs/screenshots/tempo-step-1-landing_page.png). Les captures restants, inclosa una segona vista del llibre exportat, es conserven a [docs/screenshots/](docs/screenshots/) per a documentació més detallada.
 
-## Calendari de pràctiques
+## Planificador d'hores de pràctiques
 
 La secció `/practiques` és independent de la planificació de mòduls i calcula quan acaba el període de pràctiques d'un estudiant.
 
-### A l'aplicació
+### 1. Configura les pràctiques
 
-- **Entrades:** data d'inici, hores totals (amb minuts), hores de cada dia de la setmana i, opcionalment, les dades de l'estudiant i de l'empresa que apareixen a la capçalera del full exportat.
-- **Dies sense pràctiques:** els períodes del calendari del centre surten marcats i es poden desmarcar si no afecten l'empresa (p. ex. pràctiques durant les vacances escolars). També s'hi poden afegir altres dies, com festius locals de l'empresa o festius posteriors a les classes.
-- **Calendari en directe:** mostra la data de fi, les hores planificades i els dies amb pràctiques. El darrer dia només rep les hores que falten.
-- **Ajustos per dia:** en fer clic a qualsevol dia se'n poden canviar les hores, fins i tot posar-hi 0 o afegir-ne en un festiu o cap de setmana. Si es treuen hores, la data de fi s'endarrereix i el calendari afegeix sol els mesos necessaris.
-- El formulari es conserva al navegador entre visites.
+Indica la data d'inici, les hores totals (amb minuts) i les hores de cada dia de la setmana. Opcionalment, afegeix les dades de l'estudiant i de l'empresa, que apareixen a la capçalera del full exportat. El formulari es conserva al navegador entre visites.
+
+![Formulari del planificador d'hores de pràctiques](docs/screenshots/tempo-practiques-step-1-formulari.png)
+
+### 2. Revisa els dies sense pràctiques i el calendari
+
+Els períodes del calendari del centre surten marcats i es poden desmarcar si no afecten l'empresa (p. ex. pràctiques durant les vacances escolars). També s'hi poden afegir altres dies, com festius locals de l'empresa o festius posteriors a les classes. El calendari es recalcula en directe i mostra la data de fi, les hores planificades i els dies amb pràctiques; el darrer dia només rep les hores que falten.
+
+![Dies sense pràctiques i calendari resultant amb la data de fi](docs/screenshots/tempo-practiques-step-2-calendari.png)
+
+### 3. Ajusta les hores d'un dia
+
+En fer clic a qualsevol dia se'n poden canviar les hores, fins i tot posar-hi 0 o afegir-ne en un festiu o cap de setmana. Si es treuen hores, la data de fi s'endarrereix i el calendari afegeix sol els mesos necessaris.
+
+![Editor de les hores d'un dia concret](docs/screenshots/tempo-practiques-step-3-editor-dia.png)
 
 ### Full XLSX exportat
 
@@ -149,7 +185,7 @@ bash scripts/deploy_preview.sh
 - `/` mostra el formulari inicial de configuració del mòdul
 - `/plan` permet ordenar, repartir i validar els RAs abans d'exportar
 - l'exportació final es fa cap a un llibre XLSX
-- `/practiques` calcula el calendari de pràctiques a partir de la data d'inici, les hores totals i l'horari setmanal (amb minuts), reutilitza els períodes no lectius configurats, permet ajustar les hores de qualsevol dia i exporta un XLSX editable (vegeu [Calendari de pràctiques](#calendari-de-pràctiques))
+- `/practiques` calcula el calendari de pràctiques a partir de la data d'inici, les hores totals i l'horari setmanal (amb minuts), reutilitza els períodes no lectius configurats, permet ajustar les hores de qualsevol dia i exporta un XLSX editable (vegeu [Planificador d'hores de pràctiques](#planificador-dhores-de-pràctiques))
 
 ### Administració
 

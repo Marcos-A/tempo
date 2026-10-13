@@ -5,8 +5,24 @@
 </p>
 
 <p align="center">
-  <strong>Compact curriculum planner for distributing teaching hours, excluding no-class dates, and exporting the final plan as XLSX.</strong>
+  <strong>Compact curriculum planner for distributing teaching hours and exporting the plan as XLSX, with an internship hours planner for working out students' internship calendars.</strong>
 </p>
+
+## Contents
+
+- [What It Does](#what-it-does)
+- [Curriculum Planner](#curriculum-planner): distribute a module's hours across its learning outcomes
+- [Internship Hours Planner](#internship-hours-planner): work out when a student's internship ends
+- [Visual Assets](#visual-assets)
+- [Stack](#stack)
+- [Local Development](#local-development)
+- [Production-Style Deployment](#production-style-deployment)
+- [Application Flow](#application-flow)
+- [Main Environment Variables](#main-environment-variables)
+- [Tests](#tests)
+- [Project Structure](#project-structure)
+- [Brand And Design Resources](#brand-and-design-resources)
+- [License](#license)
 
 ## Tempo
 
@@ -18,14 +34,24 @@ This project was developed with human direction and review, with AI assistance u
 
 ## What It Does
 
+Tempo has two tools, both reachable from the app header.
+
+**[Curriculum Planner](#curriculum-planner)** (`/`)
+
 - defines a teaching calendar from real class days
 - excludes no-class periods and blocked dates from the admin area
 - distributes learning outcomes sequentially or in parallel blocks
 - lets teachers review the distribution before export
 - exports the final planning workbook as XLSX for manual review
-- builds a student's internship calendar (end date, days without internship and per-day adjustments) and exports it as an editable XLSX that recalculates itself
 
-## Visual Walkthrough
+**[Internship Hours Planner](#internship-hours-planner)** (`/practiques`)
+
+- works out a student's internship end date from a start date, total hours and a weekly schedule
+- skips the school calendar's days without internship and lets users add others
+- lets users adjust any day's hours directly on the calendar
+- exports it as an editable XLSX that recalculates itself
+
+## Curriculum Planner
 
 Tempo keeps the usual journey to two decisions and one exportable result. The screenshots below follow the sequential mode, which is the most common path.
 
@@ -59,17 +85,27 @@ In the second step, learning outcomes can be assigned, reordered, and validated 
 
 The entry screen is also available at [docs/screenshots/tempo-step-1-landing_page.png](docs/screenshots/tempo-step-1-landing_page.png). The remaining screenshots, including a second view of the exported workbook, live in [docs/screenshots/](docs/screenshots/) for more detailed documentation.
 
-## Internship Calendar
+## Internship Hours Planner
 
 The `/practiques` section is independent from module planning and works out when a student's internship ends.
 
-### In The App
+### 1. Set Up The Internship
 
-- **Inputs:** start date, total hours (minutes supported), hours for each weekday and, optionally, the student and company details shown in the exported sheet header.
-- **Days without internship:** the school calendar's periods are pre-selected and can be unticked when they do not affect the company (e.g. an internship that runs through school holidays). Other days can be added too, such as the company's local holidays or holidays after classes end.
-- **Live calendar:** shows the end date, planned hours and internship days. The last day only receives the hours still needed.
-- **Per-day adjustments:** clicking any day changes its hours, including setting it to 0 or adding hours on a holiday or weekend. Removing hours moves the end date later, and the calendar adds the months it needs on its own.
-- The form is kept in the browser between visits.
+Enter the start date, total hours (minutes supported) and the hours for each weekday. Optionally, add the student and company details shown in the exported sheet header. The form is kept in the browser between visits.
+
+![Internship hours planner form](docs/screenshots/tempo-practiques-step-1-formulari.png)
+
+### 2. Review Days Without Internship And The Calendar
+
+The school calendar's periods are pre-selected and can be unticked when they do not affect the company (e.g. an internship that runs through school holidays). Other days can be added too, such as the company's local holidays or holidays after classes end. The calendar recalculates live and shows the end date, planned hours and internship days; the last day only receives the hours still needed.
+
+![Days without internship and the resulting calendar with its end date](docs/screenshots/tempo-practiques-step-2-calendari.png)
+
+### 3. Adjust A Day's Hours
+
+Clicking any day changes its hours, including setting it to 0 or adding hours on a holiday or weekend. Removing hours moves the end date later, and the calendar adds the months it needs on its own.
+
+![Editor for a single day's hours](docs/screenshots/tempo-practiques-step-3-editor-dia.png)
 
 ### Exported XLSX
 
@@ -149,7 +185,7 @@ bash scripts/deploy_preview.sh
 - `/` shows the initial module configuration form
 - `/plan` lets users sort, distribute, and validate learning outcomes before export
 - the final export is generated as an XLSX workbook
-- `/practiques` computes an internship calendar from a start date, total hours and a weekly schedule (minutes supported), reuses the configured non-teaching periods, lets users adjust any day's hours and exports an editable XLSX (see [Internship Calendar](#internship-calendar))
+- `/practiques` computes an internship calendar from a start date, total hours and a weekly schedule (minutes supported), reuses the configured non-teaching periods, lets users adjust any day's hours and exports an editable XLSX (see [Internship Hours Planner](#internship-hours-planner))
 
 ### Admin Flow
 

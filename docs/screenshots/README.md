@@ -8,7 +8,7 @@ Keep README visuals separated from product assets so branding files, UI screensh
 
 ## Current Set
 
-The files in this folder document the public teacher workflow. The README deliberately uses four of them: the usual sequential path and one example of the advanced parallel mode.
+The files in this folder document the two public tools. For the curriculum planner, the README deliberately uses the usual sequential path and one example of the advanced parallel mode; for the internship hours planner, it uses the three `tempo-practiques-*` captures.
 
 | File | Workflow point | README use |
 | --- | --- | --- |
@@ -19,12 +19,15 @@ The files in this folder document the public teacher workflow. The README delibe
 | `tempo-step-1-parallel.png` | Step 1: configure two parallel blocks | Supporting advanced-mode example |
 | `tempo-step-2-parallel.png` | Step 2: distribute RAs across parallel blocks | Supporting advanced-mode example |
 | `tempo-step-3-spreadsheet_2.png` | Result: secondary workbook view | Kept for detailed documentation |
+| `tempo-practiques-step-1-formulari.png` | Internship planner: start date, total hours and weekly schedule | Internship walkthrough |
+| `tempo-practiques-step-2-calendari.png` | Internship planner: days without internship and the resulting calendar | Internship walkthrough |
+| `tempo-practiques-step-3-editor-dia.png` | Internship planner: editing a single day's hours | Internship walkthrough |
 
 `step-3` describes the exported result, not a third screen in the application: the teacher interface itself has two steps.
 
 ## Naming
 
-The current names are stable and intentionally group assets by workflow state. For future captures, keep the `tempo-step-<number>-<description>.png` pattern and use the existing spelling (`sequencial`) for continuity.
+The current names are stable and intentionally group assets by workflow state. For future captures, keep the `tempo-step-<number>-<description>.png` pattern (prefixed with the tool, e.g. `tempo-practiques-step-<number>-<description>.png`, for the internship planner) and use the existing spelling (`sequencial`) for continuity.
 
 ## Format Guidelines
 
