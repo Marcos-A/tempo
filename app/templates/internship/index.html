@@ -168,7 +168,7 @@
 <section class="card" id="internship-result" aria-live="polite">
   <div class="section-heading">
     <h2>Calendari resultant</h2>
-    <button type="button" class="link-button" id="reset-all">Comença de nou</button>
+    <button type="button" class="link-button" id="reset-all" hidden>Comença de nou</button>
   </div>
   <p class="hint" id="result-placeholder">Indica la data d'inici, el total d'hores i l'horari setmanal per veure el calendari.</p>
   <p class="error" id="result-error" hidden></p>
@@ -509,6 +509,8 @@
   function changed({ immediate = false } = {}) {
     // Any edit means the user has taken over the restored data.
     if (initialised) hideRestoreNotice();
+    // Starting again only makes sense when there is something to clear.
+    $("reset-all").hidden = !hasMeaningfulData();
     saveState();
     window.clearTimeout(debounceTimer);
     debounceTimer = window.setTimeout(recalculate, immediate ? 0 : 300);
