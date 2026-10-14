@@ -26,6 +26,7 @@ from app.services.academic_years import get_active_academic_year
 from app.services.calendar import ScheduleDay, build_schedule, expand_excluded_periods, total_available_hours
 from app.services.export import build_workbook
 from app.services.hours import BLOCK_MINUTE_CHOICES, MINUTES_PER_HOUR, format_minutes_label, minutes_to_hour_number, parse_hour_minute_pair
+from app.services.usage import MODULES_EXPORT, MODULES_PLAN, MODULES_VIEW, record_usage
 
 
 router = APIRouter(tags=["teacher"])
@@ -303,6 +304,7 @@ def index(request: Request, db: Session = Depends(get_db)):
         "planning_mode": "sequential",
     }
     notice = STRAY_ENTRY_NOTICE if request.query_params.get("notice") == "start-here" else None
+    record_usage(db, request, MODULES_VIEW)
     return templates.TemplateResponse(
         request,
         "teacher/index.html",
@@ -418,6 +420,7 @@ async def prepare_plan(request: Request, db: Session = Depends(get_db)):
     for block in plan_payload["blocks"]:
         block["available_minutes"] = block_available_minutes.get(block["key"], 0)
         block["available_hours_display"] = format_minutes_label(block["available_minutes"])
+    record_usage(db, request, MODULES_PLAN)
     return templates.TemplateResponse(
         request,
         "teacher/distribution.html",
@@ -430,7 +433,7 @@ async def prepare_plan(request: Request, db: Session = Depends(get_db)):
 
 
 @router.post("/export")
-async def export_plan(request: Request):
+async def export_plan(request: Request, db: Session = Depends(get_db)):
     """Validate the final RA distribution and stream the XLSX workbook."""
 
     form = await request.form()
@@ -556,6 +559,7 @@ async def export_plan(request: Request):
     subject_code = (plan_data.get('subject_code') or '').strip()
     filename_stem = f"{group_name}-{subject_code}-temporitzacio" if group_name and subject_code else "temporitzacio"
     filename = f"{filename_stem}.xlsx"
+    record_usage(db, request, MODULES_EXPORT)
     return StreamingResponse(
         workbook,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",

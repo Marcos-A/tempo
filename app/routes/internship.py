@@ -27,6 +27,7 @@ from app.services.calendar import daterange
 from app.services.hours import BLOCK_MINUTE_CHOICES, MINUTES_PER_HOUR, format_minutes_label
 from app.services.internship import MAX_DAILY_HOURS, InternshipCalendar, InternshipSchedule, build_internship_calendar
 from app.services.internship_export import METADATA_FIELDS, build_internship_workbook, calendar_grid_end
+from app.services.usage import INTERNSHIP_EXPORT, INTERNSHIP_VIEW, record_usage
 
 
 router = APIRouter(prefix="/practiques", tags=["internship"])
@@ -305,6 +306,7 @@ def _render_page(request: Request, db: Session, *, state: dict | None = None, er
 def internship_page(request: Request, db: Session = Depends(get_db)):
     """Render the internship calendar planner."""
 
+    record_usage(db, request, INTERNSHIP_VIEW)
     return _render_page(request, db)
 
 
@@ -351,6 +353,7 @@ async def export_internship(request: Request, db: Session = Depends(get_db)):
         non_working_dates=non_working_dates,
         labels_by_date=labels_by_date,
     )
+    record_usage(db, request, INTERNSHIP_EXPORT)
     return StreamingResponse(
         workbook,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",

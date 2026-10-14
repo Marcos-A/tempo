@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="page-header">
+  <div>
+    <h1>Ús de l'aplicació</h1>
+    <p>Recompte anònim per dia: no es desen adreces IP, galetes ni dades de navegador. Les visites automàtiques (robots, monitors) no compten.</p>
+  </div>
+  <a class="button-link secondary" href="/admin">&larr; Torna al curs actiu</a>
+</section>
+
+<section class="card">
+  <div class="section-heading">
+    <div>
+      <h2>Resum</h2>
+      <p class="inline-note">
+        {% if usage.tracking_since %}Dades des del {{ usage.tracking_since|date_display }}.{% else %}Encara no s'ha registrat cap visita.{% endif %}
+        Una visita és cada càrrega de la pàgina inicial de l'eina.
+      </p>
+    </div>
+  </div>
+  <div class="year-table-shell">
+    <table class="year-table">
+      <thead>
+        <tr>
+          <th>Eina</th>
+          <th></th>
+          <th>Últims 7 dies</th>
+          <th>Últims 30 dies</th>
+          <th>Total</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for section_label, events in usage.sections %}
+        {% for event, event_label in events %}
+        <tr>
+          <td>{% if loop.first %}<strong>{{ section_label }}</strong>{% endif %}</td>
+          <td class="year-table-meta">{{ event_label }}</td>
+          <td>{{ usage.totals[event].last_7 }}</td>
+          <td>{{ usage.totals[event].last_30 }}</td>
+          <td>{{ usage.totals[event].all }}</td>
+        </tr>
+        {% endfor %}
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section class="card">
+  <div class="section-heading">
+    <div>
+      <h2>Per setmanes</h2>
+      <p class="inline-note">Les últimes {{ usage.weekly|length }} setmanes, començant en dilluns.</p>
+    </div>
+  </div>
+  <div class="year-table-shell">
+    <table class="year-table">
+      <thead>
+        <tr>
+          <th rowspan="2">Setmana</th>
+          {% for section_label, events in usage.sections %}
+          <th colspan="{{ events|length }}">{{ section_label }}</th>
+          {% endfor %}
+        </tr>
+        <tr>
+          {% for _, events in usage.sections %}
+          {% for _, event_label in events %}
+          <th>{{ event_label }}</th>
+          {% endfor %}
+          {% endfor %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for week in usage.weekly %}
+        <tr>
+          <td class="year-table-dates">{{ week.week_start|date_display }}</td>
+          {% for _, events in usage.sections %}
+          {% for event, _ in events %}
+          <td>{{ week.counts[event] }}</td>
+          {% endfor %}
+          {% endfor %}
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endblock %}

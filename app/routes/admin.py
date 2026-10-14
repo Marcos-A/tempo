@@ -19,6 +19,7 @@ from app.models import AcademicWeekNumber, AcademicYear, AdminUser, ExcludedPeri
 from app.services.academic_weeks import is_vacation_week, iter_week_starts, suggest_week_numbers, week_start
 from app.services.academic_years import activate_academic_year, find_overlapping_year, get_active_academic_year, list_academic_years, suggest_year_label
 from app.services.calendar import expand_excluded_periods
+from app.services.usage import usage_summary
 
 
 router = APIRouter(prefix="/admin", tags=["admin"])
@@ -214,6 +215,13 @@ def years_index(request: Request, db: Session = Depends(get_db), _: AdminUser = 
     """Show the compact index used to access less-frequent year management."""
 
     return _render_years_index(request, db)
+
+
+@router.get("/usage")
+def usage_page(request: Request, db: Session = Depends(get_db), _: AdminUser = Depends(require_admin)):
+    """Show anonymous visit and export counts for each public tool."""
+
+    return templates.TemplateResponse(request, "admin/usage.html", {"usage": usage_summary(db)})
 
 
 @router.post("/years")

@@ -2,7 +2,7 @@
 
 from datetime import date, datetime
 
-from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Integer, String
+from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Integer, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
@@ -56,3 +56,15 @@ class AcademicWeekNumber(Base):
     academic_year_id: Mapped[int | None] = mapped_column(ForeignKey("academic_years.id"), index=True, nullable=True)
     week_start_date: Mapped[date] = mapped_column(Date, unique=True, index=True)
     number: Mapped[int] = mapped_column(Integer)
+
+
+class UsageDailyCount(Base):
+    """Anonymous per-day counter for one public action (page view, plan, export)."""
+
+    __tablename__ = "usage_daily_counts"
+    __table_args__ = (UniqueConstraint("day", "event", name="uq_usage_daily_counts_day_event"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    day: Mapped[date] = mapped_column(Date, index=True)
+    event: Mapped[str] = mapped_column(String(50))
+    count: Mapped[int] = mapped_column(Integer, default=0)
