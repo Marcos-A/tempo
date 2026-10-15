@@ -138,7 +138,7 @@ def _next_month_start(current: date) -> date:
     return (current.replace(day=28) + timedelta(days=4)).replace(day=1)
 
 
-def _month_starts(start: date, end: date) -> list[date]:
+def month_starts(start: date, end: date) -> list[date]:
     months: list[date] = []
     current = start.replace(day=1)
     while current <= end:
@@ -222,7 +222,7 @@ def _add_hours_validation(sheet, cells: list[str]) -> None:
         validation.add(cell)
 
 
-def _schedule_sections(result: InternshipCalendar, schedule: InternshipSchedule) -> list[tuple[str, dict[int, int]]]:
+def schedule_sections(result: InternshipCalendar, schedule: InternshipSchedule) -> list[tuple[str, dict[int, int]]]:
     """Title each weekly schedule with the dates it covers; a single schedule needs no title."""
 
     if not schedule.changes:
@@ -359,7 +359,7 @@ def build_internship_workbook(
     date_ranges: list[str] = []
     hour_ranges: list[str] = []
 
-    for month_start in _month_starts(result.start_date, grid_end):
+    for month_start in month_starts(result.start_date, grid_end):
         grid.merge_cells(start_row=row, start_column=1, end_row=row, end_column=GRID_COLUMNS)
         month_cell = grid.cell(row=row, column=1, value=format_month_label(month_start))
         month_cell.font = Font(bold=True, color="FFFFFF")
@@ -551,7 +551,7 @@ def build_internship_workbook(
     # Configuration sheet: what produced this calendar.
     config.append(["Horari setmanal"])
     config["A1"].font = Font(bold=True)
-    for title, weekday_minutes in _schedule_sections(result, schedule):
+    for title, weekday_minutes in schedule_sections(result, schedule):
         if title:
             config.append([title])
             config.cell(row=config.max_row, column=1).font = Font(italic=True, color="607165")

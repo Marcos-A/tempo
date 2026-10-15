@@ -1,9 +1,9 @@
 """Routes for the internship calendar planner.
 
-The page recalculates live through `/practiques/calcul` (JSON) and downloads
-the workbook through `/practiques/export`. Both endpoints receive the same
-JSON payload and run the same validation, so the exported file always
-matches the preview.
+The page recalculates live through `/practiques/calcul` (JSON), downloads
+the workbook through `/practiques/export` and a read-only HTML copy through
+`/practiques/export-html`. All three receive the same JSON payload and run
+the same validation, so the exported files always match the preview.
 """
 
 from __future__ import annotations
@@ -25,9 +25,17 @@ from app.routes.teacher import templates
 from app.services.academic_years import get_active_academic_year
 from app.services.calendar import daterange
 from app.services.hours import BLOCK_MINUTE_CHOICES, MINUTES_PER_HOUR, format_minutes_label
-from app.services.internship import MAX_DAILY_HOURS, InternshipCalendar, InternshipSchedule, build_internship_calendar
-from app.services.internship_export import METADATA_FIELDS, build_internship_workbook, calendar_grid_end
-from app.services.usage import INTERNSHIP_EXPORT, INTERNSHIP_VIEW, record_usage
+from app.services.internship import DAY_KIND_OVERRIDE, MAX_DAILY_HOURS, InternshipCalendar, InternshipSchedule, build_internship_calendar
+from app.services.internship_export import METADATA_FIELDS, build_internship_workbook, calendar_grid_end, schedule_sections
+from app.services.internship_html import (
+    CALENDAR_KIND_LABELS,
+    WEEKDAY_SHORT,
+    build_month_views,
+    has_schedule_starts,
+    inline_logo,
+    inline_stylesheet,
+)
+from app.services.usage import INTERNSHIP_EXPORT, INTERNSHIP_EXPORT_HTML, INTERNSHIP_VIEW, record_usage
 
 
 router = APIRouter(prefix="/practiques", tags=["internship"])
@@ -39,6 +47,25 @@ WEEKDAY_LABELS = ("Dilluns", "Dimarts", "Dimecres", "Dijous", "Divendres")
 MAX_LABEL_LENGTH = 120
 MAX_METADATA_LENGTH = 200
 METADATA_KEYS = tuple(key for key, _ in METADATA_FIELDS)
+# Header columns of the HTML export: student, company, company tutor. The
+# dates follow as a last column; empty fields and columns are left out.
+DETAIL_COLUMNS = (
+    ("student_name", "training_cycle", "group_name"),
+    ("company_name",),
+    ("company_tutor", "company_tutor_email"),
+)
+# Inputs embedded in the HTML export so it could be loaded back into the planner.
+PLAN_KEYS = (
+    "start_date",
+    "target_hours",
+    "target_minutes",
+    "weekday_minutes",
+    "schedule_changes",
+    "excluded_period_ids",
+    "extra_periods",
+    "overrides",
+    "metadata",
+)
 
 
 def _parse_minutes(value: object, *, max_hours: int, field_label: str) -> int:
@@ -171,10 +198,14 @@ class InternshipRequest:
             labels,
         )
 
-    def applied_periods(self, result: InternshipCalendar) -> list[dict[str, str]]:
-        """Describe the periods that overlap the exported calendar, which runs past the end date."""
+    def applied_periods(self, result: InternshipCalendar, until: date | None = None) -> list[dict[str, str]]:
+        """Describe the periods that overlap the exported calendar.
 
-        grid_end = calendar_grid_end(result)
+        The workbook's grid runs past the end date (the default); the HTML
+        copy passes the end date itself because it shows no further days.
+        """
+
+        grid_end = until or calendar_grid_end(result)
         applied: list[dict[str, str]] = []
         for period in self.school_periods:
             if period.end_date >= result.start_date and period.start_date <= grid_end:
@@ -250,12 +281,12 @@ def _serialize_result(result: InternshipCalendar, warning: str | None) -> dict[s
     }
 
 
-def _export_filename(metadata: dict[str, str]) -> str:
+def _export_filename(metadata: dict[str, str], extension: str = "xlsx") -> str:
     """Build an ASCII-safe filename, adding the student's name when present."""
 
     student = unicodedata.normalize("NFKD", metadata.get("student_name", "")).encode("ascii", "ignore").decode()
     slug = re.sub(r"[^A-Za-z0-9]+", "-", student).strip("-").lower()
-    return f"calendari-practiques-{slug}.xlsx" if slug else "calendari-practiques.xlsx"
+    return f"calendari-practiques-{slug}.{extension}" if slug else f"calendari-practiques.{extension}"
 
 
 def _render_page(request: Request, db: Session, *, state: dict | None = None, error: str | None = None, status_code: int = 200):
@@ -282,6 +313,7 @@ def _render_page(request: Request, db: Session, *, state: dict | None = None, er
             "active_year": active_year,
             "metadata_fields": METADATA_FIELDS,
             "max_daily_hours": MAX_DAILY_HOURS,
+            "calendar_kind_labels": CALENDAR_KIND_LABELS,
             "school_periods": [
                 {
                     "id": period.id,
@@ -330,9 +362,8 @@ async def calculate_internship(request: Request, db: Session = Depends(get_db)):
     return JSONResponse(_serialize_result(result, _coverage_warning(db, result)))
 
 
-@router.post("/export")
-async def export_internship(request: Request, db: Session = Depends(get_db)):
-    """Validate the payload again and stream the XLSX workbook."""
+async def _read_export_form(request: Request, db: Session):
+    """Validate an export form's payload; return (payload, inputs, result) or an error page."""
 
     form = await request.form()
     payload = None
@@ -343,6 +374,17 @@ async def export_internship(request: Request, db: Session = Depends(get_db)):
     except (ValueError, TypeError, AttributeError) as exc:
         state = payload if isinstance(payload, dict) else None
         return _render_page(request, db, state=state, error=_error_message(exc), status_code=status.HTTP_400_BAD_REQUEST)
+    return payload, inputs, result
+
+
+@router.post("/export")
+async def export_internship(request: Request, db: Session = Depends(get_db)):
+    """Validate the payload again and stream the XLSX workbook."""
+
+    parsed = await _read_export_form(request, db)
+    if not isinstance(parsed, tuple):
+        return parsed
+    _, inputs, result = parsed
 
     non_working_dates, labels_by_date = inputs.non_working()
     workbook = build_internship_workbook(
@@ -358,4 +400,55 @@ async def export_internship(request: Request, db: Session = Depends(get_db)):
         workbook,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={"Content-Disposition": f'attachment; filename="{_export_filename(inputs.metadata)}"'},
+    )
+
+
+def _detail_columns(metadata: dict[str, str], result: InternshipCalendar, summary: dict) -> list[list[tuple[str, str]]]:
+    labels = dict(METADATA_FIELDS)
+    columns = [[(labels[key], metadata[key]) for key in keys if metadata.get(key)] for keys in DETAIL_COLUMNS]
+    columns.append([("Data d'inici", format_display_date(result.start_date)), ("Hores totals", summary["target_display"])])
+    return [column for column in columns if column]
+
+
+@router.get("/export-html")
+def redirect_stray_html_export():
+    return RedirectResponse(url="/practiques", status_code=status.HTTP_303_SEE_OTHER)
+
+
+@router.post("/export-html")
+async def export_internship_html(request: Request, db: Session = Depends(get_db)):
+    """Validate the payload again and download a self-contained, read-only HTML copy."""
+
+    parsed = await _read_export_form(request, db)
+    if not isinstance(parsed, tuple):
+        return parsed
+    payload, inputs, result = parsed
+
+    summary = _serialize_result(result, None)
+    record_usage(db, request, INTERNSHIP_EXPORT_HTML)
+    return templates.TemplateResponse(
+        request,
+        "internship/export.html",
+        {
+            "stylesheet": inline_stylesheet(),
+            "logo": inline_logo(),
+            "student_name": inputs.metadata.get("student_name", ""),
+            "detail_columns": _detail_columns(inputs.metadata, result, summary),
+            "summary": summary,
+            "override_count": sum(1 for day in result.days if day.kind == DAY_KIND_OVERRIDE),
+            "calendar_kind_labels": CALENDAR_KIND_LABELS,
+            "show_schedule_start": has_schedule_starts(result),
+            "months": build_month_views(result),
+            "weekday_labels": WEEKDAY_LABELS,
+            "weekday_short": WEEKDAY_SHORT,
+            "schedules": [
+                (title, [format_minutes_label(minutes[index]) if minutes.get(index) else "–" for index in range(5)],
+                 format_minutes_label(sum(minutes.values())))
+                for title, minutes in schedule_sections(result, inputs.schedule)
+            ],
+            "periods": inputs.applied_periods(result, until=result.end_date),
+            "generated_display": format_display_date(date.today()),
+            "plan": {"format": "tempo.internship", "version": 1, "plan": {key: payload.get(key) for key in PLAN_KEYS}},
+        },
+        headers={"Content-Disposition": f'attachment; filename="{_export_filename(inputs.metadata, "html")}"'},
     )

@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+{#
+  Read-only HTML copy of the internship calendar (see app/services/internship_html.py).
+  Keep the month grid in step with `renderResult` in internship/index.html.
+#}
+<html lang="ca">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="generator" content="{{ app_name }}" />
+    <title>Calendari de pràctiques{% if student_name %} · {{ student_name }}{% endif %}</title>
+    <style>{{ stylesheet|safe }}</style>
+  </head>
+  <body class="section-internship internship-snapshot">
+    <header class="site-header">
+      <div class="container">
+        <span class="brand">
+          <img class="brand-mark" src="{{ logo }}" alt="{{ app_name }}" />
+          <span class="brand-tagline">{{ "Planificador d'hores de pràctiques · " ~ school_name if school_name else "Planificador d'hores de pràctiques" }}</span>
+        </span>
+      </div>
+    </header>
+    <main class="container">
+      <section class="card">
+        <h1>Calendari de pràctiques</h1>
+        <p class="snapshot-notice">
+          Còpia de només lectura generada el {{ generated_display }}. Aquest fitxer no es pot modificar:
+          per canviar-hi res, torna a obrir el calendari de pràctiques on l'has creat, fes-hi els canvis i descarrega'l de nou.
+        </p>
+        <div class="snapshot-details">
+          {% for column in detail_columns %}
+          <dl class="snapshot-column">
+            {% for label, value in column %}
+            <div><dt>{{ label }}</dt><dd>{{ value }}</dd></div>
+            {% endfor %}
+          </dl>
+          {% endfor %}
+        </div>
+      </section>
+
+      <section class="card" id="internship-result">
+        <div class="section-heading">
+          <h2>Calendari resultant</h2>
+        </div>
+        <div class="internship-summary">
+          <div class="internship-stat internship-stat-main">
+            <span class="internship-stat-label">{{ "Data de fi" if summary.complete else "Darrer dia de pràctiques" }}</span>
+            <span class="internship-stat-value">{{ summary.end_date_display if summary.complete else (summary.last_working_display or "–") }}</span>
+          </div>
+          <div class="internship-stat">
+            <span class="internship-stat-label">Hores planificades</span>
+            <span class="internship-stat-value">{{ summary.scheduled_display }} / {{ summary.target_display }}</span>
+          </div>
+          <div class="internship-stat">
+            <span class="internship-stat-label">Dies amb pràctiques</span>
+            <span class="internship-stat-value">{{ summary.working_days }}</span>
+          </div>
+          <div class="internship-stat">
+            <span class="internship-stat-label">Dies amb hores canviades</span>
+            <span class="internship-stat-value">{{ override_count }}</span>
+          </div>
+        </div>
+        {% if not summary.complete %}
+        <p class="warning-box warning-box-danger">
+          No hi ha prou dies fins al {{ summary.deadline_display }} per completar les {{ summary.target_display }}: en falten {{ summary.pending_display }}.
+          A l'agost no es poden fer pràctiques, així que caldrà un nou conveni per continuar el curs vinent.
+        </p>
+        {% endif %}
+        {% include "internship/_legend.html" %}
+        <div class="month-grid">
+          {% for month in months %}
+          <section class="month-card">
+            <h3 class="month-title">{{ month.title }}<span class="month-total">{{ month.total }}</span></h3>
+            <div class="month-days">
+              {% for name in weekday_short %}<span class="month-weekday">{{ name }}</span>{% endfor %}
+              {% for _ in range(month.leading_blanks) %}<span class="month-day is-blank"></span>{% endfor %}
+              {% for cell in month.cells %}
+              {% if cell.day %}
+              <span class="month-day {{ cell.classes }}" data-date="{{ cell.day.date.isoformat() }}" title="{{ cell.title }}"><span class="month-day-number">{{ cell.number }}</span><span class="month-day-hours">{{ cell.hours }}</span></span>
+              {% else %}
+              <span class="month-day is-outside"><span class="month-day-number">{{ cell.number }}</span></span>
+              {% endif %}
+              {% endfor %}
+            </div>
+          </section>
+          {% endfor %}
+        </div>
+      </section>
+
+      <section class="card snapshot-config">
+        <h2>Horari setmanal</h2>
+        <div class="snapshot-table-wrap">
+          <table>
+            <thead>
+              <tr>
+                {% if schedules|length > 1 %}<th>Període</th>{% endif %}
+                {% for label in weekday_labels %}<th>{{ label }}</th>{% endfor %}
+                <th>Total setmanal</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for title, day_labels, weekly_total in schedules %}
+              <tr>
+                {% if schedules|length > 1 %}<th scope="row">{{ title }}</th>{% endif %}
+                {% for value in day_labels %}<td>{{ value }}</td>{% endfor %}
+                <td>{{ weekly_total }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+
+        <h2>Dies sense pràctiques</h2>
+        {% if periods %}
+        <ul class="period-list">
+          {% for period in periods %}
+          <li>
+            <span class="period-dates">{{ period.start if period.start == period.end else period.start ~ " – " ~ period.end }}</span>
+            {% if period.label %}<span class="period-label">{{ period.label }}</span>{% endif %}
+            <span class="hint">{{ period.source }}</span>
+          </li>
+          {% endfor %}
+        </ul>
+        {% else %}
+        <p class="hint">Cap dia sense pràctiques afecta aquest calendari.</p>
+        {% endif %}
+      </section>
+    </main>
+    {# Inert data, never run: the inputs this calendar was made from, for a future import into the planner. #}
+    <script type="application/json" id="tempo-internship-plan">{{ plan|tojson }}</script>
+  </body>
+</html>

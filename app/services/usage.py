@@ -22,11 +22,15 @@ MODULES_PLAN = "modules.plan"
 MODULES_EXPORT = "modules.export"
 INTERNSHIP_VIEW = "internship.view"
 INTERNSHIP_EXPORT = "internship.export"
+INTERNSHIP_EXPORT_HTML = "internship.export_html"
 
 # (section label, [(event, column label)]) in the order the admin view shows them.
 USAGE_SECTIONS = [
     ("Planificació de mòduls", [(MODULES_VIEW, "Visites"), (MODULES_PLAN, "Planificacions"), (MODULES_EXPORT, "Exportacions")]),
-    ("Calendari de pràctiques", [(INTERNSHIP_VIEW, "Visites"), (INTERNSHIP_EXPORT, "Exportacions")]),
+    (
+        "Calendari de pràctiques",
+        [(INTERNSHIP_VIEW, "Visites"), (INTERNSHIP_EXPORT, "Exportacions XLSX"), (INTERNSHIP_EXPORT_HTML, "Exportacions HTML")],
+    ),
 ]
 
 # Uptime monitors, crawlers and scripted clients would otherwise dwarf real visits.

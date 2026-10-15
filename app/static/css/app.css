@@ -2136,6 +2136,12 @@ button.month-day:focus-visible {
   outline-offset: 1px;
 }
 
+/* Read-only days in the HTML export keep the editable days' outline. Same
+   specificity as the markers below, which come later and so still win. */
+.month-day[data-date] {
+  border-color: rgba(30, 38, 31, 0.08);
+}
+
 .month-day.day-end {
   border: 2px solid var(--accent-dark);
 }
@@ -2201,6 +2207,90 @@ button.month-day:focus-visible {
 
 .day-editor-actions button {
   padding: 0.6rem 0.95rem;
+}
+
+.confirm-dialog {
+  width: min(30rem, calc(100vw - 2rem));
+}
+
+.internship-export-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.8rem;
+  align-items: center;
+}
+
+.internship-export-hint {
+  margin: 0.6rem 0 0;
+}
+
+/* Read-only HTML export (internship/export.html). */
+.snapshot-notice {
+  margin: 0 0 1rem;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--line-strong);
+  border-left: 4px solid var(--accent);
+  border-radius: 4px;
+  background: var(--bg);
+  font-size: 0.95rem;
+  line-height: 1.45;
+}
+
+/* One column per group (student, company, tutor, dates), each stacking its fields. */
+.snapshot-details {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
+  gap: 1rem 1.5rem;
+}
+
+.snapshot-column {
+  display: grid;
+  align-content: start;
+  gap: 0.75rem;
+  margin: 0;
+}
+
+.snapshot-details dt {
+  font-size: 0.74rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.snapshot-details dd {
+  margin: 0.2rem 0 0;
+  overflow-wrap: anywhere;
+}
+
+.snapshot-config h2:not(:first-child) {
+  margin-top: 1.5rem;
+}
+
+.snapshot-table-wrap {
+  overflow-x: auto;
+}
+
+@media print {
+  .internship-snapshot {
+    background: #fff;
+  }
+
+  .internship-snapshot .card {
+    box-shadow: none;
+  }
+
+  .month-card,
+  .internship-summary,
+  .snapshot-config table {
+    break-inside: avoid;
+  }
+
+  .month-day,
+  .legend-swatch {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
 }
 
 /* Five h + min pickers need about 1150px; below that the weekdays wrap to three columns. */

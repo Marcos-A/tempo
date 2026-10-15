@@ -24,6 +24,7 @@ from app.services.internship import (
     internship_deadline,
 )
 from app.services.internship_export import METADATA_FIELDS, build_internship_workbook
+from app.services.internship_html import CALENDAR_KIND_LABELS, build_month_views, inline_stylesheet
 
 WEEKDAYS_7H = {0: 420, 1: 420, 2: 420, 3: 420, 4: 420}
 
@@ -619,3 +620,106 @@ def test_workbook_lists_every_schedule_with_its_dates():
     assert config.cell(row=second.row + 2, column=2).value == "-"
     # Tuesday after the change has no schedule, so its grid cell stays blank.
     assert _find_day(workbook["Calendari"], date(2026, 10, 20)).offset(row=1).value is None
+
+
+def _html_export(test_client, payload):
+    return test_client.post("/practiques/export-html", data={"payload": json.dumps(payload)})
+
+
+def test_html_export_downloads_a_self_contained_read_only_copy(client):
+    test_client, Session = client
+    with Session() as db:
+        period_id = db.query(ExcludedPeriod).one().id
+    response = _html_export(
+        test_client, _payload(excluded_period_ids=[period_id], overrides={"2026-10-17": 240}, metadata={"student_name": "Núria Pérez", "company_name": "Acme"})
+    )
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("text/html")
+    assert 'filename="calendari-practiques-nuria-perez.html"' in response.headers["content-disposition"]
+    html = response.text
+    # Nothing is loaded from the server and nothing runs: the only script block is inert JSON.
+    assert "../fonts/" not in html and "data:font/woff2;base64," in html
+    assert "/static/" not in html
+    assert html.count("<script") == 1 and '<script type="application/json"' in html
+    assert "Còpia de només lectura" in html
+    assert "<dd>Núria Pérez</dd>" in html and "<dd>Acme</dd>" in html
+    assert "Octubre 2026" in html
+    # 12/10 Monday start, 13/10 school holiday, Saturday 17/10 given 4 h by hand: 35 h end on 19/10.
+    assert 'class="month-day day-working" data-date="2026-10-12"' in html
+    assert 'class="month-day day-holiday" data-date="2026-10-13"' in html
+    assert 'class="month-day day-override" data-date="2026-10-17"' in html
+    assert 'class="month-day day-weekend" data-date="2026-10-18"' in html
+    assert 'class="month-day day-working day-end" data-date="2026-10-19"' in html
+    assert "dt. 13/10/2026 · Festiu / no lectiu · Festa · sense hores" in html
+    plan = json.loads(html.split('id="tempo-internship-plan">')[1].split("</script>")[0])
+    assert plan["format"] == "tempo.internship" and plan["plan"]["overrides"] == {"2026-10-17": 240}
+
+
+def test_html_export_escapes_user_text(client):
+    test_client, _ = client
+    name = "</script><script>alert(1)</script>"
+    response = _html_export(test_client, _payload(metadata={"student_name": name}, extra_periods=[{"start": "14/10/2026", "label": "<b>x</b>"}]))
+    assert response.status_code == 200
+    assert "<script>alert(1)</script>" not in response.text
+    assert "<b>x</b>" not in response.text
+
+
+def test_html_export_error_rerenders_planner(client):
+    test_client, _ = client
+    response = _html_export(test_client, _payload(target_hours="0"))
+    assert response.status_code == 400
+    assert "Indica el total" in response.text
+    assert test_client.get("/practiques/export-html", follow_redirects=False).status_code == 303
+
+
+def test_html_export_and_planner_share_day_labels_and_legend(client):
+    test_client, _ = client
+    page = test_client.get("/practiques").text
+    exported = _html_export(test_client, _payload()).text
+    assert json.loads(page.split("const KIND_LABELS = ")[1].split(";\n")[0]) == CALENDAR_KIND_LABELS
+    for kind, label in CALENDAR_KIND_LABELS.items():
+        swatch = f'<span class="legend-swatch day-{kind}"></span>{label}'
+        assert swatch in page and swatch in exported
+    assert kind_classes_in_css() >= {f"day-{kind}" for kind in CALENDAR_KIND_LABELS}
+
+
+def kind_classes_in_css():
+    css = inline_stylesheet()
+    return {kind for kind in (f"day-{name}" for name in CALENDAR_KIND_LABELS) if f".{kind} {{" in css}
+
+
+def test_month_views_mark_schedule_changes_and_partial_last_day():
+    schedule = InternshipSchedule(WEEKDAYS_7H, [(date(2026, 10, 19), {0: 240, 1: 240, 2: 240, 3: 240, 4: 240})])
+    result = _calendar(37 * 60 + 30, weekday_minutes=schedule)
+    cells = {cell["day"].date: cell for month in build_month_views(result) for cell in month["cells"] if cell["day"]}
+    assert "day-schedule-start" in cells[date(2026, 10, 19)]["classes"]
+    assert "comença el període 2" in cells[date(2026, 10, 19)]["title"]
+    assert "període 1" in cells[date(2026, 10, 12)]["title"]
+    last = cells[result.end_date]
+    assert last["hours"] == "2h30" and "darrer dia parcial" in last["title"] and "day-end" in last["classes"]
+    assert build_month_views(result)[0]["leading_blanks"] == 3  # 1 October 2026 is a Thursday.
+
+
+def test_html_export_groups_header_details_in_columns(client):
+    test_client, _ = client
+    metadata = {
+        "student_name": "Núria",
+        "group_name": "GAJ2",
+        "company_name": "Acme",
+        "company_tutor": "Pau",
+        "company_tutor_email": "pau@acme.cat",
+    }
+    html = _html_export(test_client, _payload(metadata=metadata)).text
+    columns = [
+        [dt.split("</dt>")[0] for dt in column.split("<dt>")[1:]]
+        for column in html.split('<dl class="snapshot-column">')[1:]
+    ]
+    columns[-1] = columns[-1][:2]
+    assert columns == [
+        ["Estudiant", "Grup"],
+        ["Empresa"],
+        ["Tutor/a de l&#39;empresa", "Correu del tutor/a de l&#39;empresa"],
+        ["Data d&#39;inici", "Hores totals"],
+    ]
+    # With no student or company details, only the dates remain.
+    assert _html_export(test_client, _payload(metadata={})).text.count('<dl class="snapshot-column">') == 1

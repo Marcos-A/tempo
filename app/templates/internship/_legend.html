@@ -1,0 +1,8 @@
+{# Shared by the planner and its HTML export so both show the same legend. #}
+<ul class="calendar-legend" aria-label="Llegenda">
+  {% for kind, label in calendar_kind_labels.items() %}
+  <li><span class="legend-swatch day-{{ kind }}"></span>{{ label }}</li>
+  {% endfor %}
+  <li><span class="legend-swatch day-end"></span>Darrer dia</li>
+  <li id="legend-schedule-start"{% if not show_schedule_start %} hidden{% endif %}><span class="legend-swatch day-schedule-start"></span>Canvi d'horari</li>
+</ul>

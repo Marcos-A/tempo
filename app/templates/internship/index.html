@@ -167,24 +167,24 @@
       </div>
     </div>
     <p class="warning-box warning-box-danger" id="result-incomplete" hidden></p>
-    <ul class="calendar-legend" aria-label="Llegenda">
-      <li><span class="legend-swatch day-working"></span>Laborable</li>
-      <li><span class="legend-swatch day-holiday"></span>Festiu / no lectiu</li>
-      <li><span class="legend-swatch day-weekend"></span>Sense horari</li>
-      <li><span class="legend-swatch day-override"></span>Hores canviades a mà</li>
-      <li><span class="legend-swatch day-end"></span>Darrer dia</li>
-      <li id="legend-schedule-start" hidden><span class="legend-swatch day-schedule-start"></span>Canvi d'horari</li>
-    </ul>
+    {% include "internship/_legend.html" %}
     <p class="calendar-edit-hint">
       <span class="calendar-edit-icon" aria-hidden="true">✎</span>
       <span><strong>Pots canviar les hores de qualsevol dia:</strong> fes-hi clic i tria'n les hores (també 0 o hores en un festiu o cap de setmana).
       Si treus hores, la data de fi s'endarrereix i el calendari afegeix sol els mesos que calguin, fins al 31 de juliol (a l'agost no es poden fer pràctiques).</span>
     </p>
     <div class="month-grid" id="month-grid"></div>
-    <form method="post" action="/practiques/export" class="export-actions" id="export-form">
-      <input type="hidden" name="payload" id="export-payload" />
-      <button type="submit">Descarrega el calendari (XLSX)</button>
-    </form>
+    <div class="internship-export-actions">
+      <form method="post" action="/practiques/export" id="export-form">
+        <input type="hidden" name="payload" id="export-payload" />
+        <button type="submit">Descarrega el calendari (XLSX)</button>
+      </form>
+      <form method="post" action="/practiques/export-html" id="export-html-form">
+        <input type="hidden" name="payload" id="export-html-payload" />
+        <button type="button" class="secondary" id="export-html-open">Descarrega en HTML (només lectura)</button>
+      </form>
+    </div>
+    <p class="hint internship-export-hint">L'XLSX es pot editar. L'HTML és una còpia de només lectura, amb el mateix aspecte que aquest calendari, per consultar-la o imprimir-la.</p>
   </div>
 </section>
 
@@ -263,13 +263,25 @@
   </form>
 </dialog>
 
+<dialog class="day-editor confirm-dialog" id="export-html-dialog" aria-labelledby="export-html-title">
+  <form method="dialog" class="day-editor-form">
+    <h3 id="export-html-title">El fitxer HTML és només de consulta</h3>
+    <p>No s'hi poden fer canvis. Revisa que el calendari sigui correcte abans de descarregar-lo.</p>
+    <p class="hint">Si més endavant cal modificar-lo, torna a aquesta pàgina des d'aquest mateix navegador (les dades s'hi conserven), fes-hi els canvis i torna'l a descarregar.</p>
+    <div class="day-editor-actions">
+      <button type="submit" value="download">Descarrega l'HTML</button>
+      <button type="submit" value="cancel" class="secondary">Torna al calendari</button>
+    </div>
+  </form>
+</dialog>
+
 <script>
 (() => {
   const STORAGE_KEY = "tempo.internship.v1";
   const MONTH_NAMES = ["Gener", "Febrer", "Març", "Abril", "Maig", "Juny", "Juliol", "Agost", "Setembre", "Octubre", "Novembre", "Desembre"];
   const WEEKDAY_SHORT = ["dl.", "dt.", "dc.", "dj.", "dv.", "ds.", "dg."];
   const MAX_SCHEDULE_CHANGES = 20;
-  const KIND_LABELS = { working: "Laborable", holiday: "Festiu / no lectiu", weekend: "Sense horari", override: "Hores canviades a mà" };
+  const KIND_LABELS = {{ calendar_kind_labels|tojson }};
   const serverState = {{ state|tojson }};
   const hasServerError = {{ 'true' if error else 'false' }};
 
@@ -783,6 +795,16 @@
   $("export-form").addEventListener("submit", () => {
     $("export-payload").value = JSON.stringify(buildPayload());
   });
+  // The HTML copy cannot be edited, so ask for a final review before downloading it.
+  const exportHtmlDialog = $("export-html-dialog");
+  $("export-html-open").addEventListener("click", () => exportHtmlDialog.showModal());
+  exportHtmlDialog.addEventListener("close", () => {
+    if (exportHtmlDialog.returnValue === "download") {
+      $("export-html-payload").value = JSON.stringify(buildPayload());
+      $("export-html-form").submit();
+    }
+    exportHtmlDialog.returnValue = "";
+  });
 
   /* ---------- Calculation ---------- */
 
@@ -843,6 +865,10 @@
   }
 
   /* ---------- Result rendering ---------- */
+
+  // Keep in step with the read-only HTML export: build_month_views in
+  // app/services/internship_html.py and internship/export.html draw the same
+  // grid on the server. A new marker, class or tooltip detail goes in both.
 
   function renderResult(data) {
     $("result-body").hidden = false;
