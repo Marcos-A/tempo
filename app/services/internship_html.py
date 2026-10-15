@@ -6,6 +6,10 @@ so it opens offline and prints without the app. It contains no executable
 script; the plan's inputs travel in an inert JSON block so a future import
 could load the file back into the planner.
 
+The PDF export renders the same template (with `pdf` set) through
+WeasyPrint, adding the page layout from `static/css/internship-pdf.css`
+(inlined after the app stylesheet so it wins over it).
+
 Keep in step with the web planner: `renderResult` in
 `templates/internship/index.html` draws the same month grid in JavaScript.
 Both share the day labels and legend defined here and the CSS classes in
@@ -61,6 +65,20 @@ def inline_stylesheet() -> str:
 @lru_cache(maxsize=1)
 def inline_logo() -> str:
     return _data_uri(STATIC_DIR / "img" / "tempo-lockup-pine.svg", "image/svg+xml")
+
+
+@lru_cache(maxsize=1)
+def pdf_stylesheet() -> str:
+    return (STATIC_DIR / "css" / "internship-pdf.css").read_text(encoding="utf-8")
+
+
+def render_pdf(html: str) -> bytes:
+    """Lay out the rendered read-only copy (with `pdf` set) as A4 pages."""
+
+    # Imported here so the rest of the app does not need WeasyPrint's system libraries.
+    from weasyprint import HTML
+
+    return HTML(string=html).write_pdf()
 
 
 def format_compact(minutes: int) -> str:

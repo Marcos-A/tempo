@@ -1,9 +1,10 @@
 """Routes for the internship calendar planner.
 
 The page recalculates live through `/practiques/calcul` (JSON), downloads
-the workbook through `/practiques/export` and a read-only HTML copy through
-`/practiques/export-html`. All three receive the same JSON payload and run
-the same validation, so the exported files always match the preview.
+the workbook through `/practiques/export` and read-only copies through
+`/practiques/export-html` and `/practiques/export-pdf`. All of them receive
+the same JSON payload and run the same validation, so the exported files
+always match the preview.
 """
 
 from __future__ import annotations
@@ -14,7 +15,8 @@ import unicodedata
 from datetime import date
 
 from fastapi import APIRouter, Depends, Request, status
-from fastapi.responses import JSONResponse, RedirectResponse, StreamingResponse
+from fastapi.concurrency import run_in_threadpool
+from fastapi.responses import JSONResponse, RedirectResponse, Response, StreamingResponse
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -34,8 +36,10 @@ from app.services.internship_html import (
     has_schedule_starts,
     inline_logo,
     inline_stylesheet,
+    pdf_stylesheet,
+    render_pdf,
 )
-from app.services.usage import INTERNSHIP_EXPORT, INTERNSHIP_EXPORT_HTML, INTERNSHIP_VIEW, record_usage
+from app.services.usage import INTERNSHIP_EXPORT, INTERNSHIP_EXPORT_HTML, INTERNSHIP_EXPORT_PDF, INTERNSHIP_VIEW, record_usage
 
 
 router = APIRouter(prefix="/practiques", tags=["internship"])
@@ -47,12 +51,11 @@ WEEKDAY_LABELS = ("Dilluns", "Dimarts", "Dimecres", "Dijous", "Divendres")
 MAX_LABEL_LENGTH = 120
 MAX_METADATA_LENGTH = 200
 METADATA_KEYS = tuple(key for key, _ in METADATA_FIELDS)
-# Header columns of the HTML export: student, company, company tutor. The
-# dates follow as a last column; empty fields and columns are left out.
+# Header columns of the HTML and PDF exports: student, then company and its
+# tutor. The dates follow as a last column; empty fields and columns are left out.
 DETAIL_COLUMNS = (
     ("student_name", "training_cycle", "group_name"),
-    ("company_name",),
-    ("company_tutor", "company_tutor_email"),
+    ("company_name", "company_tutor", "company_tutor_email"),
 )
 # Inputs embedded in the HTML export so it could be loaded back into the planner.
 PLAN_KEYS = (
@@ -410,6 +413,35 @@ def _detail_columns(metadata: dict[str, str], result: InternshipCalendar, summar
     return [column for column in columns if column]
 
 
+def _snapshot_context(payload: dict, inputs: InternshipRequest, result: InternshipCalendar, *, pdf: bool = False) -> dict:
+    """Context for `internship/export.html`, shared by the HTML and PDF copies."""
+
+    summary = _serialize_result(result, None)
+    return {
+        "pdf": pdf,
+        "stylesheet": inline_stylesheet(),
+        "pdf_stylesheet": pdf_stylesheet() if pdf else "",
+        "logo": inline_logo(),
+        "student_name": inputs.metadata.get("student_name", ""),
+        "detail_columns": _detail_columns(inputs.metadata, result, summary),
+        "summary": summary,
+        "override_count": sum(1 for day in result.days if day.kind == DAY_KIND_OVERRIDE),
+        "calendar_kind_labels": CALENDAR_KIND_LABELS,
+        "show_schedule_start": has_schedule_starts(result),
+        "months": build_month_views(result),
+        "weekday_labels": WEEKDAY_LABELS,
+        "weekday_short": WEEKDAY_SHORT,
+        "schedules": [
+            (title, [format_minutes_label(minutes[index]) if minutes.get(index) else "–" for index in range(5)],
+             format_minutes_label(sum(minutes.values())))
+            for title, minutes in schedule_sections(result, inputs.schedule)
+        ],
+        "periods": inputs.applied_periods(result, until=result.end_date),
+        "generated_display": format_display_date(date.today()),
+        "plan": {"format": "tempo.internship", "version": 1, "plan": {key: payload.get(key) for key in PLAN_KEYS}},
+    }
+
+
 @router.get("/export-html")
 def redirect_stray_html_export():
     return RedirectResponse(url="/practiques", status_code=status.HTTP_303_SEE_OTHER)
@@ -424,31 +456,35 @@ async def export_internship_html(request: Request, db: Session = Depends(get_db)
         return parsed
     payload, inputs, result = parsed
 
-    summary = _serialize_result(result, None)
     record_usage(db, request, INTERNSHIP_EXPORT_HTML)
     return templates.TemplateResponse(
         request,
         "internship/export.html",
-        {
-            "stylesheet": inline_stylesheet(),
-            "logo": inline_logo(),
-            "student_name": inputs.metadata.get("student_name", ""),
-            "detail_columns": _detail_columns(inputs.metadata, result, summary),
-            "summary": summary,
-            "override_count": sum(1 for day in result.days if day.kind == DAY_KIND_OVERRIDE),
-            "calendar_kind_labels": CALENDAR_KIND_LABELS,
-            "show_schedule_start": has_schedule_starts(result),
-            "months": build_month_views(result),
-            "weekday_labels": WEEKDAY_LABELS,
-            "weekday_short": WEEKDAY_SHORT,
-            "schedules": [
-                (title, [format_minutes_label(minutes[index]) if minutes.get(index) else "–" for index in range(5)],
-                 format_minutes_label(sum(minutes.values())))
-                for title, minutes in schedule_sections(result, inputs.schedule)
-            ],
-            "periods": inputs.applied_periods(result, until=result.end_date),
-            "generated_display": format_display_date(date.today()),
-            "plan": {"format": "tempo.internship", "version": 1, "plan": {key: payload.get(key) for key in PLAN_KEYS}},
-        },
+        _snapshot_context(payload, inputs, result),
         headers={"Content-Disposition": f'attachment; filename="{_export_filename(inputs.metadata, "html")}"'},
+    )
+
+
+@router.get("/export-pdf")
+def redirect_stray_pdf_export():
+    return RedirectResponse(url="/practiques", status_code=status.HTTP_303_SEE_OTHER)
+
+
+@router.post("/export-pdf")
+async def export_internship_pdf(request: Request, db: Session = Depends(get_db)):
+    """Validate the payload again and download the read-only copy as a PDF."""
+
+    parsed = await _read_export_form(request, db)
+    if not isinstance(parsed, tuple):
+        return parsed
+    payload, inputs, result = parsed
+
+    html = templates.get_template("internship/export.html").render(_snapshot_context(payload, inputs, result, pdf=True))
+    record_usage(db, request, INTERNSHIP_EXPORT_PDF)
+    # Layout takes a few seconds; keep it off the event loop.
+    pdf = await run_in_threadpool(render_pdf, html)
+    return Response(
+        pdf,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{_export_filename(inputs.metadata, "pdf")}"'},
     )

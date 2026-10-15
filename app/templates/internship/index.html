@@ -177,14 +177,18 @@
     <div class="internship-export-actions">
       <form method="post" action="/practiques/export" id="export-form">
         <input type="hidden" name="payload" id="export-payload" />
-        <button type="submit">Descarrega el calendari (XLSX)</button>
+        <button type="submit" class="export-button">Descàrrega en XLSX<span class="export-button-note">editable</span></button>
       </form>
       <form method="post" action="/practiques/export-html" id="export-html-form">
-        <input type="hidden" name="payload" id="export-html-payload" />
-        <button type="button" class="secondary" id="export-html-open">Descarrega en HTML (només lectura)</button>
+        <input type="hidden" name="payload" />
+        <button type="button" class="secondary export-button" data-readonly-export="HTML">Descàrrega en HTML<span class="export-button-note">només lectura</span></button>
+      </form>
+      <form method="post" action="/practiques/export-pdf" id="export-pdf-form">
+        <input type="hidden" name="payload" />
+        <button type="button" class="secondary export-button" data-readonly-export="PDF">Descàrrega en PDF<span class="export-button-note">només lectura</span></button>
       </form>
     </div>
-    <p class="hint internship-export-hint">L'XLSX es pot editar. L'HTML és una còpia de només lectura, amb el mateix aspecte que aquest calendari, per consultar-la o imprimir-la.</p>
+    <p class="hint internship-export-hint">L'HTML i el PDF tenen el mateix aspecte que aquest calendari i serveixen per consultar-lo o imprimir-lo.</p>
   </div>
 </section>
 
@@ -263,16 +267,29 @@
   </form>
 </dialog>
 
-<dialog class="day-editor confirm-dialog" id="export-html-dialog" aria-labelledby="export-html-title">
+<dialog class="day-editor confirm-dialog" id="export-readonly-dialog" aria-labelledby="export-readonly-title">
   <form method="dialog" class="day-editor-form">
-    <h3 id="export-html-title">El fitxer HTML és només de consulta</h3>
+    <h3 id="export-readonly-title"></h3>
     <p>No s'hi poden fer canvis. Revisa que el calendari sigui correcte abans de descarregar-lo.</p>
     <p class="hint">Si més endavant cal modificar-lo, torna a aquesta pàgina des d'aquest mateix navegador (les dades s'hi conserven), fes-hi els canvis i torna'l a descarregar.</p>
     <div class="day-editor-actions">
-      <button type="submit" value="download">Descarrega l'HTML</button>
+      <button type="submit" value="download" id="export-readonly-confirm"></button>
       <button type="submit" value="cancel" class="secondary">Torna al calendari</button>
     </div>
   </form>
+</dialog>
+
+<dialog class="day-editor confirm-dialog export-progress" id="export-progress-dialog" aria-labelledby="export-progress-title">
+  <div class="day-editor-form">
+    <h3 id="export-progress-title">S'està generant el PDF…</h3>
+    <div class="export-progress-track" role="progressbar" aria-labelledby="export-progress-title" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+      <span class="export-progress-bar" id="export-progress-bar"></span>
+    </div>
+    <p class="hint" id="export-progress-note">Pot trigar uns segons, sobretot si el calendari té molts mesos. La descàrrega començarà sola.</p>
+    <div class="day-editor-actions">
+      <button type="button" class="secondary" id="export-progress-cancel">Cancel·la</button>
+    </div>
+  </div>
 </dialog>
 
 <script>
@@ -795,16 +812,97 @@
   $("export-form").addEventListener("submit", () => {
     $("export-payload").value = JSON.stringify(buildPayload());
   });
-  // The HTML copy cannot be edited, so ask for a final review before downloading it.
-  const exportHtmlDialog = $("export-html-dialog");
-  $("export-html-open").addEventListener("click", () => exportHtmlDialog.showModal());
-  exportHtmlDialog.addEventListener("close", () => {
-    if (exportHtmlDialog.returnValue === "download") {
-      $("export-html-payload").value = JSON.stringify(buildPayload());
-      $("export-html-form").submit();
-    }
-    exportHtmlDialog.returnValue = "";
+  // The HTML and PDF copies cannot be edited, so ask for a final review before downloading them.
+  const exportReadonlyDialog = $("export-readonly-dialog");
+  let readonlyExportForm = null;
+  document.querySelectorAll("[data-readonly-export]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const format = button.dataset.readonlyExport;
+      readonlyExportForm = button.form;
+      $("export-readonly-title").textContent = `El fitxer ${format} és només de consulta`;
+      $("export-readonly-confirm").textContent = format === "HTML" ? "Descarrega l'HTML" : `Descarrega el ${format}`;
+      exportReadonlyDialog.showModal();
+    });
   });
+  exportReadonlyDialog.addEventListener("close", () => {
+    if (exportReadonlyDialog.returnValue === "download" && readonlyExportForm) {
+      readonlyExportForm.elements.payload.value = JSON.stringify(buildPayload());
+      if (readonlyExportForm.id === "export-pdf-form") {
+        downloadPdf(readonlyExportForm);
+      } else {
+        readonlyExportForm.submit();
+      }
+    }
+    exportReadonlyDialog.returnValue = "";
+  });
+
+  // The PDF takes a few seconds to lay out on the server, so it is fetched in the
+  // background behind a progress dialog. The bar is an estimate from the number of
+  // months (about 0.6 s each): it eases towards 90 % and fills when the file arrives.
+  const exportProgressDialog = $("export-progress-dialog");
+  const exportProgressTrack = exportProgressDialog.querySelector("[role=progressbar]");
+  let pdfAbort = null;
+
+  function setExportProgress(percent) {
+    $("export-progress-bar").style.width = `${percent}%`;
+    exportProgressTrack.setAttribute("aria-valuenow", String(Math.round(percent)));
+  }
+
+  function attachmentName(response) {
+    const match = (response.headers.get("Content-Disposition") || "").match(/filename="([^"]+)"/);
+    return match ? match[1] : "calendari-practiques.pdf";
+  }
+
+  async function downloadPdf(form) {
+    const months = new Set((lastResult?.days || []).map((item) => item.date.slice(0, 7))).size || 1;
+    const expectedMs = 1500 + months * 600;
+    const startedAt = performance.now();
+    $("export-progress-title").textContent = "S'està generant el PDF…";
+    $("export-progress-note").textContent = "Pot trigar uns segons, sobretot si el calendari té molts mesos. La descàrrega començarà sola.";
+    $("export-progress-cancel").textContent = "Cancel·la";
+    setExportProgress(0);
+    exportProgressDialog.showModal();
+    const timer = setInterval(() => {
+      setExportProgress(90 * (1 - Math.exp(-(performance.now() - startedAt) / expectedMs)));
+    }, 100);
+    pdfAbort = new AbortController();
+    try {
+      const response = await fetch(form.action, { method: "POST", body: new FormData(form), signal: pdfAbort.signal });
+      if (!response.ok || !(response.headers.get("Content-Type") || "").startsWith("application/pdf")) {
+        // Validation errors come back as the planner page with the message: show it as usual.
+        exportProgressDialog.close();
+        form.submit();
+        return;
+      }
+      const url = URL.createObjectURL(await response.blob());
+      setExportProgress(100);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = attachmentName(response);
+      document.body.append(link);
+      link.click();
+      link.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 10000);
+      setTimeout(() => exportProgressDialog.close(), 400);
+    } catch (error) {
+      if (error.name !== "AbortError") {
+        $("export-progress-title").textContent = "No s'ha pogut generar el PDF";
+        $("export-progress-note").textContent = "Comprova la connexió i torna-ho a provar.";
+        $("export-progress-cancel").textContent = "Tanca";
+        setExportProgress(0);
+      }
+    } finally {
+      clearInterval(timer);
+      pdfAbort = null;
+    }
+  }
+
+  $("export-progress-cancel").addEventListener("click", () => {
+    pdfAbort?.abort();
+    exportProgressDialog.close();
+  });
+  // Escape behaves like "Cancel·la".
+  exportProgressDialog.addEventListener("cancel", () => pdfAbort?.abort());
 
   /* ---------- Calculation ---------- */
 

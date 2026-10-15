@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 {#
   Read-only HTML copy of the internship calendar (see app/services/internship_html.py).
+  Also rendered with `pdf` set for the PDF export, which adds static/css/internship-pdf.css.
   Keep the month grid in step with `renderResult` in internship/index.html.
 #}
 <html lang="ca">
@@ -10,8 +11,9 @@
     <meta name="generator" content="{{ app_name }}" />
     <title>Calendari de pràctiques{% if student_name %} · {{ student_name }}{% endif %}</title>
     <style>{{ stylesheet|safe }}</style>
+    {% if pdf %}<style>{{ pdf_stylesheet|safe }}</style>{% endif %}
   </head>
-  <body class="section-internship internship-snapshot">
+  <body class="section-internship internship-snapshot{% if pdf %} internship-pdf{% endif %}">
     <header class="site-header">
       <div class="container">
         <span class="brand">
@@ -20,13 +22,18 @@
         </span>
       </div>
     </header>
+    {% if pdf %}<p class="pdf-footer">Calendari de pràctiques{% if student_name %} · {{ student_name }}{% endif %}</p>{% endif %}
     <main class="container">
       <section class="card">
         <h1>Calendari de pràctiques</h1>
+        {% if pdf %}
+        <p class="snapshot-notice">Còpia de només lectura generada el {{ generated_display }}.</p>
+        {% else %}
         <p class="snapshot-notice">
           Còpia de només lectura generada el {{ generated_display }}. Aquest fitxer no es pot modificar:
           per canviar-hi res, torna a obrir el calendari de pràctiques on l'has creat, fes-hi els canvis i descarrega'l de nou.
         </p>
+        {% endif %}
         <div class="snapshot-details">
           {% for column in detail_columns %}
           <dl class="snapshot-column">
@@ -67,24 +74,50 @@
         </p>
         {% endif %}
         {% include "internship/_legend.html" %}
+        {% macro day_cell(cell) -%}
+        {% if not cell %}<span class="month-day is-blank"></span>
+        {%- elif cell.day %}<span class="month-day {{ cell.classes }}" data-date="{{ cell.day.date.isoformat() }}" title="{{ cell.title }}"><span class="month-day-number">{{ cell.number }}</span><span class="month-day-hours">{{ cell.hours }}</span></span>
+        {%- else %}<span class="month-day is-outside"><span class="month-day-number">{{ cell.number }}</span></span>
+        {%- endif %}
+        {%- endmacro %}
+        {% if pdf %}
+        {# WeasyPrint lays nested CSS grids out slowly, so the PDF uses tables: three months per row, one week per row. #}
+        <table class="month-sheet">
+          {% for row in months|batch(3) %}
+          <tr>
+            {% for month in row %}
+            <td>
+              <section class="month-card">
+                <h3 class="month-title">{{ month.title }}<span class="month-total">{{ month.total }}</span></h3>
+                <table class="month-table">
+                  <tr>{% for name in weekday_short %}<th class="month-weekday">{{ name }}</th>{% endfor %}</tr>
+                  {% for week in ([none] * month.leading_blanks + month.cells)|batch(7, "") %}
+                  <tr>{% for cell in week %}<td>{{ day_cell(cell) }}</td>{% endfor %}</tr>
+                  {% endfor %}
+                </table>
+              </section>
+            </td>
+            {% endfor %}
+            {% for _ in range(3 - row|length) %}<td></td>{% endfor %}
+          </tr>
+          {% endfor %}
+        </table>
+        {% else %}
         <div class="month-grid">
           {% for month in months %}
           <section class="month-card">
             <h3 class="month-title">{{ month.title }}<span class="month-total">{{ month.total }}</span></h3>
             <div class="month-days">
               {% for name in weekday_short %}<span class="month-weekday">{{ name }}</span>{% endfor %}
-              {% for _ in range(month.leading_blanks) %}<span class="month-day is-blank"></span>{% endfor %}
+              {% for _ in range(month.leading_blanks) %}{{ day_cell(none) }}{% endfor %}
               {% for cell in month.cells %}
-              {% if cell.day %}
-              <span class="month-day {{ cell.classes }}" data-date="{{ cell.day.date.isoformat() }}" title="{{ cell.title }}"><span class="month-day-number">{{ cell.number }}</span><span class="month-day-hours">{{ cell.hours }}</span></span>
-              {% else %}
-              <span class="month-day is-outside"><span class="month-day-number">{{ cell.number }}</span></span>
-              {% endif %}
+              {{ day_cell(cell) }}
               {% endfor %}
             </div>
           </section>
           {% endfor %}
         </div>
+        {% endif %}
       </section>
 
       <section class="card snapshot-config">

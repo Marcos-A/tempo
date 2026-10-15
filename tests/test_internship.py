@@ -1,4 +1,4 @@
-"""Tests for the internship calendar: day-by-day calculation, overrides and XLSX export."""
+"""Tests for the internship calendar: day-by-day calculation, overrides and XLSX, HTML and PDF exports."""
 
 import json
 from datetime import date, datetime, timedelta
@@ -717,9 +717,54 @@ def test_html_export_groups_header_details_in_columns(client):
     columns[-1] = columns[-1][:2]
     assert columns == [
         ["Estudiant", "Grup"],
-        ["Empresa"],
-        ["Tutor/a de l&#39;empresa", "Correu del tutor/a de l&#39;empresa"],
+        ["Empresa", "Tutor/a de l&#39;empresa", "Correu del tutor/a de l&#39;empresa"],
         ["Data d&#39;inici", "Hores totals"],
     ]
     # With no student or company details, only the dates remain.
     assert _html_export(test_client, _payload(metadata={})).text.count('<dl class="snapshot-column">') == 1
+
+
+def _pdf_export(test_client, payload):
+    return test_client.post("/practiques/export-pdf", data={"payload": json.dumps(payload)})
+
+
+def test_pdf_export_lays_out_the_read_only_copy_as_tables(client, monkeypatch):
+    """The PDF renders the HTML copy's template in PDF mode; WeasyPrint itself is stubbed here."""
+
+    test_client, _ = client
+    rendered = []
+    monkeypatch.setattr("app.routes.internship.render_pdf", lambda html: rendered.append(html) or b"%PDF-stub")
+    response = _pdf_export(test_client, _payload())
+    assert response.status_code == 200
+    assert response.headers["content-type"] == "application/pdf"
+    assert 'filename="calendari-practiques-nuria-perez.pdf"' in response.headers["content-disposition"]
+    assert response.content == b"%PDF-stub"
+    html = rendered[0]
+    assert "internship-pdf" in html and "@page" in html
+    assert '<p class="pdf-footer">Calendari de pràctiques · Núria Pérez</p>' in html
+    # Months as tables, one week per row, with the same day cells as the HTML copy.
+    assert '<table class="month-sheet">' in html and 'class="month-grid"' not in html
+    assert 'class="month-day day-working" data-date="2026-10-12"' in html
+    assert 'class="month-day day-working day-end" data-date="2026-10-16"' in html
+    # October 2026 starts on a Thursday: three blanks, then five full weeks.
+    october = html.split('<table class="month-table">')[1].split("</table>")[0]
+    assert october.count("<tr>") == 6 and october.count("is-blank") == 3 + 1  # trailing blank after Saturday 31
+
+
+def test_pdf_export_error_rerenders_planner(client):
+    test_client, _ = client
+    response = _pdf_export(test_client, _payload(target_hours="0"))
+    assert response.status_code == 400
+    assert "Indica el total" in response.text
+    assert test_client.get("/practiques/export-pdf", follow_redirects=False).status_code == 303
+
+
+def test_pdf_export_renders_a_real_pdf(client):
+    try:
+        import weasyprint  # noqa: F401
+    except (ImportError, OSError):
+        pytest.skip("WeasyPrint or its system libraries are not installed")
+    test_client, _ = client
+    response = _pdf_export(test_client, _payload())
+    assert response.status_code == 200
+    assert response.content.startswith(b"%PDF-")

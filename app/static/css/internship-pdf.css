@@ -1,0 +1,331 @@
+/* PDF export of the internship calendar (rendered by WeasyPrint on top of
+   app.css and its print rules). The page drops the web chrome (cards, page
+   tint, shadows) and fits three months per row on A4 portrait. */
+
+@page {
+  size: A4;
+  margin: 14mm 13mm 16mm;
+
+  @bottom-left {
+    content: element(pdf-footer);
+  }
+
+  @bottom-right {
+    content: "Pàgina " counter(page) " de " counter(pages);
+    font-family: "Inter", sans-serif;
+    font-size: 7.5pt;
+    color: #838c7c;
+  }
+}
+
+.internship-pdf {
+  background: #fff;
+  font-size: 9.5pt;
+  line-height: 1.4;
+}
+
+.pdf-footer {
+  position: running(pdf-footer);
+  margin: 0;
+  font-size: 7.5pt;
+  color: #838c7c;
+}
+
+.internship-pdf .container,
+.internship-pdf main.container {
+  width: auto;
+  margin: 0;
+  padding: 0;
+}
+
+/* Header: logo on the left, a thin pine rule under it. */
+.internship-pdf .site-header {
+  border-bottom: 1.5pt solid var(--accent-dark);
+  background: transparent;
+}
+
+.internship-pdf .site-header .container {
+  padding: 0 0 3mm;
+}
+
+/* WeasyPrint centres the logo in .brand's inline grid; stack it as plain blocks so it sits flush left. */
+.internship-pdf .brand {
+  display: block;
+}
+
+.internship-pdf .brand-mark {
+  height: 11mm;
+  margin-bottom: 1.5mm;
+}
+
+.internship-pdf .brand-tagline {
+  display: block;
+}
+
+.internship-pdf .brand-tagline {
+  font-size: 6.5pt;
+}
+
+.internship-pdf .card {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.internship-pdf .card + .card {
+  margin-top: 6mm;
+}
+
+.internship-pdf h1 {
+  margin: 5mm 0 1mm;
+  font-size: 17pt;
+}
+
+.internship-pdf h2 {
+  margin: 0 0 3mm;
+  font-size: 12pt;
+}
+
+.internship-pdf .section-heading {
+  display: block;
+}
+
+.internship-pdf .snapshot-notice {
+  margin: 0 0 4mm;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font-size: 8pt;
+  color: var(--muted);
+}
+
+/* Details as a single row of columns, separated from the calendar by a hairline. */
+.internship-pdf .snapshot-details {
+  display: flex;
+  gap: 8mm;
+  padding-bottom: 4mm;
+  border-bottom: 0.5pt solid var(--line);
+}
+
+.internship-pdf .snapshot-column {
+  display: block;
+  flex: 1 1 0;
+}
+
+.internship-pdf .snapshot-column > div + div {
+  margin-top: 2mm;
+}
+
+.internship-pdf .snapshot-details dt,
+.internship-pdf .internship-stat-label {
+  font-size: 6.5pt;
+}
+
+.internship-pdf .snapshot-details dd {
+  margin-top: 0.5mm;
+  font-size: 9pt;
+}
+
+.internship-pdf .internship-summary {
+  gap: 3mm;
+  margin: 0 0 4mm;
+}
+
+.internship-pdf .internship-stat {
+  padding: 2.5mm 3mm;
+  gap: 1mm;
+}
+
+.internship-pdf .internship-stat-value {
+  font-size: 11pt;
+}
+
+.internship-pdf .internship-stat-main .internship-stat-value {
+  font-size: 12.5pt;
+}
+
+.internship-pdf .calendar-legend {
+  gap: 1.5mm 5mm;
+  margin: 0 0 4mm;
+  font-size: 7.5pt;
+}
+
+.internship-pdf .legend-swatch {
+  width: 3mm;
+  height: 3mm;
+}
+
+.internship-pdf .warning-box {
+  font-size: 8.5pt;
+}
+
+/* Inline blocks rather than flex: WeasyPrint stretches the empty swatches in a flex row. */
+.internship-pdf .calendar-legend {
+  display: block;
+}
+
+.internship-pdf .calendar-legend li {
+  display: inline-block;
+  margin-right: 5mm;
+  white-space: nowrap;
+}
+
+.internship-pdf .calendar-legend li[hidden] {
+  display: none;
+}
+
+.internship-pdf .legend-swatch {
+  display: inline-block;
+  margin-right: 1.5mm;
+  vertical-align: -0.5mm;
+}
+
+/* Months: three per row, laid out as tables (see the template). */
+.month-sheet,
+.month-table {
+  border-collapse: separate;
+  table-layout: fixed;
+}
+
+.month-sheet {
+  width: calc(100% + 6mm);
+  margin: -3mm;
+  border-spacing: 3mm;
+}
+
+.month-sheet > tbody > tr > td,
+.month-table th,
+.month-table td {
+  padding: 0;
+  border: 0;
+  vertical-align: top;
+}
+
+.month-sheet tr {
+  break-inside: avoid;
+}
+
+.internship-pdf .month-card {
+  padding: 2.5mm;
+  border-color: var(--line);
+}
+
+.internship-pdf .month-title {
+  display: block;
+  margin-bottom: 1.5mm;
+  font-size: 9pt;
+  white-space: nowrap;
+}
+
+.internship-pdf .month-total {
+  float: right;
+  font-size: 7pt;
+  line-height: 12.6pt;
+}
+
+.month-table {
+  width: calc(100% + 1.2mm);
+  margin: -0.6mm;
+  border-spacing: 0.6mm;
+}
+
+.internship-pdf .month-weekday {
+  font-size: 6pt;
+  font-weight: 400;
+  letter-spacing: 0;
+  text-transform: none;
+  text-align: center;
+}
+
+.internship-pdf .month-day {
+  display: block;
+  height: 8.5mm;
+  min-height: 0;
+  padding: 0.6mm 0.8mm;
+  border-radius: 1mm;
+}
+
+.internship-pdf .month-day-number {
+  display: block;
+  font-size: 5.5pt;
+  line-height: 1.2;
+}
+
+.internship-pdf .month-day-hours {
+  display: block;
+  margin-top: 0.6mm;
+  font-size: 6.5pt;
+  line-height: 1.2;
+  text-align: center;
+}
+
+/* Weekly schedule and days without internship start on their own block. */
+.internship-pdf .snapshot-config {
+  break-before: auto;
+  margin-top: 7mm;
+}
+
+.internship-pdf .snapshot-config h2:not(:first-child) {
+  margin-top: 6mm;
+}
+
+.internship-pdf .snapshot-config table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 8.5pt;
+}
+
+.internship-pdf .snapshot-config th,
+.internship-pdf .snapshot-config td {
+  padding: 1.5mm 2mm;
+  border-bottom: 0.5pt solid var(--line);
+  text-align: left;
+}
+
+.internship-pdf .snapshot-config tbody th {
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--text);
+}
+
+.internship-pdf .snapshot-config thead th {
+  font-size: 6.5pt;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.internship-pdf .period-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 8.5pt;
+}
+
+.internship-pdf .period-list li {
+  display: block;
+  padding: 1.5mm 0;
+  border-bottom: 0.5pt solid var(--line);
+  break-inside: avoid;
+}
+
+.internship-pdf .period-dates {
+  display: inline-block;
+  width: 45mm;
+  font-family: var(--font-body);
+  font-size: 8.5pt;
+  font-weight: 600;
+}
+
+.internship-pdf .period-label {
+  margin-right: 2mm;
+}
+
+.internship-pdf .period-list .hint {
+  font-size: 7.5pt;
+  color: var(--muted);
+}
