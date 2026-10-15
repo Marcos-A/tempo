@@ -49,7 +49,7 @@ Tempo té dues eines, accessibles des de la capçalera de l'aplicació.
 - calcular la data de fi de les pràctiques d'un estudiant a partir de la data d'inici, les hores totals i l'horari setmanal, que pot canviar d'un període a un altre del conveni
 - descomptar els dies sense pràctiques del calendari del centre i afegir-ne d'altres
 - ajustar les hores de qualsevol dia directament al calendari
-- exportar-lo en un XLSX editable que es recalcula sol
+- exportar-lo en un XLSX editable que es recalcula sol, o en una còpia HTML de només lectura amb el mateix aspecte que el web
 
 ## Planificador curricular
 
@@ -117,6 +117,14 @@ A l'agost no es poden fer pràctiques, així que el calendari no passa mai del 3
 - **Colors automàtics:** els dies amb hores es mostren en verd i els dies sense pràctiques (`0`, que es mostra com `-`) en vermell. «Hores planificades» i «Hores restants» es marquen en vermell mentre no s'arriba a l'objectiu.
 - **Instruccions** a la cantonada superior dreta i **protecció del full** sense contrasenya: només es poden editar les hores dels dies reals i les dades de la capçalera.
 - Els fulls **Detall** (un dia per fila amb acumulat i hores restants) i **Configuració** (l'horari de cada període amb les seves dates i els dies sense pràctiques aplicats) completen el llibre.
+
+### Còpia HTML de només lectura
+
+El botó «Descarrega en HTML (només lectura)» genera un únic fitxer `.html` amb el mateix aspecte que el calendari del web: el resum, la llegenda, les graelles mensuals (amb el detall de cada dia en passar-hi el ratolí), l'horari setmanal i els dies sense pràctiques aplicats. El full d'estils, la tipografia i el logotip van incrustats, de manera que s'obre sense connexió, en qualsevol navegador, i s'imprimeix o es desa en PDF directament.
+
+El fitxer no admet canvis i no executa cap script. Abans de descarregar-lo, una finestra demana revisar que el calendari sigui correcte. Les dades del formulari es conserven al navegador, de manera que per corregir-lo n'hi ha prou amb tornar a `/practiques` des del mateix navegador i descarregar-lo de nou. El fitxer també inclou les dades del càlcul en un bloc JSON inert (`#tempo-internship-plan`), pensat per poder-lo tornar a carregar al planificador en una versió futura.
+
+> **Nota de manteniment:** la graella mensual es dibuixa en dos llocs: al navegador, amb JavaScript (`renderResult` a `app/templates/internship/index.html`), i al servidor per a la còpia HTML (`build_month_views` a `app/services/internship_html.py` i `app/templates/internship/export.html`). Les dates i les hores surten sempre del mateix càlcul i no poden divergir, però la presentació sí. Els noms dels tipus de dia, la llegenda (`internship/_legend.html`) i les classes CSS són compartits; qualsevol altre canvi a la graella (un marcador, una classe o un detall del text d'ajuda d'un dia) s'ha de fer en tots dos llocs. Les proves de `tests/test_internship.py` comproven que els dos comparteixen etiquetes i llegenda.
 
 ## Actius visuals
 
@@ -187,13 +195,13 @@ bash scripts/deploy_preview.sh
 - `/` mostra el formulari inicial de configuració del mòdul
 - `/plan` permet ordenar, repartir i validar els RAs abans d'exportar
 - l'exportació final es fa cap a un llibre XLSX
-- `/practiques` calcula el calendari de pràctiques a partir de la data d'inici, les hores totals i l'horari setmanal (amb minuts i, si cal, diversos períodes amb horari propi), reutilitza els períodes no lectius configurats, permet ajustar les hores de qualsevol dia i exporta un XLSX editable (vegeu [Planificador d'hores de pràctiques](#planificador-dhores-de-pràctiques))
+- `/practiques` calcula el calendari de pràctiques a partir de la data d'inici, les hores totals i l'horari setmanal (amb minuts i, si cal, diversos períodes amb horari propi), reutilitza els períodes no lectius configurats, permet ajustar les hores de qualsevol dia i exporta un XLSX editable o una còpia HTML de només lectura (vegeu [Planificador d'hores de pràctiques](#planificador-dhores-de-pràctiques))
 
 ### Administració
 
 - `/admin` està protegit per autenticació
 - permet gestionar anys acadèmics i dates excloses
-- `/admin/usage` mostra quantes vegades s'ha obert cada eina i quantes planificacions i exportacions s'han completat, per als últims 7 i 30 dies, el total i les últimes 12 setmanes. El recompte és anònim: només es desa un número per dia i acció, sense adreces IP, galetes ni dades del navegador, i no inclou robots ni monitors
+- `/admin/usage` mostra quantes vegades s'ha obert cada eina i quantes planificacions i exportacions (en el cas de les pràctiques, separades entre XLSX i HTML) s'han completat, per als últims 7 i 30 dies, el total i les últimes 12 setmanes. El recompte és anònim: només es desa un número per dia i acció, sense adreces IP, galetes ni dades del navegador, i no inclou robots ni monitors
 - no apareix enllaçat des de la interfície pública
 
 ## Variables d'entorn principals
