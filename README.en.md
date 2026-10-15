@@ -99,7 +99,7 @@ Enter the start date, total hours (minutes supported) and the hours for each wee
 
 The school calendar's periods are pre-selected and can be unticked when they do not affect the company (e.g. an internship that runs through school holidays). Other days can be added too, such as the company's local holidays or holidays after classes end. If the internship runs past the non-teaching days configured in the school calendar, a warning in this same section reminds users to add the later holidays. The calendar recalculates live and shows the end date, planned hours and internship days; the last day only receives the hours still needed. When there are several periods, the first day of each one is marked on the calendar.
 
-![Days without internship and the resulting calendar with its end date](docs/screenshots/tempo-practiques-step-2-calendari.png)
+![Days without internship, the resulting calendar with its end date and the XLSX, HTML and PDF download buttons](docs/screenshots/tempo-practiques-step-2-calendari.png)
 
 ### 3. Adjust A Day's Hours
 

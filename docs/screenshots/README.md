@@ -20,7 +20,7 @@ The files in this folder document the two public tools. For the curriculum plann
 | `tempo-step-2-parallel.png` | Step 2: distribute RAs across parallel blocks | Supporting advanced-mode example |
 | `tempo-step-3-spreadsheet_2.png` | Result: secondary workbook view | Kept for detailed documentation |
 | `tempo-practiques-step-1-formulari.png` | Internship planner: start date, total hours and a weekly schedule split into two periods | Internship walkthrough |
-| `tempo-practiques-step-2-calendari.png` | Internship planner: days without internship and the resulting calendar | Internship walkthrough |
+| `tempo-practiques-step-2-calendari.png` | Internship planner: days without internship, the resulting calendar and the XLSX, HTML and PDF download buttons | Internship walkthrough |
 | `tempo-practiques-step-3-editor-dia.png` | Internship planner: editing a single day's hours | Internship walkthrough |
 
 `step-3` describes the exported result, not a third screen in the application: the teacher interface itself has two steps.
