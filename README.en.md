@@ -49,7 +49,7 @@ Tempo has two tools, both reachable from the app header.
 - works out a student's internship end date from a start date, total hours and a weekly schedule, which can change between the agreement's periods
 - skips the school calendar's days without internship and lets users add others
 - lets users adjust any day's hours directly on the calendar
-- exports it as an editable XLSX that recalculates itself, or as a read-only HTML copy that looks like the web version
+- exports it as an editable XLSX that recalculates itself, or as a read-only HTML or PDF copy that looks like the web version
 
 ## Curriculum Planner
 
@@ -120,11 +120,15 @@ Internships cannot run in August, so the calendar never goes past 31 July of the
 
 ### Read-Only HTML Copy
 
-The "Descarrega en HTML (només lectura)" button produces a single `.html` file that looks like the web calendar: the summary, the legend, the month grids (with each day's details on hover), the weekly schedule and the applied days without internship. The stylesheet, font and logo are embedded, so it opens offline in any browser and prints or saves to PDF directly.
+The "Descàrrega en HTML" (read-only) button produces a single `.html` file that looks like the web calendar: the summary, the legend, the month grids (with each day's details on hover), the weekly schedule and the applied days without internship. The stylesheet, font and logo are embedded, so it opens offline in any browser and prints or saves to PDF directly.
 
 The file cannot be edited and runs no scripts. Before downloading it, a dialog asks users to check the calendar is correct. The form's data stays in the browser, so fixing it only takes going back to `/practiques` in the same browser and downloading it again. The file also carries the calculation's inputs in an inert JSON block (`#tempo-internship-plan`) so a future version could load it back into the planner.
 
-> **Maintenance note:** the month grid is drawn in two places: in the browser with JavaScript (`renderResult` in `app/templates/internship/index.html`), and on the server for the HTML copy (`build_month_views` in `app/services/internship_html.py` and `app/templates/internship/export.html`). Dates and hours always come from the same calculation and cannot diverge, but the presentation can. Day-type names, the legend (`internship/_legend.html`) and the CSS classes are shared; any other change to the grid (a marker, a class or a detail in a day's tooltip) has to be made in both places. Tests in `tests/test_internship.py` check that both share labels and legend.
+### Read-Only PDF
+
+The "Descàrrega en PDF" (read-only) button produces an A4 portrait PDF from the same template as the HTML copy: a header with the student and company details, the summary, the legend, three months per row, the weekly schedule and the days without internship, with the student's name and the page number in the footer. The server renders it with [WeasyPrint](https://weasyprint.org/), which needs the Pango and HarfBuzz system libraries (the `Dockerfile` already installs them). The page layout lives in `app/static/css/internship-pdf.css`. Like the HTML copy, it asks for a review before downloading; while it is generated, a dialog shows a progress bar (estimated from the number of months) and lets users cancel.
+
+> **Maintenance note:** the month grid is drawn in two places: in the browser with JavaScript (`renderResult` in `app/templates/internship/index.html`), and on the server for the HTML and PDF copies (`build_month_views` in `app/services/internship_html.py` and `app/templates/internship/export.html`; the PDF places the same day cells, through the `day_cell` macro, in tables instead of a CSS grid, because WeasyPrint lays tables out much faster). Dates and hours always come from the same calculation and cannot diverge, but the presentation can. Day-type names, the legend (`internship/_legend.html`) and the CSS classes are shared; any other change to the grid (a marker, a class or a detail in a day's tooltip) has to be made in both places. Tests in `tests/test_internship.py` check that both share labels and legend.
 
 ## Visual Assets
 
@@ -139,6 +143,7 @@ The file cannot be edited and runs no scripts. Before downloading it, a dialog a
 - SQLite
 - SQLAlchemy
 - openpyxl
+- WeasyPrint (PDF export)
 - Docker Compose
 
 ## Local Development
@@ -195,13 +200,13 @@ bash scripts/deploy_preview.sh
 - `/` shows the initial module configuration form
 - `/plan` lets users sort, distribute, and validate learning outcomes before export
 - the final export is generated as an XLSX workbook
-- `/practiques` computes an internship calendar from a start date, total hours and a weekly schedule (minutes supported, with optional periods that each have their own schedule), reuses the configured non-teaching periods, lets users adjust any day's hours and exports an editable XLSX or a read-only HTML copy (see [Internship Hours Planner](#internship-hours-planner))
+- `/practiques` computes an internship calendar from a start date, total hours and a weekly schedule (minutes supported, with optional periods that each have their own schedule), reuses the configured non-teaching periods, lets users adjust any day's hours and exports an editable XLSX or a read-only HTML or PDF copy (see [Internship Hours Planner](#internship-hours-planner))
 
 ### Admin Flow
 
 - `/admin` is authentication-protected
 - it manages academic years and excluded dates
-- `/admin/usage` shows how often each tool was opened and how many plans and exports were completed (for internships, split between XLSX and HTML), for the last 7 and 30 days, all time, and the last 12 weeks. Counting is anonymous: only one number per day and action is stored, with no IP addresses, cookies, or browser data, and bots and monitors are skipped
+- `/admin/usage` shows how often each tool was opened and how many plans and exports were completed (for internships, split between XLSX, HTML and PDF), for the last 7 and 30 days, all time, and the last 12 weeks. Counting is anonymous: only one number per day and action is stored, with no IP addresses, cookies, or browser data, and bots and monitors are skipped
 - it is not linked from the public UI
 
 ## Main Environment Variables
