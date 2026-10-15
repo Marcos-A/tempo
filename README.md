@@ -193,6 +193,7 @@ bash scripts/deploy_preview.sh
 
 - `/admin` està protegit per autenticació
 - permet gestionar anys acadèmics i dates excloses
+- `/admin/usage` mostra quantes vegades s'ha obert cada eina i quantes planificacions i exportacions s'han completat, per als últims 7 i 30 dies, el total i les últimes 12 setmanes. El recompte és anònim: només es desa un número per dia i acció, sense adreces IP, galetes ni dades del navegador, i no inclou robots ni monitors
 - no apareix enllaçat des de la interfície pública
 
 ## Variables d'entorn principals

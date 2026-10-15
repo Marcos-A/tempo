@@ -193,6 +193,7 @@ bash scripts/deploy_preview.sh
 
 - `/admin` is authentication-protected
 - it manages academic years and excluded dates
+- `/admin/usage` shows how often each tool was opened and how many plans and exports were completed, for the last 7 and 30 days, all time, and the last 12 weeks. Counting is anonymous: only one number per day and action is stored, with no IP addresses, cookies, or browser data, and bots and monitors are skipped
 - it is not linked from the public UI
 
 ## Main Environment Variables
