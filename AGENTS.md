@@ -6,6 +6,12 @@
 - Prefer preview or staging validation before production promotion.
 - Treat deployment wiring, secrets, and infrastructure details as environment-specific rather than repository defaults.
 
+## Branches
+
+- `main` and `preview` are both long-lived. `preview` is the branch used for preview deployments and may be checked out in its own worktree on the host.
+- Never delete `preview`, its remote copy or its worktree, even when it is fully merged into `main` or a request asks to "remove useless branches". Leave both long-lived branches out of any cleanup.
+- Before removing any other branch that has its own worktree or looks tied to a deployment, ask first.
+
 ## Repository notes
 
 - Use `docker-compose.yml` for local development.

@@ -193,6 +193,8 @@ For branch preview deployments:
 bash scripts/deploy_preview.sh
 ```
 
+The `preview` branch is permanent: it is the branch used for preview deployments and must not be deleted, even once it is fully merged into `main`.
+
 ## Application Flow
 
 ### Teacher Flow

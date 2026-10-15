@@ -193,6 +193,8 @@ Per a una previsualització de branca:
 bash scripts/deploy_preview.sh
 ```
 
+La branca `preview` és permanent: és la que s'utilitza per a les previsualitzacions i no s'ha d'esborrar, encara que ja estigui fusionada a `main`.
+
 ## Flux de l'aplicació
 
 ### Professorat
