@@ -2248,6 +2248,10 @@ button.month-day:focus-visible {
   gap: 0.3rem;
 }
 
+.weekday-chips[hidden] {
+  display: none;
+}
+
 .weekday-chip input {
   position: absolute;
   opacity: 0;

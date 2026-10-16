@@ -282,7 +282,7 @@
             <input class="date-input" id="range-end" type="text" placeholder="DD/MM/AAAA" inputmode="numeric" autocomplete="off" />
           </label>
         </div>
-        <div class="weekday-chips" role="group" aria-label="Dies de la setmana">
+        <div class="weekday-chips" id="range-weekdays" role="group" aria-label="Dies de la setmana">
           {% for short, name in [('dl.', 'dilluns'), ('dt.', 'dimarts'), ('dc.', 'dimecres'), ('dj.', 'dijous'), ('dv.', 'divendres'), ('ds.', 'dissabte'), ('dg.', 'diumenge')] %}
           <label class="weekday-chip"><input type="checkbox" data-range-weekday="{{ loop.index0 }}" aria-label="{{ name }}" /><span>{{ short }}</span></label>
           {% endfor %}
@@ -1115,6 +1115,7 @@
   const rangeChips = [...document.querySelectorAll("[data-range-weekday]")];
   let editingDay = null;
   let anchorDate = null;
+  let rangeFromShift = false;
 
   function hasOverride(iso) {
     return Object.prototype.hasOwnProperty.call(state.overrides, iso);
@@ -1176,7 +1177,9 @@
       if (isNonWorking(iso)) skipped += 1;
       else days.push(iso);
     }
-    if (!days.length) return { error: "Cap dia del període no coincideix amb els dies triats." };
+    if (!days.length) {
+      return { error: rangeFromShift ? "Cap dia de l'interval té pràctiques." : "Cap dia del període no coincideix amb els dies triats." };
+    }
     return { days, skipped };
   }
 
@@ -1205,7 +1208,9 @@
     } else if (selection) {
       const count = selection.days.length;
       let text = `S'aplicarà a ${count} ${count === 1 ? "dia" : "dies"}.`;
-      if (selection.skipped) {
+      if (rangeFromShift) {
+        text = count === 1 ? "S'aplicarà a l'únic dia amb pràctiques de l'interval." : `S'aplicarà als ${count} dies amb pràctiques de l'interval.`;
+      } else if (selection.skipped) {
         text += selection.skipped === 1
           ? " L'únic dia sense pràctiques del període no canvia."
           : ` Els ${selection.skipped} dies sense pràctiques del període no canvien.`;
@@ -1241,6 +1246,10 @@
       chip.checked = used.size ? used.has(index) : index < 5;
     });
     rangeDetails.open = Boolean(range);
+    // A Shift+click range already says which days: keep the chips' default
+    // (scheduled weekdays) without showing them. The regular route shows them.
+    rangeFromShift = Boolean(range);
+    $("range-weekdays").hidden = rangeFromShift;
     refreshEditor();
     editor.showModal();
   }
