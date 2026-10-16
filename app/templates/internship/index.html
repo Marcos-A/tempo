@@ -4,7 +4,10 @@
 <section class="card">
   <div class="page-heading">
     <h1>Calendari de pràctiques</h1>
-    <button type="button" class="link-button page-heading-action" id="plan-open">Obre un calendari desat…</button>
+    <button type="button" class="link-button page-heading-action" id="plan-open">
+      <svg class="page-heading-icon" viewBox="0 0 16 16" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 14.5V8"/><path d="M8 8C8 5.2 6 3.5 3 3.5c0 2.8 2 4.5 5 4.5Z"/><path d="M8 9.5c0-2.5 1.8-4 4.5-4 0 2.5-1.8 4-4.5 4Z"/></svg>
+      <span>Obre un calendari desat…</span>
+    </button>
     <input type="file" id="plan-file" accept=".html,.htm,text/html" hidden />
   </div>
   <p>Calcula la data de fi de les pràctiques d'un alumne a partir de la data d'inici, les hores totals i l'horari setmanal, i ajusta qualsevol dia abans d'exportar-lo.</p>
@@ -177,7 +180,7 @@
     <p class="calendar-edit-hint">
       <span class="calendar-edit-icon" aria-hidden="true">✎</span>
       <span><strong>Pots canviar les hores de qualsevol dia:</strong> fes-hi clic i tria'n les hores (també 0 o hores en un festiu o cap de setmana).
-      Per canviar-ne molts alhora, fes clic al primer dia i <kbd>Maj</kbd>+clic a l'últim.
+      Per canviar-ne molts alhora, fes <kbd>Maj</kbd>+clic al primer dia i <kbd>Maj</kbd>+clic a l'últim.
       Si treus hores, la data de fi s'endarrereix i el calendari afegeix sol els mesos que calguin, fins al 31 de juliol (a l'agost no es poden fer pràctiques).</span>
     </p>
     <div class="month-grid" id="month-grid"></div>
@@ -195,7 +198,7 @@
         <button type="button" class="secondary export-button" data-readonly-export="PDF">Descàrrega en PDF<span class="export-button-note">només lectura</span></button>
       </form>
     </div>
-    <p class="hint internship-export-hint">L'HTML i el PDF tenen el mateix aspecte que aquest calendari i serveixen per consultar-lo o imprimir-lo.</p>
+    <p class="hint internship-export-hint">L'HTML i el PDF tenen el mateix aspecte que aquest calendari i serveixen per consultar-lo o imprimir-lo. L'HTML, a més, es pot tornar a obrir aquí amb <button type="button" class="link-button inline-link-button" data-plan-open>«Obre un calendari desat»</button> per continuar editant el calendari.</p>
   </div>
 </section>
 
@@ -982,6 +985,7 @@
       $("result-error").hidden = true;
       lastResult = data;
       renderResult(data);
+      markAnchor();
       checkImportedResult(data);
       refreshSchedules({ showErrors: false });
       if (focusDateAfterRender) {
@@ -1241,14 +1245,33 @@
     editor.showModal();
   }
 
-  function onDayClick(event, day) {
-    if (event.shiftKey && anchorDate && anchorDate !== day.date) {
-      openEditor(day, [anchorDate, day.date].sort());
-    } else {
-      anchorDate = day.date;
-      openEditor(day);
-    }
+  // Shift+click marks the first day of a range without opening anything, so a
+  // second Shift+click can reach the last day; that one opens the editor with
+  // the range. A plain click edits one day as usual and drops the mark.
+  function markAnchor() {
+    document.querySelectorAll("#month-grid .is-range-anchor").forEach((cell) => cell.classList.remove("is-range-anchor"));
+    if (anchorDate) document.querySelector(`#month-grid [data-date="${anchorDate}"]`)?.classList.add("is-range-anchor");
   }
+
+  function onDayClick(event, day) {
+    if (event.shiftKey && !anchorDate) {
+      anchorDate = day.date;
+      markAnchor();
+      return;
+    }
+    const range = event.shiftKey && anchorDate && anchorDate !== day.date ? [anchorDate, day.date].sort() : null;
+    const toggledOff = event.shiftKey && anchorDate === day.date;
+    anchorDate = null;
+    markAnchor();
+    if (!toggledOff) openEditor(day, range);
+  }
+
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && anchorDate && !document.querySelector("dialog[open]")) {
+      anchorDate = null;
+      markAnchor();
+    }
+  });
 
   rangeDetails.addEventListener("toggle", () => editingDay && refreshEditor());
   [$("range-start"), $("range-end"), ...rangeChips].forEach((input) => {
@@ -1386,7 +1409,7 @@
     $("restore-notice-warning").hidden = !message;
   }
 
-  $("plan-open").addEventListener("click", () => $("plan-file").click());
+  document.querySelectorAll("#plan-open, [data-plan-open]").forEach((button) => button.addEventListener("click", () => $("plan-file").click()));
   $("plan-file").addEventListener("change", (event) => {
     const [file] = event.target.files;
     // Clear it so the same file can be chosen again after starting over.

@@ -2277,9 +2277,11 @@ button.month-day:focus-visible {
   outline-offset: 1px;
 }
 
-/* Days a range edit will change, visible behind the dialog. Dashed, so it
-   doesn't read as the solid «Darrer dia» border. */
-.month-day.is-in-range {
+/* Days a range edit will change, visible behind the dialog, and the first day
+   marked with Shift+click. Dashed, so it doesn't read as the solid «Darrer dia»
+   border. */
+.month-day.is-in-range,
+.month-day.is-range-anchor {
   outline: 2px dashed var(--accent-dark);
   outline-offset: -2px;
 }
@@ -2298,8 +2300,30 @@ button.month-day:focus-visible {
 }
 
 .page-heading-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
   font-weight: 500;
   color: var(--muted);
+  text-decoration: none;
+}
+
+/* A sprout: the saved HTML is the seed the calendar grows back from. */
+.page-heading-icon {
+  flex: none;
+  color: var(--accent);
+}
+
+.page-heading-action span {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+/* A link-button inside running text, aligned with the words around it. */
+.inline-link-button {
+  padding: 0;
+  font-size: inherit;
+  font-weight: 500;
 }
 
 .page-heading-action:hover {
