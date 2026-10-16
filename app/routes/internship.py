@@ -57,7 +57,7 @@ DETAIL_COLUMNS = (
     ("student_name", "training_cycle", "group_name"),
     ("company_name", "company_tutor", "company_tutor_email"),
 )
-# Inputs embedded in the HTML export so it could be loaded back into the planner.
+# Inputs embedded in the HTML export so it can be opened again in the planner.
 PLAN_KEYS = (
     "start_date",
     "target_hours",
@@ -438,7 +438,14 @@ def _snapshot_context(payload: dict, inputs: InternshipRequest, result: Internsh
         ],
         "periods": inputs.applied_periods(result, until=result.end_date),
         "generated_display": format_display_date(date.today()),
-        "plan": {"format": "tempo.internship", "version": 1, "plan": {key: payload.get(key) for key in PLAN_KEYS}},
+        "plan": {
+            "format": "tempo.internship",
+            "version": 1,
+            "saved": date.today().isoformat(),
+            "plan": {key: payload.get(key) for key in PLAN_KEYS},
+            # Lets the planner warn on import if the school calendar has changed since.
+            "result": {"end_date": result.end_date.isoformat(), "scheduled_minutes": result.scheduled_minutes},
+        },
     }
 
 

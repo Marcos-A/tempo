@@ -2,7 +2,11 @@
 {% block body_attrs %} class="section-internship"{% endblock %}
 {% block content %}
 <section class="card">
-  <h1>Calendari de pràctiques</h1>
+  <div class="page-heading">
+    <h1>Calendari de pràctiques</h1>
+    <button type="button" class="link-button page-heading-action" id="plan-open">Obre un calendari desat…</button>
+    <input type="file" id="plan-file" accept=".html,.htm,text/html" hidden />
+  </div>
   <p>Calcula la data de fi de les pràctiques d'un alumne a partir de la data d'inici, les hores totals i l'horari setmanal, i ajusta qualsevol dia abans d'exportar-lo.</p>
   <div class="step-intro card-panel">
     <ul class="step-intro-list">
@@ -16,7 +20,9 @@
     <span class="restore-notice-icon" aria-hidden="true">↺</span>
     <span id="restore-notice-text"></span>
     <button type="button" class="link-button" id="restore-reset">Comença de nou</button>
+    <span class="restore-notice-warning" id="restore-notice-warning" hidden></span>
   </div>
+  <p class="error" id="plan-open-error" role="alert" hidden></p>
   {% if error %}
   <p class="error">{{ error }}</p>
   {% endif %}
@@ -171,6 +177,7 @@
     <p class="calendar-edit-hint">
       <span class="calendar-edit-icon" aria-hidden="true">✎</span>
       <span><strong>Pots canviar les hores de qualsevol dia:</strong> fes-hi clic i tria'n les hores (també 0 o hores en un festiu o cap de setmana).
+      Per canviar-ne molts alhora, fes clic al primer dia i <kbd>Maj</kbd>+clic a l'últim.
       Si treus hores, la data de fi s'endarrereix i el calendari afegeix sol els mesos que calguin, fins al 31 de juliol (a l'agost no es poden fer pràctiques).</span>
     </p>
     <div class="month-grid" id="month-grid"></div>
@@ -247,7 +254,7 @@
     <h3 id="day-editor-title"></h3>
     <p class="hint" id="day-editor-note"></p>
     <div class="field-group">
-      <span class="field-group-label">Hores d'aquest dia</span>
+      <span class="field-group-label" id="day-editor-hours-label">Hores d'aquest dia</span>
       <span class="time-field">
         <select class="time-select" id="day-editor-hours" aria-label="Hores">
           {% for hour in range(0, max_daily_hours + 1) %}<option value="{{ hour }}">{{ hour }}</option>{% endfor %}
@@ -259,6 +266,27 @@
         <span class="block-time-separator">min</span>
       </span>
     </div>
+    <details class="day-editor-range" id="day-editor-range">
+      <summary>Aplica-ho a més dies</summary>
+      <div class="day-editor-range-body">
+        <div class="day-editor-range-dates">
+          <label>
+            Des del
+            <input class="date-input" id="range-start" type="text" placeholder="DD/MM/AAAA" inputmode="numeric" autocomplete="off" />
+          </label>
+          <label>
+            Fins al
+            <input class="date-input" id="range-end" type="text" placeholder="DD/MM/AAAA" inputmode="numeric" autocomplete="off" />
+          </label>
+        </div>
+        <div class="weekday-chips" role="group" aria-label="Dies de la setmana">
+          {% for short, name in [('dl.', 'dilluns'), ('dt.', 'dimarts'), ('dc.', 'dimecres'), ('dj.', 'dijous'), ('dv.', 'divendres'), ('ds.', 'dissabte'), ('dg.', 'diumenge')] %}
+          <label class="weekday-chip"><input type="checkbox" data-range-weekday="{{ loop.index0 }}" aria-label="{{ name }}" /><span>{{ short }}</span></label>
+          {% endfor %}
+        </div>
+        <p class="hint" id="range-summary"></p>
+      </div>
+    </details>
     <div class="day-editor-actions">
       <button type="submit" value="save">Desa</button>
       <button type="submit" value="reset" class="secondary" id="day-editor-reset">Torna a l'horari per defecte</button>
@@ -271,7 +299,7 @@
   <form method="dialog" class="day-editor-form">
     <h3 id="export-readonly-title"></h3>
     <p>No s'hi poden fer canvis. Revisa que el calendari sigui correcte abans de descarregar-lo.</p>
-    <p class="hint">Si més endavant cal modificar-lo, torna a aquesta pàgina des d'aquest mateix navegador (les dades s'hi conserven), fes-hi els canvis i torna'l a descarregar.</p>
+    <p class="hint" id="export-readonly-hint"></p>
     <div class="day-editor-actions">
       <button type="submit" value="download" id="export-readonly-confirm"></button>
       <button type="submit" value="cancel" class="secondary">Torna al calendari</button>
@@ -315,7 +343,6 @@
   let lastResult = null;
   let requestSeq = 0;
   let debounceTimer = null;
-  let editingDate = null;
 
   function pad(value) {
     return String(value).padStart(2, "0");
@@ -821,6 +848,10 @@
       readonlyExportForm = button.form;
       $("export-readonly-title").textContent = `El fitxer ${format} és només de consulta`;
       $("export-readonly-confirm").textContent = format === "HTML" ? "Descarrega l'HTML" : `Descarrega el ${format}`;
+      // The HTML copy carries the plan, so it is the file to keep for later changes.
+      $("export-readonly-hint").textContent = format === "HTML"
+        ? "Si més endavant cal modificar-lo, obre aquest fitxer amb «Obre un calendari desat», a dalt d'aquesta pàgina, fes-hi els canvis i torna'l a descarregar."
+        : "Si més endavant cal modificar-lo, descarrega també l'HTML: es pot tornar a obrir aquí amb «Obre un calendari desat» per fer-hi canvis.";
       exportReadonlyDialog.showModal();
     });
   });
@@ -923,6 +954,7 @@
     const seq = ++requestSeq;
     if (!hasEnoughInput()) {
       lastResult = null;
+      importedResult = null;
       $("coverage-warning").hidden = true;
       refreshSchedules({ showErrors: false });
       $("result-placeholder").hidden = false;
@@ -940,6 +972,7 @@
       if (seq !== requestSeq) return;
       $("result-placeholder").hidden = true;
       if (!data.ok) {
+        importedResult = null;
         $("result-error").textContent = data.error;
         $("result-error").hidden = false;
         $("result-body").hidden = true;
@@ -949,6 +982,7 @@
       $("result-error").hidden = true;
       lastResult = data;
       renderResult(data);
+      checkImportedResult(data);
       refreshSchedules({ showErrors: false });
       if (focusDateAfterRender) {
         // The grid is rebuilt after an edit, so return focus to the same day.
@@ -1056,7 +1090,7 @@
           cell.setAttribute("aria-label", `${parts.join(" · ")}. Fes clic per canviar les hores.`);
           cell.title = `${parts.join(" · ")}\nFes clic per canviar les hores.`;
           cell.dataset.date = iso;
-          cell.addEventListener("click", () => openEditor(day));
+          cell.addEventListener("click", (event) => onDayClick(event, day));
         }
         days.append(cell);
       }
@@ -1068,13 +1102,121 @@
 
   /* ---------- Per-day editor ---------- */
 
+  // One day by default. «Aplica-ho a més dies» (or Shift+click on a second
+  // day) turns it into a range: the hours go to every day of the range on the
+  // chosen weekdays, except days without internship (holidays and periods).
+  // The range is stored as plain per-day overrides, so nothing else changes.
   const editor = $("day-editor");
+  const rangeDetails = $("day-editor-range");
+  const rangeChips = [...document.querySelectorAll("[data-range-weekday]")];
+  let editingDay = null;
+  let anchorDate = null;
 
-  function openEditor(day) {
-    editingDate = day.date;
-    const isOverridden = Object.prototype.hasOwnProperty.call(state.overrides, day.date);
-    const current = isOverridden ? Number(state.overrides[day.date]) : day.default_minutes;
-    $("day-editor-title").textContent = `${WEEKDAY_SHORT[(isoToDate(day.date).getDay() + 6) % 7]} ${displayDate(day.date)}`;
+  function hasOverride(iso) {
+    return Object.prototype.hasOwnProperty.call(state.overrides, iso);
+  }
+
+  function weekdayIndex(iso) {
+    return (isoToDate(iso).getDay() + 6) % 7;
+  }
+
+  // Same rules as the server (InternshipRequest.non_working), for dates the
+  // current result may not reach yet.
+  function isNonWorking(iso) {
+    const unchecked = new Set(state.unchecked_period_ids.map(Number));
+    if (schoolPeriods.some((period) => !unchecked.has(period.id) && period.start <= iso && iso <= period.end)) return true;
+    return state.extra_periods.some((period) => {
+      const [start, end] = extraRangeIso(period);
+      return start <= iso && iso <= end;
+    });
+  }
+
+  function defaultMinutesOn(iso) {
+    const known = lastResult?.days.find((item) => item.date === iso);
+    if (known) return known.default_minutes;
+    if (isNonWorking(iso)) return 0;
+    // The latest schedule that has started by `iso` (changes are sorted by date).
+    let weekdays = state.weekday_minutes;
+    state.schedule_changes.forEach((change, index) => {
+      const changeIso = scheduleChangeStatus(index).iso;
+      if (changeIso && changeIso <= iso) weekdays = change.weekday_minutes;
+    });
+    return Number(weekdays[weekdayIndex(iso)]) || 0;
+  }
+
+  // 31 July of the school year the internship starts in; nothing runs later.
+  function deadlineIso() {
+    const start = parseDisplayDate(state.start_date);
+    if (!start) return null;
+    return `${start.getMonth() <= 6 ? start.getFullYear() : start.getFullYear() + 1}-07-31`;
+  }
+
+  /* The days the range covers, or an `error` explaining why there are none. */
+  function rangeSelection() {
+    const fromText = $("range-start").value.trim();
+    const toText = $("range-end").value.trim();
+    if (!toText) return { error: "Indica fins a quin dia s'aplica." };
+    const fromIso = displayToIso(fromText);
+    const toIso = displayToIso(toText);
+    if (!fromIso || !toIso) return { error: "Indica dates vàlides (DD/MM/AAAA)." };
+    if (toIso < fromIso) return { error: "La data «Fins al» no pot ser anterior a «Des del»." };
+    const weekdays = new Set(rangeChips.filter((chip) => chip.checked).map((chip) => Number(chip.dataset.rangeWeekday)));
+    if (!weekdays.size) return { error: "Tria com a mínim un dia de la setmana." };
+    const first = [fromIso, displayToIso(state.start_date)].sort()[1];
+    const last = [toIso, deadlineIso() || toIso].sort()[0];
+    const days = [];
+    let skipped = 0;
+    for (let cursor = isoToDate(first); dateToIso(cursor) <= last; cursor.setDate(cursor.getDate() + 1)) {
+      const iso = dateToIso(cursor);
+      if (!weekdays.has(weekdayIndex(iso))) continue;
+      if (isNonWorking(iso)) skipped += 1;
+      else days.push(iso);
+    }
+    if (!days.length) return { error: "Cap dia del període no coincideix amb els dies triats." };
+    return { days, skipped };
+  }
+
+  function isRangeMode() {
+    return rangeDetails.open;
+  }
+
+  function highlightRange(days) {
+    const selected = new Set(days);
+    document.querySelectorAll("#month-grid [data-date]").forEach((cell) => {
+      cell.classList.toggle("is-in-range", selected.has(cell.dataset.date));
+    });
+  }
+
+  function refreshEditor() {
+    const day = editingDay;
+    const rangeMode = isRangeMode();
+    const selection = rangeMode ? rangeSelection() : null;
+    $("day-editor-title").textContent = rangeMode
+      ? "Canvia les hores de diversos dies"
+      : `${WEEKDAY_SHORT[weekdayIndex(day.date)]} ${displayDate(day.date)}`;
+    $("day-editor-note").hidden = rangeMode;
+    $("day-editor-hours-label").textContent = rangeMode ? "Hores de cada dia" : "Hores d'aquest dia";
+    if (selection?.error) {
+      $("range-summary").textContent = selection.error;
+    } else if (selection) {
+      const count = selection.days.length;
+      let text = `S'aplicarà a ${count} ${count === 1 ? "dia" : "dies"}.`;
+      if (selection.skipped) {
+        text += selection.skipped === 1
+          ? " L'únic dia sense pràctiques del període no canvia."
+          : ` Els ${selection.skipped} dies sense pràctiques del període no canvien.`;
+      }
+      $("range-summary").textContent = text;
+    }
+    $("range-summary").classList.toggle("error-text", Boolean(selection?.error));
+    editor.querySelector('button[value="save"]').disabled = Boolean(selection?.error);
+    $("day-editor-reset").hidden = rangeMode ? !(selection.days || []).some(hasOverride) : !hasOverride(day.date);
+    highlightRange(selection?.days || []);
+  }
+
+  function openEditor(day, range = null) {
+    editingDay = day;
+    const current = hasOverride(day.date) ? Number(state.overrides[day.date]) : day.default_minutes;
     const notes = [KIND_LABELS[day.kind]];
     if (day.label) notes.push(day.label);
     const scheduleName = lastResult?.days.some((item) => item.schedule > 0) ? `Període ${day.schedule + 1}` : "Horari per defecte";
@@ -1083,25 +1225,59 @@
     $("day-editor-note").textContent = notes.join(" · ");
     $("day-editor-hours").value = String(Math.floor(current / 60));
     $("day-editor-minutes").value = String(current % 60);
-    $("day-editor-reset").hidden = !isOverridden;
+    $("range-start").value = displayDate(range ? range[0] : day.date);
+    $("range-end").value = range ? displayDate(range[1]) : "";
+    // Start from the weekdays the agreement uses; Monday to Friday if none yet.
+    const used = new Set();
+    [state.weekday_minutes, ...state.schedule_changes.map((change) => change.weekday_minutes)].forEach((weekdays) => {
+      Object.entries(weekdays).forEach(([index, minutes]) => Number(minutes) > 0 && used.add(Number(index)));
+    });
+    rangeChips.forEach((chip) => {
+      const index = Number(chip.dataset.rangeWeekday);
+      chip.checked = used.size ? used.has(index) : index < 5;
+    });
+    rangeDetails.open = Boolean(range);
+    refreshEditor();
     editor.showModal();
   }
 
+  function onDayClick(event, day) {
+    if (event.shiftKey && anchorDate && anchorDate !== day.date) {
+      openEditor(day, [anchorDate, day.date].sort());
+    } else {
+      anchorDate = day.date;
+      openEditor(day);
+    }
+  }
+
+  rangeDetails.addEventListener("toggle", () => editingDay && refreshEditor());
+  [$("range-start"), $("range-end"), ...rangeChips].forEach((input) => {
+    input.addEventListener("input", refreshEditor);
+    input.addEventListener("change", refreshEditor);
+  });
+  // Shift+click would otherwise select the text between the two days.
+  $("month-grid").addEventListener("mousedown", (event) => {
+    if (event.shiftKey) event.preventDefault();
+  });
+
   editor.addEventListener("close", () => {
-    if (!editingDate) return;
+    if (!editingDay) return;
     const action = editor.returnValue;
-    focusDateAfterRender = editingDate;
+    const dates = isRangeMode() ? rangeSelection().days || [] : [editingDay.date];
+    focusDateAfterRender = editingDay.date;
     if (action === "save") {
       const minutes = (Number($("day-editor-hours").value) || 0) * 60 + (Number($("day-editor-minutes").value) || 0);
-      const day = lastResult?.days.find((item) => item.date === editingDate);
-      if (day && minutes === day.default_minutes) delete state.overrides[editingDate];
-      else state.overrides[editingDate] = minutes;
+      dates.forEach((iso) => {
+        if (minutes === defaultMinutesOn(iso)) delete state.overrides[iso];
+        else state.overrides[iso] = minutes;
+      });
       changed({ immediate: true });
     } else if (action === "reset") {
-      delete state.overrides[editingDate];
+      dates.forEach((iso) => delete state.overrides[iso]);
       changed({ immediate: true });
     }
-    editingDate = null;
+    highlightRange([]);
+    editingDay = null;
     editor.returnValue = "";
   });
 
@@ -1124,9 +1300,10 @@
 
   function hideRestoreNotice() {
     $("restore-notice").hidden = true;
+    $("restore-notice-warning").hidden = true;
   }
 
-  function showRestoreNotice() {
+  function showRestoreNotice(intro = "S'han recuperat les dades de l'última sessió") {
     const details = [];
     const student = String(state.metadata.student_name || "").trim();
     if (student) details.push(student);
@@ -1134,9 +1311,99 @@
     const targetMinutes = (Number(state.target_hours) || 0) * 60 + (Number(state.target_minutes) || 0);
     if (targetMinutes) details.push(formatMinutes(targetMinutes));
     const summary = details.length ? ` (${details.join(" · ")})` : "";
-    $("restore-notice-text").textContent = `S'han recuperat les dades de l'última sessió${summary}.`;
+    $("restore-notice-text").textContent = `${intro}${summary}.`;
+    $("restore-notice-warning").hidden = true;
     $("restore-notice").hidden = false;
   }
+
+  /* ---------- Opening a saved calendar ---------- */
+
+  // The HTML copy embeds the plan's inputs (and the result they gave) as inert
+  // JSON, built by _snapshot_context in app/routes/internship.py. Opening it
+  // reads that block in the browser and loads it like a restored session;
+  // nothing is uploaded until the usual recalculation.
+  const PLAN_FORMAT = "tempo.internship";
+  const PLAN_VERSION = 1;
+  let importedResult = null;
+
+  function showOpenError(message) {
+    $("plan-open-error").textContent = message;
+    $("plan-open-error").hidden = !message;
+  }
+
+  async function readPlanFile(file) {
+    const doc = new DOMParser().parseFromString(await file.text(), "text/html");
+    const block = doc.getElementById("tempo-internship-plan");
+    if (!block) throw new Error("Aquest fitxer no és un calendari de pràctiques descarregat en HTML des de Tempo.");
+    let data = null;
+    try {
+      data = JSON.parse(block.textContent);
+    } catch (error) {
+      data = null;
+    }
+    if (!data || data.format !== PLAN_FORMAT || typeof data.plan !== "object" || !data.plan) {
+      throw new Error("Les dades del calendari d'aquest fitxer estan malmeses i no es poden obrir.");
+    }
+    if (Number(data.version) > PLAN_VERSION) {
+      throw new Error("Aquest fitxer s'ha fet amb una versió més nova de Tempo i no es pot obrir aquí.");
+    }
+    return data;
+  }
+
+  async function openPlanFile(file) {
+    showOpenError("");
+    let data;
+    try {
+      data = await readPlanFile(file);
+    } catch (error) {
+      showOpenError(error.message);
+      return;
+    }
+    if (hasMeaningfulData() && !window.confirm("Vols substituir les dades actuals pel calendari desat?")) return;
+    // Missing values fall back to the defaults instead of overwriting them with null.
+    const plan = Object.fromEntries(Object.entries(data.plan).filter(([, value]) => value !== null && value !== undefined));
+    state = normalizeState(plan);
+    renderInputs();
+    changed({ immediate: true });
+    importedResult = data.result || null;
+    const saved = /^\d{4}-\d{2}-\d{2}$/.test(data.saved || "") ? ` el ${displayDate(data.saved)}` : "";
+    showRestoreNotice(`S'ha obert el calendari desat${saved}`);
+    document.querySelector(".card").scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  /* Warn once if the school calendar has changed since the file was saved. */
+  function checkImportedResult(data) {
+    const before = importedResult;
+    importedResult = null;
+    if (!before || $("restore-notice").hidden) return;
+    let message = "";
+    if (before.end_date && before.end_date !== data.end_date) {
+      message = `El calendari del centre ha canviat des que es va desar: la data de fi ara és el ${data.end_date_display} (abans, el ${displayDate(before.end_date)}).`;
+    } else if (Number.isFinite(before.scheduled_minutes) && before.scheduled_minutes !== data.scheduled_minutes) {
+      message = `El calendari del centre ha canviat des que es va desar: ara hi ha ${data.scheduled_display} planificades (abans, ${formatMinutes(before.scheduled_minutes)}).`;
+    }
+    $("restore-notice-warning").textContent = message ? `${message} Revisa els dies sense pràctiques.` : "";
+    $("restore-notice-warning").hidden = !message;
+  }
+
+  $("plan-open").addEventListener("click", () => $("plan-file").click());
+  $("plan-file").addEventListener("change", (event) => {
+    const [file] = event.target.files;
+    // Clear it so the same file can be chosen again after starting over.
+    event.target.value = "";
+    if (file) openPlanFile(file);
+  });
+  // Dropping the file anywhere on the page opens it too.
+  const isFileDrag = (event) => [...(event.dataTransfer?.types || [])].includes("Files");
+  document.addEventListener("dragover", (event) => {
+    if (isFileDrag(event)) event.preventDefault();
+  });
+  document.addEventListener("drop", (event) => {
+    if (!isFileDrag(event)) return;
+    event.preventDefault();
+    const [file] = event.dataTransfer.files;
+    if (file && !document.querySelector("dialog[open]")) openPlanFile(file);
+  });
 
   state = loadState();
   renderInputs();

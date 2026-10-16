@@ -4,7 +4,8 @@
  * `pattern` attribute and server-side parsing keep working unchanged. The
  * popup only fills the field in that same format. It is appended to <body>
  * because date inputs live inside <label> elements, which would otherwise
- * forward every click in the popup back to the input.
+ * forward every click in the popup back to the input. Inside a modal
+ * <dialog> it goes in the dialog instead: the rest of the page is inert then.
  */
 (() => {
   const MONTH_NAMES = [
@@ -109,13 +110,23 @@
     const top = spaceBelow < popupHeight + 8 && rect.top > popupHeight + 8
       ? rect.top - popupHeight - 4
       : rect.bottom + 4;
-    const left = Math.min(rect.left, window.innerWidth - popup.offsetWidth - 8);
-    popup.style.top = `${top + window.scrollY}px`;
-    popup.style.left = `${Math.max(8, left) + window.scrollX}px`;
+    const left = Math.max(8, Math.min(rect.left, window.innerWidth - popup.offsetWidth - 8));
+    const host = popup.parentElement;
+    if (host === document.body) {
+      popup.style.top = `${top + window.scrollY}px`;
+      popup.style.left = `${left + window.scrollX}px`;
+    } else {
+      // The dialog is fixed in the viewport and is the popup's containing block.
+      const box = host.getBoundingClientRect();
+      popup.style.top = `${top - box.top - host.clientTop}px`;
+      popup.style.left = `${left - box.left - host.clientLeft}px`;
+    }
   }
 
   function open(input) {
     if (!popup) buildPopup();
+    const host = input.closest("dialog") || document.body;
+    if (popup.parentElement !== host) host.appendChild(popup);
     activeInput = input;
     const reference = parseDate(input.value) || new Date();
     viewYear = reference.getFullYear();

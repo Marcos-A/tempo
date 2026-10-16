@@ -652,7 +652,12 @@ def test_html_export_downloads_a_self_contained_read_only_copy(client):
     assert 'class="month-day day-working day-end" data-date="2026-10-19"' in html
     assert "dt. 13/10/2026 · Festiu / no lectiu · Festa · sense hores" in html
     plan = json.loads(html.split('id="tempo-internship-plan">')[1].split("</script>")[0])
-    assert plan["format"] == "tempo.internship" and plan["plan"]["overrides"] == {"2026-10-17": 240}
+    assert plan["format"] == "tempo.internship" and plan["version"] == 1
+    assert plan["plan"]["overrides"] == {"2026-10-17": 240}
+    assert plan["plan"]["metadata"]["student_name"] == "Núria Pérez"
+    # The result travels with the plan so reopening the file can spot school calendar changes.
+    assert plan["result"] == {"end_date": "2026-10-19", "scheduled_minutes": 35 * 60}
+    assert plan["saved"] == date.today().isoformat()
 
 
 def test_html_export_escapes_user_text(client):

@@ -2213,6 +2213,119 @@ button.month-day:focus-visible {
   width: min(30rem, calc(100vw - 2rem));
 }
 
+/* The date picker opens inside the dialog and may reach past its edge. */
+.day-editor:has(.day-editor-range) {
+  overflow: visible;
+}
+
+/* Power-user range, folded away so a one-day edit looks the same as before. */
+.day-editor-range summary {
+  width: fit-content;
+  cursor: pointer;
+  color: var(--accent);
+  font-size: 0.88rem;
+  font-weight: 600;
+}
+
+.day-editor-range-body {
+  display: grid;
+  gap: 0.75rem;
+  margin-top: 0.75rem;
+  padding: 0.85rem;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+}
+
+.day-editor-range-dates {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.weekday-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}
+
+.weekday-chip input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.weekday-chip span {
+  display: inline-block;
+  min-width: 2.6rem;
+  padding: 0.3rem 0.45rem;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  font-size: 0.82rem;
+  text-align: center;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.weekday-chip input:checked + span {
+  border-color: var(--accent-dark);
+  background: var(--accent-dark);
+  color: #fff;
+}
+
+.weekday-chip input:focus-visible + span {
+  outline: 2px dashed var(--accent);
+  outline-offset: 1px;
+}
+
+/* Days a range edit will change, visible behind the dialog. Dashed, so it
+   doesn't read as the solid «Darrer dia» border. */
+.month-day.is-in-range {
+  outline: 2px dashed var(--accent-dark);
+  outline-offset: -2px;
+}
+
+.page-heading {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.25rem 1rem;
+}
+
+/* The heading keeps its usual gap to the intro, which flex no longer collapses. */
+.page-heading + p {
+  margin-top: 0;
+}
+
+.page-heading-action {
+  font-weight: 500;
+  color: var(--muted);
+}
+
+.page-heading-action:hover {
+  color: var(--accent);
+}
+
+.restore-notice-warning {
+  flex-basis: 100%;
+  color: var(--danger);
+  font-weight: 600;
+}
+
+.restore-notice-warning[hidden] {
+  display: none;
+}
+
+kbd {
+  padding: 0 0.3rem;
+  border: 1px solid var(--line-strong);
+  border-bottom-width: 2px;
+  border-radius: 3px;
+  background: var(--card);
+  font-family: var(--font-body);
+  font-size: 0.85em;
+}
+
 .internship-export-actions {
   display: flex;
   flex-wrap: wrap;

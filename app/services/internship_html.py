@@ -3,8 +3,8 @@
 The file is a snapshot of the planner's "Calendari resultant": the same
 summary, legend and month grids, with the stylesheet, font and logo inlined
 so it opens offline and prints without the app. It contains no executable
-script; the plan's inputs travel in an inert JSON block so a future import
-could load the file back into the planner.
+script; the plan's inputs travel in an inert JSON block that the planner's
+«Obre un calendari desat» reads to load the file back for editing.
 
 The PDF export renders the same template (with `pdf` set) through
 WeasyPrint, adding the page layout from `static/css/internship-pdf.css`
