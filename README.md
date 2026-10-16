@@ -105,6 +105,8 @@ Els períodes del calendari del centre surten marcats i es poden desmarcar si no
 
 En fer clic a qualsevol dia se'n poden canviar les hores, fins i tot posar-hi 0 o afegir-ne en un festiu o cap de setmana. Si es treuen hores, la data de fi s'endarrereix i el calendari afegeix sol els mesos necessaris.
 
+Per canviar les hores de molts dies alhora (p. ex. del 20 d'octubre al 10 de novembre), es fa clic al primer dia i Maj+clic a l'últim, o s'obre «Aplica-ho a més dies» a la finestra del dia. Aquesta opció, plegada per defecte, demana un interval de dates i els dies de la setmana afectats (de sortida, els que tenen hores a l'horari), mostra quants dies canviaran i els ressalta al calendari. Els dies sense pràctiques de l'interval (festius i períodes no lectius) no es toquen. Cada dia queda desat com un canvi individual, així que es pot retocar o restablir com qualsevol altre.
+
 A l'agost no es poden fer pràctiques, així que el calendari no passa mai del 31 de juliol del curs en què comencen. Si les hores no hi caben, l'aplicació avisa i mostra les hores que falten, que s'hauran de fer amb un nou conveni el curs vinent.
 
 ![Editor de les hores d'un dia concret](docs/screenshots/tempo-practiques-step-3-editor-dia.png)
@@ -122,7 +124,9 @@ A l'agost no es poden fer pràctiques, així que el calendari no passa mai del 3
 
 El botó «Descàrrega en HTML» (només lectura) genera un únic fitxer `.html` amb el mateix aspecte que el calendari del web: el resum, la llegenda, les graelles mensuals (amb el detall de cada dia en passar-hi el ratolí), l'horari setmanal i els dies sense pràctiques aplicats. La capçalera agrupa les dades en columnes: l'estudiant (nom, cicle formatiu i grup), l'empresa (nom, tutor/a i correu del tutor/a) i les dates (data d'inici i hores totals); les dades buides i les columnes sense cap dada no es mostren. El full d'estils, la tipografia i el logotip van incrustats, de manera que s'obre sense connexió, en qualsevol navegador, i s'imprimeix o es desa en PDF directament.
 
-El fitxer no admet canvis i no executa cap script. Abans de descarregar-lo, una finestra demana revisar que el calendari sigui correcte. Les dades del formulari es conserven al navegador, de manera que per corregir-lo n'hi ha prou amb tornar a `/practiques` des del mateix navegador i descarregar-lo de nou. El fitxer també inclou les dades del càlcul en un bloc JSON inert (`#tempo-internship-plan`), pensat per poder-lo tornar a carregar al planificador en una versió futura.
+El fitxer no admet canvis i no executa cap script. Abans de descarregar-lo, una finestra demana revisar que el calendari sigui correcte. Les dades del formulari es conserven al navegador, de manera que per corregir-lo n'hi ha prou amb tornar a `/practiques` des del mateix navegador i descarregar-lo de nou.
+
+El fitxer també inclou les dades del càlcul en un bloc JSON inert (`#tempo-internship-plan`): les dades del formulari (incloses les de l'estudiant i l'empresa), la data en què es va desar i el resultat obtingut. Per això es pot tornar a obrir des de qualsevol navegador amb l'enllaç «Obre un calendari desat…» de la part superior de `/practiques`, o deixant-lo anar damunt de la pàgina. El fitxer es llegeix al navegador, substitueix les dades actuals (després de demanar confirmació) i a partir d'aquí el calendari funciona com qualsevol altre: es pot editar i tornar a descarregar en tots els formats, també en un HTML nou amb els canvis. Si en recalcular-lo la data de fi o les hores planificades no coincideixen amb les desades (perquè ha canviat el calendari del centre), un avís ho indica. El bloc porta un número de format (`version`) perquè les versions futures de Tempo puguin continuar llegint els fitxers antics.
 
 ### PDF de només lectura
 

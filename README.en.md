@@ -105,6 +105,8 @@ The school calendar's periods are pre-selected and can be unticked when they do 
 
 Clicking any day changes its hours, including setting it to 0 or adding hours on a holiday or weekend. Removing hours moves the end date later, and the calendar adds the months it needs on its own.
 
+To change many days at once (e.g. from 20 October to 10 November), click the first day and Shift+click the last one, or open "Aplica-ho a més dies" in the day's dialog. This option, folded away by default, asks for a date range and the weekdays it applies to (by default, those with hours in the schedule), shows how many days will change and highlights them on the calendar. Days without internship inside the range (holidays and non-teaching periods) are left alone. Each day is stored as an individual change, so it can be adjusted or reset like any other.
+
 Internships cannot run in August, so the calendar never goes past 31 July of the school year it starts in. If the hours do not fit, the app warns and shows the hours still pending, which need a new agreement next school year.
 
 ![Editor for a single day's hours](docs/screenshots/tempo-practiques-step-3-editor-dia.png)
@@ -122,7 +124,9 @@ Internships cannot run in August, so the calendar never goes past 31 July of the
 
 The "Descàrrega en HTML" (read-only) button produces a single `.html` file that looks like the web calendar: the summary, the legend, the month grids (with each day's details on hover), the weekly schedule and the applied days without internship. The header groups the details in columns: the student (name, training cycle and group), the company (name, tutor and tutor's email) and the dates (start date and total hours); empty fields and columns with no details are left out. The stylesheet, font and logo are embedded, so it opens offline in any browser and prints or saves to PDF directly.
 
-The file cannot be edited and runs no scripts. Before downloading it, a dialog asks users to check the calendar is correct. The form's data stays in the browser, so fixing it only takes going back to `/practiques` in the same browser and downloading it again. The file also carries the calculation's inputs in an inert JSON block (`#tempo-internship-plan`) so a future version could load it back into the planner.
+The file cannot be edited and runs no scripts. Before downloading it, a dialog asks users to check the calendar is correct. The form's data stays in the browser, so fixing it only takes going back to `/practiques` in the same browser and downloading it again.
+
+The file also carries the calculation's data in an inert JSON block (`#tempo-internship-plan`): the form's inputs (including the student and company details), the date it was saved and the result it gave. That is why it can be opened again from any browser with the "Obre un calendari desat…" link at the top of `/practiques`, or by dropping it on the page. The file is read in the browser, replaces the current data (after asking for confirmation) and from then on the calendar works like any other: it can be edited and downloaded again in every format, including a new HTML file with the changes. If recalculating it gives a different end date or planned hours than the saved ones (because the school calendar has changed), a notice says so. The block carries a format number (`version`) so future versions of Tempo can keep reading older files.
 
 ### Read-Only PDF
 
