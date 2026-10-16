@@ -93,15 +93,15 @@ La secció `/practiques` és independent de la planificació de mòduls i calcul
 
 Indica la data d'inici, les hores totals (amb minuts) i les hores de cada dia de la setmana. Si el conveni té períodes amb horaris diferents (p. ex. jornada intensiva a l'estiu), afegeix un nou període i indica a partir de quin dia s'aplica. Opcionalment, afegeix les dades de l'estudiant i de l'empresa, que apareixen a la capçalera dels fitxers exportats (XLSX, HTML i PDF). El formulari es conserva al navegador entre visites.
 
-![Formulari del planificador d'hores de pràctiques](docs/screenshots/tempo-practiques-step-1-formulari.png)
+![Formulari del planificador d'hores de pràctiques obert des d'un calendari desat, amb l'enllaç «Obre un calendari desat»](docs/screenshots/tempo-practiques-step-1-formulari.png)
 
 ### 2. Revisa els dies sense pràctiques i el calendari
 
 Els períodes del calendari del centre surten marcats i es poden desmarcar si no afecten l'empresa (p. ex. pràctiques durant les vacances escolars). També s'hi poden afegir altres dies, com festius locals de l'empresa o festius posteriors a les classes. Si les pràctiques van més enllà dels dies no lectius configurats al calendari del centre, un avís en aquesta mateixa secció recorda afegir-hi els festius posteriors. El calendari es recalcula en directe i mostra la data de fi, les hores planificades i els dies amb pràctiques; el darrer dia només rep les hores que falten. Quan hi ha diversos períodes, el primer dia de cadascun queda marcat al calendari.
 
-![Dies sense pràctiques, calendari resultant amb la data de fi i botons de descàrrega en XLSX, HTML i PDF](docs/screenshots/tempo-practiques-step-2-calendari.png)
+![Dies sense pràctiques, calendari resultant amb la data de fi, botons de descàrrega en XLSX, HTML i PDF i l'avís que l'HTML es pot tornar a obrir](docs/screenshots/tempo-practiques-step-2-calendari.png)
 
-### 3. Ajusta les hores d'un dia
+### 3. Ajusta les hores d'un dia o de diversos dies
 
 En fer clic a qualsevol dia se'n poden canviar les hores, fins i tot posar-hi 0 o afegir-ne en un festiu o cap de setmana. Si es treuen hores, la data de fi s'endarrereix i el calendari afegeix sol els mesos necessaris.
 
@@ -109,7 +109,7 @@ Per canviar les hores de molts dies alhora (p. ex. del 20 d'octubre al 10 de nov
 
 A l'agost no es poden fer pràctiques, així que el calendari no passa mai del 31 de juliol del curs en què comencen. Si les hores no hi caben, l'aplicació avisa i mostra les hores que falten, que s'hauran de fer amb un nou conveni el curs vinent.
 
-![Editor de les hores d'un dia concret](docs/screenshots/tempo-practiques-step-3-editor-dia.png)
+![Canvi de les hores d'una setmana sencera triada amb Maj+clic, amb els dies afectats ressaltats al calendari](docs/screenshots/tempo-practiques-step-3-editor-dia.png)
 
 ### Full XLSX exportat
 

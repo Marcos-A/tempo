@@ -93,15 +93,15 @@ The `/practiques` section is independent from module planning and works out when
 
 Enter the start date, total hours (minutes supported) and the hours for each weekday. If the agreement has periods with different schedules (e.g. shorter summer hours), add a new period and set the date it applies from. Optionally, add the student and company details shown in the header of the exported files (XLSX, HTML and PDF). The form is kept in the browser between visits.
 
-![Internship hours planner form](docs/screenshots/tempo-practiques-step-1-formulari.png)
+![Internship hours planner form opened from a saved calendar, with the "Obre un calendari desat" link](docs/screenshots/tempo-practiques-step-1-formulari.png)
 
 ### 2. Review Days Without Internship And The Calendar
 
 The school calendar's periods are pre-selected and can be unticked when they do not affect the company (e.g. an internship that runs through school holidays). Other days can be added too, such as the company's local holidays or holidays after classes end. If the internship runs past the non-teaching days configured in the school calendar, a warning in this same section reminds users to add the later holidays. The calendar recalculates live and shows the end date, planned hours and internship days; the last day only receives the hours still needed. When there are several periods, the first day of each one is marked on the calendar.
 
-![Days without internship, the resulting calendar with its end date and the XLSX, HTML and PDF download buttons](docs/screenshots/tempo-practiques-step-2-calendari.png)
+![Days without internship, the resulting calendar with its end date, the XLSX, HTML and PDF download buttons and the note that the HTML can be opened again](docs/screenshots/tempo-practiques-step-2-calendari.png)
 
-### 3. Adjust A Day's Hours
+### 3. Adjust The Hours Of One Or Several Days
 
 Clicking any day changes its hours, including setting it to 0 or adding hours on a holiday or weekend. Removing hours moves the end date later, and the calendar adds the months it needs on its own.
 
@@ -109,7 +109,7 @@ To change many days at once (e.g. from 20 October to 10 November), Shift+click t
 
 Internships cannot run in August, so the calendar never goes past 31 July of the school year it starts in. If the hours do not fit, the app warns and shows the hours still pending, which need a new agreement next school year.
 
-![Editor for a single day's hours](docs/screenshots/tempo-practiques-step-3-editor-dia.png)
+![Changing the hours of a whole week picked with Shift+click, with the affected days highlighted on the calendar](docs/screenshots/tempo-practiques-step-3-editor-dia.png)
 
 ### Exported XLSX
 
