@@ -207,7 +207,7 @@ Deployments that set `APP_ENV` show the deployed build in a small footer and exp
 - `scripts/update-release-info.sh` writes `build-meta/release-info.json` from the latest published GitHub release (it needs an authenticated `gh` on the host), or `null` when it cannot be verified. The app re-reads the file on every request, so publishing a release only requires running the script again, not rebuilding.
 - `APP_ENV` (`preview` or `production`) and `REPO_URL` are runtime settings. The footer shows `Preview · <sha>` in preview, `<release> · <sha>` in production (`Build · <sha>` without a release), and `Build unknown` when the SHA is missing. Without `APP_ENV` there is no footer.
 
-`scripts/deploy_preview.sh` already does all of this. Production is not wired yet: `docker-compose.production.yml` does not pass these values, so production shows no footer.
+`scripts/deploy_preview.sh` and `scripts/deploy_production.sh` already do all of this. To publish a release without redeploying, run `scripts/update-release-info.sh build-meta/release-info.json <deployed sha>` in the deployed checkout.
 
 ## Application Flow
 

@@ -7,6 +7,9 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        GIT_COMMIT: ${GIT_COMMIT:?GIT_COMMIT not set; run scripts/deploy_production.sh}
+        BUILD_TIME: ${BUILD_TIME:-}
     command: python -m app.server
     env_file:
       - ${ENV_FILE:-/srv/config/tempo/.env.prod}
@@ -14,8 +17,13 @@ services:
       - "127.0.0.1:${HOST_PORT:-8091}:8000"
     environment:
       DATABASE_URL: sqlite:///data/app.db
+      APP_ENV: production
+      REPO_URL: ${REPO_URL:-}
+      BUILD_META_DIR: /app/build-meta
     volumes:
       - ${DATA_DIR:-/srv/data/tempo}:/app/data
+      # Holds release-info.json; a directory so a missing file never becomes a mount point.
+      - ./build-meta:/app/build-meta:ro
     restart: unless-stopped
     healthcheck:
       test:

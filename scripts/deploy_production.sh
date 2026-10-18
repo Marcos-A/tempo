@@ -10,6 +10,13 @@ export ENV_FILE="${ENV_FILE:-/srv/config/tempo/.env.prod}"
 export IMAGE_NAME="${IMAGE_NAME:-tempo-web:local}"
 export CONTAINER_NAME="${CONTAINER_NAME:-tempo-web}"
 export APP_NAME="${APP_NAME:-Planificador curricular}"
+export REPO_URL="${REPO_URL:-https://github.com/Marcos-A/tempo}"
+
+# Identify the build by its commit; refuses uncommitted changes unless ALLOW_DIRTY=1.
+set -a
+eval "$("$repo_root/scripts/build-env.sh")"
+set +a
+"$repo_root/scripts/update-release-info.sh" "$repo_root/build-meta/release-info.json" "$GIT_COMMIT"
 
 echo "Deploying production from: $repo_root"
 echo "Ref: $(git rev-parse --short HEAD 2>/dev/null || echo unknown)"

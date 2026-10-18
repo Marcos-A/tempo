@@ -207,7 +207,7 @@ Els desplegaments que defineixen `APP_ENV` mostren la compilació desplegada en 
 - `scripts/update-release-info.sh` escriu `build-meta/release-info.json` a partir de l'última versió publicada a GitHub (cal un `gh` autenticat a l'amfitrió), o `null` si no es pot verificar. L'aplicació torna a llegir el fitxer a cada petició, de manera que publicar una versió només requereix tornar a executar l'script, sense recompilar.
 - `APP_ENV` (`preview` o `production`) i `REPO_URL` són paràmetres d'execució. El peu mostra `Preview · <sha>` a la previsualització, `<versió> · <sha>` a producció (`Build · <sha>` si no hi ha cap versió publicada) i `Build unknown` si falta el SHA. Sense `APP_ENV` no hi ha peu.
 
-`scripts/deploy_preview.sh` ja ho fa tot. Producció encara no està configurada: `docker-compose.production.yml` no passa aquests valors, de manera que producció no mostra cap peu.
+`scripts/deploy_preview.sh` i `scripts/deploy_production.sh` ja ho fan tot. Per mostrar una versió acabada de publicar sense tornar a desplegar, executa `scripts/update-release-info.sh build-meta/release-info.json <sha desplegat>` a la còpia desplegada.
 
 ## Flux de l'aplicació
 
