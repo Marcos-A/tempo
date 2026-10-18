@@ -9,6 +9,7 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.build_info import build_footer
 from app.config import get_settings
 from app.database import get_db
 from app.date_utils import format_display_date, parse_date_input
@@ -35,6 +36,7 @@ templates.env.filters["date_display"] = format_display_date
 settings = get_settings()
 templates.env.globals["app_name"] = settings.app_name
 templates.env.globals["school_name"] = settings.school_name
+templates.env.globals["build_footer"] = build_footer
 templates.env.globals["block_minute_choices"] = BLOCK_MINUTE_CHOICES
 PLANNING_MODE_CHOICES = {"sequential", "parallel"}
 MAX_RA_COUNT = 24

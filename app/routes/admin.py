@@ -11,6 +11,7 @@ from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
 from app.auth import verify_password
+from app.build_info import build_footer
 from app.config import get_settings
 from app.database import get_db
 from app.date_utils import format_display_date, format_month_label, parse_date_input
@@ -28,6 +29,7 @@ templates.env.filters["date_display"] = format_display_date
 settings = get_settings()
 templates.env.globals["app_name"] = settings.app_name
 templates.env.globals["school_name"] = settings.school_name
+templates.env.globals["build_footer"] = build_footer
 SELECTED_YEAR_SECTION_ID = "academic-year-detail"
 EXCLUDED_PERIODS_SECTION_ID = "excluded-periods"
 DANGER_ZONE_SECTION_ID = "danger-zone"

@@ -3,7 +3,11 @@ name: tempo-preview
 services:
   web:
     container_name: tempo-preview-web
-    build: .
+    build:
+      context: .
+      args:
+        GIT_COMMIT: ${GIT_COMMIT:?GIT_COMMIT not set; run scripts/deploy_preview.sh}
+        BUILD_TIME: ${BUILD_TIME:-}
     command: python -m app.server
     env_file:
       - ${PREVIEW_ENV_FILE:-/srv/config/tempo/.env.preview}
@@ -12,8 +16,13 @@ services:
     environment:
       DATABASE_URL: sqlite:///data/app.db
       WEB_CONCURRENCY: "1"
+      APP_ENV: preview
+      REPO_URL: ${REPO_URL:-}
+      BUILD_META_DIR: /app/build-meta
     volumes:
       - ${PREVIEW_DATA_DIR:-/srv/data/tempo-preview}:/app/data
+      # Holds release-info.json; a directory so a missing file never becomes a mount point.
+      - ./build-meta:/app/build-meta:ro
     restart: unless-stopped
     healthcheck:
       test:

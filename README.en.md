@@ -199,6 +199,16 @@ bash scripts/deploy_preview.sh
 
 The `preview` branch is permanent: it is the branch used for preview deployments and must not be deleted, even once it is fully merged into `main`.
 
+### Build Identification
+
+Deployments that set `APP_ENV` show the deployed build in a small footer and expose it at `/build-info.json` (`Cache-Control: no-cache`):
+
+- `scripts/build-env.sh` reads the commit SHA on the host and refuses uncommitted tracked changes (`ALLOW_DIRTY=1` overrides it). The SHA and build time are baked into the image as `GIT_COMMIT` and `BUILD_TIME`, and also as the `org.opencontainers.image.revision` label.
+- `scripts/update-release-info.sh` writes `build-meta/release-info.json` from the latest published GitHub release (it needs an authenticated `gh` on the host), or `null` when it cannot be verified. The app re-reads the file on every request, so publishing a release only requires running the script again, not rebuilding.
+- `APP_ENV` (`preview` or `production`) and `REPO_URL` are runtime settings. The footer shows `Preview · <sha>` in preview, `<release> · <sha>` in production (`Build · <sha>` without a release), and `Build unknown` when the SHA is missing. Without `APP_ENV` there is no footer.
+
+`scripts/deploy_preview.sh` already does all of this. Production is not wired yet: `docker-compose.production.yml` does not pass these values, so production shows no footer.
+
 ## Application Flow
 
 ### Teacher Flow
@@ -224,6 +234,9 @@ The `preview` branch is permanent: it is the branch used for preview deployments
 - `ADMIN_PASSWORD`: admin password
 - `DATABASE_URL`: SQLAlchemy connection URL
 - `WEB_CONCURRENCY`: process count for the production-style server runtime
+- `APP_ENV`: `preview` or `production`; enables the build footer (see [Build Identification](#build-identification))
+- `REPO_URL`: optional repository URL used to link the footer to the commit and release
+- `BUILD_META_DIR`: directory holding `release-info.json` (default `build-meta`)
 
 ## Tests
 

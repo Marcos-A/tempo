@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>{{ (title or app_name) ~ (" | " ~ school_name if school_name else "") }}</title>
     <link rel="icon" type="image/svg+xml" href="{{ url_for('static', path='/img/tempo-favicon.svg') }}?v=20261012d" />
-    <link rel="stylesheet" href="{{ url_for('static', path='/css/app.css') }}?v=20261016e" />
+    <link rel="stylesheet" href="{{ url_for('static', path='/css/app.css') }}?v=20261018a" />
     <script src="{{ url_for('static', path='/js/datepicker.js') }}?v=20261016a" defer></script>
   </head>
   <body{% block body_attrs %}{% endblock %}>
@@ -29,5 +29,18 @@
     <main class="container">
       {% block content %}{% endblock %}
     </main>
+    {% set footer = build_footer() if build_footer is defined else None %}
+    {% if footer %}
+    <footer class="site-footer">
+      <div class="container">
+        <span class="build-info" title="{{ footer.title }}">
+          {%- for part in footer.parts -%}
+          {%- if not loop.first %} · {% endif -%}
+          {%- if part.href -%}<a href="{{ part.href }}" target="_blank" rel="noopener noreferrer">{{ part.text }}</a>{%- else -%}{{ part.text }}{%- endif -%}
+          {%- endfor -%}
+        </span>
+      </div>
+    </footer>
+    {% endif %}
   </body>
 </html>

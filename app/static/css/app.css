@@ -117,6 +117,16 @@ main.container {
   padding: 2rem 0 3rem;
 }
 
+.site-footer .container {
+  padding: 0 0 1.5rem;
+  font-size: 0.75rem;
+  color: var(--muted-faint);
+}
+
+.build-info a {
+  color: inherit;
+}
+
 h1, h2, h3 {
   font-family: var(--font-display);
   font-weight: 600;

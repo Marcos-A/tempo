@@ -17,6 +17,14 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
+# Build identification, captured on the host by scripts/build-env.sh. Declared after
+# the dependency layers so a new commit does not invalidate the pip cache.
+ARG GIT_COMMIT
+ARG BUILD_TIME
+ENV GIT_COMMIT=$GIT_COMMIT BUILD_TIME=$BUILD_TIME
+LABEL org.opencontainers.image.revision=$GIT_COMMIT \
+      org.opencontainers.image.created=$BUILD_TIME
+
 EXPOSE 8000
 
 # Trust the reverse proxy path used on this host so generated URLs keep HTTPS.

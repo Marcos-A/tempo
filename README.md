@@ -199,6 +199,16 @@ bash scripts/deploy_preview.sh
 
 La branca `preview` és permanent: és la que s'utilitza per a les previsualitzacions i no s'ha d'esborrar, encara que ja estigui fusionada a `main`.
 
+### Identificació de la compilació
+
+Els desplegaments que defineixen `APP_ENV` mostren la compilació desplegada en un petit peu de pàgina i l'exposen a `/build-info.json` (`Cache-Control: no-cache`):
+
+- `scripts/build-env.sh` llegeix el SHA del commit a l'amfitrió i refusa canvis seguits sense confirmar (`ALLOW_DIRTY=1` ho permet). El SHA i l'hora de compilació queden incrustats a la imatge com a `GIT_COMMIT` i `BUILD_TIME`, i també com a etiqueta `org.opencontainers.image.revision`.
+- `scripts/update-release-info.sh` escriu `build-meta/release-info.json` a partir de l'última versió publicada a GitHub (cal un `gh` autenticat a l'amfitrió), o `null` si no es pot verificar. L'aplicació torna a llegir el fitxer a cada petició, de manera que publicar una versió només requereix tornar a executar l'script, sense recompilar.
+- `APP_ENV` (`preview` o `production`) i `REPO_URL` són paràmetres d'execució. El peu mostra `Preview · <sha>` a la previsualització, `<versió> · <sha>` a producció (`Build · <sha>` si no hi ha cap versió publicada) i `Build unknown` si falta el SHA. Sense `APP_ENV` no hi ha peu.
+
+`scripts/deploy_preview.sh` ja ho fa tot. Producció encara no està configurada: `docker-compose.production.yml` no passa aquests valors, de manera que producció no mostra cap peu.
+
 ## Flux de l'aplicació
 
 ### Professorat
@@ -224,6 +234,9 @@ La branca `preview` és permanent: és la que s'utilitza per a les previsualitza
 - `ADMIN_PASSWORD`: contrasenya d'administració
 - `DATABASE_URL`: URL de connexió SQLAlchemy
 - `WEB_CONCURRENCY`: nombre de processos del servidor en execució tipus producció
+- `APP_ENV`: `preview` o `production`; activa el peu amb la compilació (vegeu [Identificació de la compilació](#identificació-de-la-compilació))
+- `REPO_URL`: URL opcional del repositori per enllaçar el peu amb el commit i la versió
+- `BUILD_META_DIR`: directori que conté `release-info.json` (per defecte `build-meta`)
 
 ## Proves
 
