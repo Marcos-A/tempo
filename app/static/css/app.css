@@ -2259,8 +2259,13 @@ button.month-day:focus-visible {
   gap: 0.3rem;
 }
 
-.weekday-chips[hidden] {
+.weekday-chips[hidden],
+.range-non-working[hidden] {
   display: none;
+}
+
+.range-non-working {
+  font-size: 0.88rem;
 }
 
 .weekday-chip input {

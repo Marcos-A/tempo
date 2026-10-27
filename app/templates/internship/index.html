@@ -287,6 +287,10 @@
           <label class="weekday-chip"><input type="checkbox" data-range-weekday="{{ loop.index0 }}" aria-label="{{ name }}" /><span>{{ short }}</span></label>
           {% endfor %}
         </div>
+        <label class="checkbox-label range-non-working" id="range-non-working-option" hidden>
+          <input type="checkbox" id="range-non-working" />
+          <span>Inclou també els dies sense pràctiques (festius i vacances)</span>
+        </label>
         <p class="hint" id="range-summary"></p>
       </div>
     </details>
@@ -651,17 +655,17 @@
   function coverageReason(startIso, endIso, skipIndex = -1) {
     const unchecked = new Set(state.unchecked_period_ids.map(Number));
     const extras = state.extra_periods.filter((_, index) => index !== skipIndex).map(extraRangeIso);
-    const found = { checked: new Set(), unchecked: new Set(), extra: false, weekend: false };
+    // A day in an unchecked school period is a working day, so adding it on
+    // its own (e.g. Christmas Day while the company works the rest of the
+    // break) is a real change.
+    const found = { checked: new Set(), extra: false, weekend: false };
     for (let day = isoToDate(startIso); dateToIso(day) <= endIso; day.setDate(day.getDate() + 1)) {
       const iso = dateToIso(day);
-      const school = schoolPeriods.filter((period) => period.start <= iso && iso <= period.end);
-      const checked = school.filter((period) => !unchecked.has(period.id));
+      const checked = schoolPeriods.filter((period) => !unchecked.has(period.id) && period.start <= iso && iso <= period.end);
       if (checked.length) {
         checked.forEach((period) => found.checked.add(period.label || "sense motiu"));
       } else if (extras.some(([start, end]) => start <= iso && iso <= end)) {
         found.extra = true;
-      } else if (school.length) {
-        school.forEach((period) => found.unchecked.add(period.label || "sense motiu"));
       } else if (day.getDay() === 0 || day.getDay() === 6) {
         found.weekend = true;
       } else {
@@ -673,10 +677,6 @@
 
   function coverageMessage(found, isSingleDay) {
     const subject = isSingleDay ? "Aquest dia" : "Aquests dies";
-    if (found.unchecked.size) {
-      return `${subject} ja ${isSingleDay ? "és" : "són"} al calendari del centre (${[...found.unchecked].join(", ")}), però el període està desmarcat. `
-        + "Torna'l a marcar a «Calendari del centre» en lloc d'afegir-lo.";
-    }
     if (found.checked.size) {
       return `${subject} ja ${isSingleDay ? "és no lectiu" : "són no lectius"} segons el calendari del centre (${[...found.checked].join(", ")}). No cal afegir-${isSingleDay ? "lo" : "los"}.`;
     }
@@ -1169,18 +1169,32 @@
     if (!weekdays.size) return { error: "Tria com a mínim un dia de la setmana." };
     const first = [fromIso, displayToIso(state.start_date)].sort()[1];
     const last = [toIso, deadlineIso() || toIso].sort()[0];
+    // Holidays and vacations are left alone unless the user opts in, e.g. to
+    // schedule hours during a school break the company doesn't stop for.
+    const includeNonWorking = $("range-non-working").checked;
     const days = [];
-    let skipped = 0;
+    let nonWorking = 0;
     for (let cursor = isoToDate(first); dateToIso(cursor) <= last; cursor.setDate(cursor.getDate() + 1)) {
       const iso = dateToIso(cursor);
       if (!weekdays.has(weekdayIndex(iso))) continue;
-      if (isNonWorking(iso)) skipped += 1;
-      else days.push(iso);
+      if (isNonWorking(iso)) {
+        nonWorking += 1;
+        if (!includeNonWorking) continue;
+      }
+      days.push(iso);
     }
+    const skipped = includeNonWorking ? 0 : nonWorking;
     if (!days.length) {
+      if (skipped) {
+        return {
+          nonWorking,
+          error: `${rangeFromShift ? "Tots els dies de l'interval" : "Tots els dies triats del període"} són sense pràctiques. `
+            + "Marca «Inclou també els dies sense pràctiques» per posar-hi hores.",
+        };
+      }
       return { error: rangeFromShift ? "Cap dia de l'interval té pràctiques." : "Cap dia del període no coincideix amb els dies triats." };
     }
-    return { days, skipped };
+    return { days, skipped, nonWorking };
   }
 
   function isRangeMode() {
@@ -1208,7 +1222,9 @@
     } else if (selection) {
       const count = selection.days.length;
       let text = `S'aplicarà a ${count} ${count === 1 ? "dia" : "dies"}.`;
-      if (rangeFromShift) {
+      if (rangeFromShift && $("range-non-working").checked) {
+        text = count === 1 ? "S'aplicarà a l'únic dia de l'interval." : `S'aplicarà als ${count} dies de l'interval.`;
+      } else if (rangeFromShift) {
         text = count === 1 ? "S'aplicarà a l'únic dia amb pràctiques de l'interval." : `S'aplicarà als ${count} dies amb pràctiques de l'interval.`;
       } else if (selection.skipped) {
         text += selection.skipped === 1
@@ -1218,6 +1234,7 @@
       $("range-summary").textContent = text;
     }
     $("range-summary").classList.toggle("error-text", Boolean(selection?.error));
+    $("range-non-working-option").hidden = !selection?.nonWorking;
     editor.querySelector('button[value="save"]').disabled = Boolean(selection?.error);
     $("day-editor-reset").hidden = rangeMode ? !(selection.days || []).some(hasOverride) : !hasOverride(day.date);
     highlightRange(selection?.days || []);
@@ -1245,6 +1262,7 @@
       const index = Number(chip.dataset.rangeWeekday);
       chip.checked = used.size ? used.has(index) : index < 5;
     });
+    $("range-non-working").checked = false;
     rangeDetails.open = Boolean(range);
     // A Shift+click range already says which days: keep the chips' default
     // (scheduled weekdays) without showing them. The regular route shows them.
@@ -1283,7 +1301,7 @@
   });
 
   rangeDetails.addEventListener("toggle", () => editingDay && refreshEditor());
-  [$("range-start"), $("range-end"), ...rangeChips].forEach((input) => {
+  [$("range-start"), $("range-end"), $("range-non-working"), ...rangeChips].forEach((input) => {
     input.addEventListener("input", refreshEditor);
     input.addEventListener("change", refreshEditor);
   });
