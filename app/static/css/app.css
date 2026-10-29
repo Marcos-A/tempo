@@ -2440,6 +2440,15 @@ kbd {
   margin-bottom: 0;
 }
 
+/* The image keeps each box's measured height, so a label that wraps would push its value down. */
+.png-sheet .internship-stat {
+  align-content: start;
+}
+
+.png-sheet .internship-stat-label {
+  white-space: nowrap;
+}
+
 /* Read-only HTML export (internship/export.html). */
 .snapshot-notice {
   margin: 0 0 1rem;
