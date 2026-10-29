@@ -24,6 +24,7 @@ INTERNSHIP_VIEW = "internship.view"
 INTERNSHIP_EXPORT = "internship.export"
 INTERNSHIP_EXPORT_HTML = "internship.export_html"
 INTERNSHIP_EXPORT_PDF = "internship.export_pdf"
+INTERNSHIP_EXPORT_PNG = "internship.export_png"
 
 # (section label, [(event, column label)]) in the order the admin view shows them.
 USAGE_SECTIONS = [
@@ -35,6 +36,7 @@ USAGE_SECTIONS = [
             (INTERNSHIP_EXPORT, "Exportacions XLSX"),
             (INTERNSHIP_EXPORT_HTML, "Exportacions HTML"),
             (INTERNSHIP_EXPORT_PDF, "Exportacions PDF"),
+            (INTERNSHIP_EXPORT_PNG, "Exportacions PNG"),
         ],
     ),
 ]

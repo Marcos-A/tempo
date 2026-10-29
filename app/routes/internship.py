@@ -4,7 +4,8 @@ The page recalculates live through `/practiques/calcul` (JSON), downloads
 the workbook through `/practiques/export` and read-only copies through
 `/practiques/export-html` and `/practiques/export-pdf`. All of them receive
 the same JSON payload and run the same validation, so the exported files
-always match the preview.
+always match the preview. The PNG image is drawn in the browser from the
+preview itself; `/practiques/export-png` only counts it.
 """
 
 from __future__ import annotations
@@ -39,7 +40,7 @@ from app.services.internship_html import (
     pdf_stylesheet,
     render_pdf,
 )
-from app.services.usage import INTERNSHIP_EXPORT, INTERNSHIP_EXPORT_HTML, INTERNSHIP_EXPORT_PDF, INTERNSHIP_VIEW, record_usage
+from app.services.usage import INTERNSHIP_EXPORT, INTERNSHIP_EXPORT_HTML, INTERNSHIP_EXPORT_PDF, INTERNSHIP_EXPORT_PNG, INTERNSHIP_VIEW, record_usage
 
 
 router = APIRouter(prefix="/practiques", tags=["internship"])
@@ -495,3 +496,10 @@ async def export_internship_pdf(request: Request, db: Session = Depends(get_db))
         media_type="application/pdf",
         headers={"Content-Disposition": f'attachment; filename="{_export_filename(inputs.metadata, "pdf")}"'},
     )
+
+
+@router.post("/export-png", status_code=status.HTTP_204_NO_CONTENT)
+def count_internship_png(request: Request, db: Session = Depends(get_db)):
+    """Count a PNG download; the browser draws the image from the preview."""
+
+    record_usage(db, request, INTERNSHIP_EXPORT_PNG)

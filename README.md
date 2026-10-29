@@ -49,7 +49,7 @@ Tempo té dues eines, accessibles des de la capçalera de l'aplicació.
 - calcular la data de fi de les pràctiques d'un estudiant a partir de la data d'inici, les hores totals i l'horari setmanal, que pot canviar d'un període a un altre del conveni
 - descomptar els dies sense pràctiques del calendari del centre i afegir-ne d'altres
 - ajustar les hores de qualsevol dia directament al calendari
-- exportar-lo en un XLSX editable que es recalcula sol, o en una còpia HTML o PDF de només lectura amb el mateix aspecte que el web
+- exportar-lo en un XLSX editable que es recalcula sol, o en una còpia HTML o PDF de només lectura amb el mateix aspecte que el web, o en una imatge PNG del calendari
 
 ## Planificador curricular
 
@@ -132,6 +132,10 @@ El fitxer també inclou les dades del càlcul en un bloc JSON inert (`#tempo-int
 
 El botó «Descàrrega en PDF» (només lectura) genera un PDF en A4 vertical a partir de la mateixa plantilla que la còpia HTML: capçalera amb les mateixes columnes de dades, el resum, la llegenda, tres mesos per fila, l'horari setmanal i els dies sense pràctiques, amb el nom de l'estudiant i el número de pàgina al peu. El genera el servidor amb [WeasyPrint](https://weasyprint.org/), que necessita les biblioteques de sistema Pango i HarfBuzz (el `Dockerfile` ja les instal·la). El format de pàgina és a `app/static/css/internship-pdf.css`. Igual que l'HTML, demana una revisió abans de descarregar-lo; mentre es genera, una finestra mostra una barra de progrés (estimada segons el nombre de mesos) i permet cancel·lar-lo.
 
+### Imatge PNG de només lectura
+
+El botó «Descàrrega en PNG» (només lectura) desa una imatge del calendari tal com es veu a la pàgina: el resum amb la data de fi, la llegenda i les graelles mensuals, sense l'ajuda per editar ni els botons, i sense les dades de l'estudiant i l'empresa. La genera el navegador a partir d'una còpia del calendari amb amplada fixa (tres mesos per fila, a doble resolució) amb la biblioteca [html-to-image](https://github.com/bubkoo/html-to-image) (MIT), inclosa a `app/static/js/vendor/`. El servidor només en compta la descàrrega (`/practiques/export-png`). Com l'HTML i el PDF, demana una revisió abans de descarregar-la.
+
 > **Nota de manteniment:** la graella mensual es dibuixa en dos llocs: al navegador, amb JavaScript (`renderResult` a `app/templates/internship/index.html`), i al servidor per a les còpies HTML i PDF (`build_month_views` a `app/services/internship_html.py` i `app/templates/internship/export.html`; el PDF col·loca els mateixos dies, amb la macro `day_cell`, en taules en lloc d'una graella CSS, perquè WeasyPrint les compon molt més de pressa). Les dates i les hores surten sempre del mateix càlcul i no poden divergir, però la presentació sí. Els noms dels tipus de dia, la llegenda (`internship/_legend.html`) i les classes CSS són compartits; qualsevol altre canvi a la graella (un marcador, una classe o un detall del text d'ajuda d'un dia) s'ha de fer en tots dos llocs. Les proves de `tests/test_internship.py` comproven que els dos comparteixen etiquetes i llegenda.
 
 ## Actius visuals
@@ -148,6 +152,7 @@ El botó «Descàrrega en PDF» (només lectura) genera un PDF en A4 vertical a 
 - SQLAlchemy
 - openpyxl
 - WeasyPrint (exportació en PDF)
+- html-to-image (exportació en PNG, al navegador)
 - Docker Compose
 
 ## Posada en marxa local
@@ -216,13 +221,13 @@ Els desplegaments que defineixen `APP_ENV` mostren la compilació desplegada en 
 - `/` mostra el formulari inicial de configuració del mòdul
 - `/plan` permet ordenar, repartir i validar els RAs abans d'exportar
 - l'exportació final es fa cap a un llibre XLSX
-- `/practiques` calcula el calendari de pràctiques a partir de la data d'inici, les hores totals i l'horari setmanal (amb minuts i, si cal, diversos períodes amb horari propi), reutilitza els períodes no lectius configurats, permet ajustar les hores de qualsevol dia i exporta un XLSX editable o una còpia HTML o PDF de només lectura (vegeu [Planificador d'hores de pràctiques](#planificador-dhores-de-pràctiques))
+- `/practiques` calcula el calendari de pràctiques a partir de la data d'inici, les hores totals i l'horari setmanal (amb minuts i, si cal, diversos períodes amb horari propi), reutilitza els períodes no lectius configurats, permet ajustar les hores de qualsevol dia i exporta un XLSX editable o una còpia HTML, PDF o PNG de només lectura (vegeu [Planificador d'hores de pràctiques](#planificador-dhores-de-pràctiques))
 
 ### Administració
 
 - `/admin` està protegit per autenticació
 - permet gestionar anys acadèmics i dates excloses
-- `/admin/usage` mostra quantes vegades s'ha obert cada eina i quantes planificacions i exportacions (en el cas de les pràctiques, separades entre XLSX, HTML i PDF) s'han completat, per als últims 7 i 30 dies, el total i les últimes 12 setmanes. El recompte és anònim: només es desa un número per dia i acció, sense adreces IP, galetes ni dades del navegador, i no inclou robots ni monitors
+- `/admin/usage` mostra quantes vegades s'ha obert cada eina i quantes planificacions i exportacions (en el cas de les pràctiques, separades entre XLSX, HTML, PDF i PNG) s'han completat, per als últims 7 i 30 dies, el total i les últimes 12 setmanes. El recompte és anònim: només es desa un número per dia i acció, sense adreces IP, galetes ni dades del navegador, i no inclou robots ni monitors
 - no apareix enllaçat des de la interfície pública
 
 ## Variables d'entorn principals

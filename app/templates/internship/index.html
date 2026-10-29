@@ -197,8 +197,11 @@
         <input type="hidden" name="payload" />
         <button type="button" class="secondary export-button" data-readonly-export="PDF">Descàrrega en PDF<span class="export-button-note">només lectura</span></button>
       </form>
+      <form action="/practiques/export-png" id="export-png-form">
+        <button type="button" class="secondary export-button" data-readonly-export="PNG">Descàrrega en PNG<span class="export-button-note">només lectura</span></button>
+      </form>
     </div>
-    <p class="hint internship-export-hint">L'HTML i el PDF tenen el mateix aspecte que aquest calendari i serveixen per consultar-lo o imprimir-lo. L'HTML, a més, es pot tornar a obrir aquí amb <button type="button" class="link-button inline-link-button" data-plan-open>«Obre un calendari desat»</button> per continuar editant el calendari.</p>
+    <p class="hint internship-export-hint">L'HTML i el PDF mostren aquest calendari amb les dades de l'estudiant i l'empresa, per consultar-lo o imprimir-lo. El PNG n'és una imatge resumida amb les dates clau. L'HTML es pot tornar a obrir aquí amb <button type="button" class="link-button inline-link-button" data-plan-open>«Obre un calendari desat»</button> per continuar editant-lo.</p>
   </div>
 </section>
 
@@ -327,6 +330,7 @@
   </div>
 </dialog>
 
+<script src="{{ url_for('static', path='/js/vendor/html-to-image.js') }}?v=1.11.13" defer></script>
 <script>
 (() => {
   const STORAGE_KEY = "tempo.internship.v1";
@@ -842,7 +846,7 @@
   $("export-form").addEventListener("submit", () => {
     $("export-payload").value = JSON.stringify(buildPayload());
   });
-  // The HTML and PDF copies cannot be edited, so ask for a final review before downloading them.
+  // The HTML, PDF and PNG copies cannot be edited, so ask for a final review before downloading them.
   const exportReadonlyDialog = $("export-readonly-dialog");
   let readonlyExportForm = null;
   document.querySelectorAll("[data-readonly-export]").forEach((button) => {
@@ -860,6 +864,10 @@
   });
   exportReadonlyDialog.addEventListener("close", () => {
     if (exportReadonlyDialog.returnValue === "download" && readonlyExportForm) {
+      if (readonlyExportForm.id === "export-png-form") {
+        downloadPng(readonlyExportForm);
+        return;
+      }
       readonlyExportForm.elements.payload.value = JSON.stringify(buildPayload());
       if (readonlyExportForm.id === "export-pdf-form") {
         downloadPdf(readonlyExportForm);
@@ -928,6 +936,50 @@
     } finally {
       clearInterval(timer);
       pdfAbort = null;
+    }
+  }
+
+  // The PNG is drawn in the browser from the preview: an off-screen copy of the
+  // summary, legend and months at a fixed width (three months per row),
+  // without the editing hint, buttons or the Shift+click anchor.
+  function exportSlug() {
+    return String(state.metadata.student_name || "").normalize("NFKD").replace(/[^\x00-\x7F]/g, "")
+      .replace(/[^A-Za-z0-9]+/g, "-").replace(/^-+|-+$/g, "").toLowerCase();
+  }
+
+  async function downloadPng(form) {
+    const button = form.querySelector("button");
+    button.disabled = true;
+    const sheet = document.createElement("div");
+    sheet.className = "png-sheet";
+    const copy = $("result-body").cloneNode(true);
+    copy.querySelectorAll("[hidden], .calendar-edit-hint, .internship-export-actions, .internship-export-hint, #clear-overrides").forEach((node) => node.remove());
+    copy.querySelectorAll(".is-range-anchor").forEach((node) => node.classList.remove("is-range-anchor"));
+    [copy, ...copy.querySelectorAll("[id]")].forEach((node) => node.removeAttribute("id"));
+    sheet.append(copy);
+    document.body.append(sheet);
+    try {
+      await document.fonts.ready;
+      const blob = await htmlToImage.toBlob(sheet, { pixelRatio: 2, style: { position: "static", left: "0" } });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      const slug = exportSlug();
+      link.download = slug ? `calendari-practiques-${slug}.png` : "calendari-practiques.png";
+      document.body.append(link);
+      link.click();
+      link.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 10000);
+      fetch(form.action, { method: "POST", keepalive: true }).catch(() => {});
+    } catch (error) {
+      $("export-progress-title").textContent = "No s'ha pogut generar el PNG";
+      $("export-progress-note").textContent = "Torna-ho a provar. Si no funciona, prova amb un altre navegador.";
+      $("export-progress-cancel").textContent = "Tanca";
+      setExportProgress(0);
+      exportProgressDialog.showModal();
+    } finally {
+      sheet.remove();
+      button.disabled = false;
     }
   }
 

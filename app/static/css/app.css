@@ -2426,6 +2426,20 @@ kbd {
   margin: 0.6rem 0 0;
 }
 
+/* Off-screen copy of the result that the planner turns into the PNG download. */
+.png-sheet {
+  position: fixed;
+  top: 0;
+  left: -10000px;
+  width: 62rem;
+  padding: 1.5rem;
+  background: var(--card);
+}
+
+.png-sheet .month-grid {
+  margin-bottom: 0;
+}
+
 /* Read-only HTML export (internship/export.html). */
 .snapshot-notice {
   margin: 0 0 1rem;

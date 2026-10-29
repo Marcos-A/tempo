@@ -15,6 +15,7 @@ from app.main import app
 from app.models import AcademicYear, UsageDailyCount
 from app.services.usage import (
     INTERNSHIP_EXPORT,
+    INTERNSHIP_EXPORT_PNG,
     INTERNSHIP_VIEW,
     MODULES_PLAN,
     MODULES_VIEW,
@@ -147,3 +148,10 @@ def test_usage_page_lists_both_tools(client, session_factory):
     assert "Planificació de mòduls" in response.text
     assert "Calendari de pràctiques" in response.text
     assert "Dades des del" in response.text
+
+
+def test_png_download_is_counted(client, session_factory):
+    response = client.post("/practiques/export-png")
+
+    assert response.status_code == 204
+    assert _counts(session_factory) == {INTERNSHIP_EXPORT_PNG: 1}
