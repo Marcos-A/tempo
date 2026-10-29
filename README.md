@@ -99,7 +99,7 @@ Indica la data d'inici, les hores totals (amb minuts) i les hores de cada dia de
 
 Els períodes del calendari del centre surten marcats i es poden desmarcar si no afecten l'empresa (p. ex. pràctiques durant les vacances escolars). També s'hi poden afegir altres dies, com festius locals de l'empresa o festius posteriors a les classes. Si les pràctiques van més enllà dels dies no lectius configurats al calendari del centre, un avís en aquesta mateixa secció recorda afegir-hi els festius posteriors. El calendari es recalcula en directe i mostra la data de fi, les hores planificades i els dies amb pràctiques; el darrer dia només rep les hores que falten. Quan hi ha diversos períodes, el primer dia de cadascun queda marcat al calendari.
 
-![Dies sense pràctiques, calendari resultant amb la data de fi, botons de descàrrega en XLSX, HTML i PDF i l'avís que l'HTML es pot tornar a obrir](docs/screenshots/tempo-practiques-step-2-calendari.png)
+![Dies sense pràctiques, calendari resultant amb la data de fi, botons de descàrrega en XLSX, HTML, PDF i PNG i la nota que explica cada format i que l'HTML es pot tornar a obrir](docs/screenshots/tempo-practiques-step-2-calendari.png)
 
 ### 3. Ajusta les hores d'un dia o de diversos dies
 
