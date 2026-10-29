@@ -955,6 +955,8 @@
     const copy = $("result-body").cloneNode(true);
     copy.querySelectorAll("[hidden], .calendar-edit-hint, .internship-export-actions, .internship-export-hint, #clear-overrides").forEach((node) => node.remove());
     copy.querySelectorAll(".is-range-anchor").forEach((node) => node.classList.remove("is-range-anchor"));
+    // Without its button, the overrides count would sit lower in a leftover inline wrapper.
+    copy.querySelectorAll(".internship-stat-value").forEach((node) => { node.textContent = node.textContent.trim(); });
     [copy, ...copy.querySelectorAll("[id]")].forEach((node) => node.removeAttribute("id"));
     sheet.append(copy);
     document.body.append(sheet);
