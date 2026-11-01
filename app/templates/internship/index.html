@@ -379,6 +379,7 @@
   const GENERAL_MAX_DAILY_MINUTES = {{ general_max_daily_minutes }};
   const FIRST_YEAR_MAX_MINUTES = {{ first_year_max_minutes }};
   const GRADES = {{ grade_labels|tojson }};
+  const DEFAULT_GRADE = {{ default_grade|tojson }};
   // The admin's SMI (e.g. "1.184,00"), or "" when each plan has to give its own.
   const ADMIN_SMI = {{ admin_smi|tojson }};
   const MODALITY_HINTS = {
@@ -582,13 +583,14 @@
     return cents > 0 && cents <= 100000 * 100 ? cents : null;
   }
 
-  // Until the user picks one, the grade follows the training cycle (CFGM or CFGS).
+  // Until the user picks one, the grade follows the training cycle (CFGM or
+  // CFGS), or the default, so one is always selected.
   function effectiveGrade() {
     if (state.grade) return state.grade;
     const cycle = String(state.metadata.training_cycle || "").trim().toUpperCase();
-    if (cycle.startsWith("CFGM")) return "mitja";
     if (cycle.startsWith("CFGS")) return "superior";
-    return "";
+    if (cycle.startsWith("CFGM")) return "mitja";
+    return DEFAULT_GRADE;
   }
 
   function smiError() {

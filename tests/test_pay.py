@@ -71,6 +71,7 @@ def test_request_reads_grade_and_smi_only_in_the_intensive_modality():
     intensive = InternshipRequest(_payload(modality="intensiva", grade="superior", smi="1.184,00"), [])
     assert (intensive.grade, intensive.smi_cents) == ("superior", 118400)
     assert intensive.pay_details() == [("Grau", "Grau superior"), ("SMI", "1.184,00 €")]
+    assert InternshipRequest(_payload(modality="intensiva"), []).grade == "mitja"
     general = InternshipRequest(_payload(grade="nope", smi="nope"), [])
     assert (general.grade, general.smi_cents, general.pay_details()) == ("", None, [])
     with pytest.raises(ValueError, match="Grau"):

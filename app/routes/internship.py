@@ -55,7 +55,7 @@ from app.services.internship_html import (
     pdf_stylesheet,
     render_pdf,
 )
-from app.services.pay import GRADE_LABELS, format_euros, get_smi_cents, parse_euros
+from app.services.pay import DEFAULT_GRADE, GRADE_LABELS, format_euros, get_smi_cents, parse_euros
 from app.services.usage import INTERNSHIP_EXPORT, INTERNSHIP_EXPORT_HTML, INTERNSHIP_EXPORT_PDF, INTERNSHIP_EXPORT_PNG, INTERNSHIP_VIEW, record_usage
 
 
@@ -154,8 +154,8 @@ class InternshipRequest:
         self.grade = ""
         self.smi_cents: int | None = None
         if self.modality == MODALITY_INTENSIVE:
-            self.grade = str(payload.get("grade") or "")
-            if self.grade and self.grade not in GRADE_LABELS:
+            self.grade = str(payload.get("grade") or DEFAULT_GRADE)
+            if self.grade not in GRADE_LABELS:
                 raise ValueError("Grau del cicle no vàlid.")
             smi_text = str(payload.get("smi") or "").strip()
             self.smi_cents = parse_euros(smi_text) if smi_text else None
@@ -440,6 +440,7 @@ def _render_page(request: Request, db: Session, *, state: dict | None = None, er
             "general_max_daily_minutes": GENERAL_MAX_DAILY_MINUTES,
             "first_year_max_minutes": FIRST_YEAR_MAX_MINUTES,
             "grade_labels": GRADE_LABELS,
+            "default_grade": DEFAULT_GRADE,
             # The admin's SMI pre-fills the planner's field; empty means each plan gives its own.
             "admin_smi": format_euros(admin_smi) if admin_smi is not None else "",
             "school_periods": [

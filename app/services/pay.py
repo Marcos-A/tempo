@@ -15,6 +15,8 @@ from app.models import AppSetting
 SMI_SETTING_KEY = "internship_smi"
 MAX_SMI_CENTS = 100_000 * 100
 GRADE_LABELS = {"mitja": "Grau mitjà", "superior": "Grau superior"}
+# A grade is always selected; this one applies until the user or the training cycle says otherwise.
+DEFAULT_GRADE = "mitja"
 
 
 def parse_euros(raw: str) -> int:
