@@ -1469,6 +1469,21 @@ th {
   font-weight: 700;
 }
 
+/* Planner: marks the yearly public holidays among the school periods. */
+.fixed-holiday-tag {
+  display: inline-block;
+  margin-left: 0.45rem;
+  padding: 0.05rem 0.45rem;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  color: var(--muted);
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  vertical-align: 0.1em;
+}
+
 .holiday-form {
   display: grid;
   grid-template-columns: 9rem minmax(0, 1fr) auto;

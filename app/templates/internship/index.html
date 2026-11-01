@@ -697,10 +697,18 @@
       const dates = document.createElement("span");
       dates.className = "period-dates";
       dates.textContent = displayDate(iso);
-      const name = document.createElement("span");
-      name.className = "period-label";
-      name.textContent = ` ${label || "Festiu fix"} · cada any`;
-      text.append(dates, name);
+      text.append(dates);
+      if (label) {
+        const name = document.createElement("span");
+        name.className = "period-label";
+        name.textContent = ` ${label}`;
+        text.append(name);
+      }
+      // Sets the yearly public holidays apart from the school's own periods.
+      const tag = document.createElement("span");
+      tag.className = "fixed-holiday-tag";
+      tag.textContent = "Festiu fix";
+      text.append(tag);
       option.append(box, text);
       item.append(option);
       list.insertBefore(item, periodItems.find((other) => other.dataset.periodStart > iso) || null);
