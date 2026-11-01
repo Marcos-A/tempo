@@ -1248,8 +1248,8 @@
     // Only on screen: the exports and the PNG leave this warning out.
     const longDayLimit = formatMinutes(GENERAL_MAX_DAILY_MINUTES);
     $("long-days-warning").textContent = data.long_days === 1
-      ? `Hi ha 1 dia amb més de ${longDayLimit}: cal un acord intensiu.`
-      : `Hi ha ${data.long_days} dies amb més de ${longDayLimit}: cal un acord intensiu.`;
+      ? `Hi ha 1 dia amb més de ${longDayLimit}: recorda que cal un tipus d'acord intensiu.`
+      : `Hi ha ${data.long_days} dies amb més de ${longDayLimit}: recorda que cal un tipus d'acord intensiu.`;
     $("long-days-warning").hidden = !data.long_days;
     $("summary-hours").textContent = `${data.scheduled_display} / ${data.target_display}`;
     $("summary-days").textContent = String(data.working_days);
