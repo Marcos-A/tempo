@@ -189,10 +189,7 @@
       </div>
     </div>
     <p class="warning-box warning-box-danger" id="result-incomplete" hidden></p>
-    <p class="warning-box long-days-warning" id="long-days-warning" hidden>
-      <span id="long-days-text"></span>
-      <button type="button" class="link-button" id="switch-intensive">Passa a intensiva</button>
-    </p>
+    <p class="warning-box long-days-warning" id="long-days-warning" hidden></p>
     {% include "internship/_legend.html" %}
     <p class="calendar-edit-hint">
       <span class="calendar-edit-icon" aria-hidden="true">✎</span>
@@ -1020,7 +1017,6 @@
   }
   $("reset-all").addEventListener("click", resetAll);
   $("restore-reset").addEventListener("click", resetAll);
-  $("switch-intensive").addEventListener("click", () => setModality("intensiva"));
   $("clear-overrides").addEventListener("click", () => {
     state.overrides = {};
     changed({ immediate: true });
@@ -1251,7 +1247,7 @@
     $("result-incomplete").hidden = data.complete;
     // Only on screen: the exports and the PNG leave this warning out.
     const longDayLimit = formatMinutes(GENERAL_MAX_DAILY_MINUTES);
-    $("long-days-text").textContent = data.long_days === 1
+    $("long-days-warning").textContent = data.long_days === 1
       ? `Hi ha 1 dia amb més de ${longDayLimit}: cal un acord intensiu.`
       : `Hi ha ${data.long_days} dies amb més de ${longDayLimit}: cal un acord intensiu.`;
     $("long-days-warning").hidden = !data.long_days;
