@@ -189,6 +189,10 @@
       </div>
     </div>
     <p class="warning-box warning-box-danger" id="result-incomplete" hidden></p>
+    <p class="warning-box long-days-warning" id="long-days-warning" hidden>
+      <span id="long-days-text"></span>
+      <button type="button" class="link-button" id="switch-intensive">Passa a intensiva</button>
+    </p>
     {% include "internship/_legend.html" %}
     <p class="calendar-edit-hint">
       <span class="calendar-edit-icon" aria-hidden="true">✎</span>
@@ -354,6 +358,7 @@
   const serverState = {{ state|tojson }};
   const FIXED_HOLIDAYS = {{ fixed_holidays|tojson }};
   const MODALITIES = {{ modality_labels|tojson }};
+  const GENERAL_MAX_DAILY_MINUTES = {{ general_max_daily_minutes }};
   const MODALITY_HINTS = {
     general: "Fins al 31 de juliol del curs en què comencen.",
     intensiva: "Pot continuar el curs següent, a partir de l'1 de setembre.",
@@ -1002,6 +1007,7 @@
   }
   $("reset-all").addEventListener("click", resetAll);
   $("restore-reset").addEventListener("click", resetAll);
+  $("switch-intensive").addEventListener("click", () => setModality("intensiva"));
   $("clear-overrides").addEventListener("click", () => {
     state.overrides = {};
     changed({ immediate: true });
@@ -1116,7 +1122,7 @@
     const sheet = document.createElement("div");
     sheet.className = "png-sheet";
     const copy = $("result-body").cloneNode(true);
-    copy.querySelectorAll("[hidden], .calendar-edit-hint, .internship-export-actions, .internship-export-hint, #clear-overrides").forEach((node) => node.remove());
+    copy.querySelectorAll("[hidden], .long-days-warning, .calendar-edit-hint, .internship-export-actions, .internship-export-hint, #clear-overrides").forEach((node) => node.remove());
     copy.querySelectorAll(".is-range-anchor").forEach((node) => node.classList.remove("is-range-anchor"));
     // Without its button, the overrides count would sit lower in a leftover inline wrapper.
     copy.querySelectorAll(".internship-stat-value").forEach((node) => { node.textContent = node.textContent.trim(); });
@@ -1233,6 +1239,12 @@
       : `No hi ha prou dies fins al ${data.deadline_display} per completar les ${data.target_display}: en falten ${data.pending_display}. ` +
         "A l'agost no es poden fer pràctiques, així que caldrà un nou conveni per continuar el curs vinent.";
     $("result-incomplete").hidden = data.complete;
+    // Only on screen: the exports and the PNG leave this warning out.
+    const longDayLimit = formatMinutes(GENERAL_MAX_DAILY_MINUTES);
+    $("long-days-text").textContent = data.long_days === 1
+      ? `Hi ha 1 dia amb més de ${longDayLimit}: cal un acord intensiu.`
+      : `Hi ha ${data.long_days} dies amb més de ${longDayLimit}: cal un acord intensiu.`;
+    $("long-days-warning").hidden = !data.long_days;
     $("summary-hours").textContent = `${data.scheduled_display} / ${data.target_display}`;
     $("summary-days").textContent = String(data.working_days);
     const overrideCount = data.days.filter((day) => day.kind === "override").length;
@@ -1308,6 +1320,8 @@
           else if (hasScheduleChanges) parts.push(`període ${day.schedule + 1}`);
           parts.push(day.minutes ? formatMinutes(day.minutes) : "sense hores");
           if (day.partial) parts.push("darrer dia parcial");
+          // Planner only, like the warning it explains.
+          if (data.modality === "general" && day.minutes > GENERAL_MAX_DAILY_MINUTES) parts.push(`més de ${longDayLimit}`);
           cell.setAttribute("aria-label", `${parts.join(" · ")}. Fes clic per canviar les hores.`);
           cell.title = `${parts.join(" · ")}\nFes clic per canviar les hores.`;
           cell.dataset.date = iso;

@@ -31,6 +31,7 @@ from app.services.holidays import holiday_tuples, list_recurring_holidays
 from app.services.hours import BLOCK_MINUTE_CHOICES, MINUTES_PER_HOUR, format_minutes_label
 from app.services.internship import (
     DAY_KIND_OVERRIDE,
+    GENERAL_MAX_DAILY_MINUTES,
     MAX_DAILY_HOURS,
     MODALITY_GENERAL,
     MODALITY_LABELS,
@@ -333,6 +334,8 @@ def _serialize_result(result: InternshipCalendar, warning: str | None) -> dict[s
         "working_days": result.working_day_count,
         "calendar_days": len(result.days),
         "warning": warning,
+        # Only the planner shows this; the exports leave it out.
+        "long_days": result.long_day_count if result.modality == MODALITY_GENERAL else 0,
         "days": [
             {
                 "date": day.date.isoformat(),
@@ -385,6 +388,7 @@ def _render_page(request: Request, db: Session, *, state: dict | None = None, er
             "max_daily_hours": MAX_DAILY_HOURS,
             "calendar_kind_labels": CALENDAR_KIND_LABELS,
             "modality_labels": MODALITY_LABELS,
+            "general_max_daily_minutes": GENERAL_MAX_DAILY_MINUTES,
             "school_periods": [
                 {
                     "id": period.id,

@@ -583,6 +583,16 @@ def test_calcul_endpoint_returns_days_and_end_date(client):
     assert data["warning"] is None
 
 
+def test_calcul_counts_days_over_4_hours_in_general_only(client):
+    test_client, _ = client
+    payload = _payload(target_hours="40", weekday_minutes={"0": 300, "1": 240}, overrides={"2026-10-14": 270})
+    data = test_client.post("/practiques/calcul", json=payload).json()
+    # Mondays at 5 h and the Wednesday changed by hand; 4 h days are within the limit.
+    mondays = sum(1 for day in data["days"] if day["date"] >= "2026-10-12" and day["minutes"] == 300)
+    assert data["long_days"] == mondays + 1
+    assert test_client.post("/practiques/calcul", json={**payload, "modality": "intensiva"}).json()["long_days"] == 0
+
+
 def test_calcul_endpoint_reports_validation_errors_in_catalan(client):
     test_client, _ = client
     response = test_client.post("/practiques/calcul", json=_payload(start_date="31/02/2026"))

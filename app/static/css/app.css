@@ -2166,6 +2166,10 @@ select.time-select {
   color: #8a3127;
 }
 
+.long-days-warning .link-button {
+  margin-left: 0.4rem;
+}
+
 .calendar-edit-hint {
   display: flex;
   gap: 0.6rem;

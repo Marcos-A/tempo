@@ -27,6 +27,8 @@ DAY_KIND_OVERRIDE = "override"
 MODALITY_GENERAL = "general"
 MODALITY_INTENSIVE = "intensiva"
 MODALITY_LABELS = {MODALITY_GENERAL: "General", MODALITY_INTENSIVE: "Intensiva"}
+# A general agreement allows up to 4 h a day; longer days need an intensive one.
+GENERAL_MAX_DAILY_MINUTES = 4 * 60
 
 
 @dataclass(frozen=True)
@@ -78,6 +80,12 @@ class InternshipCalendar:
     @property
     def is_complete(self) -> bool:
         return self.pending_minutes == 0
+
+    @property
+    def long_day_count(self) -> int:
+        """Days over the general modality's daily limit, hand-changed days included."""
+
+        return sum(1 for day in self.days if day.minutes > GENERAL_MAX_DAILY_MINUTES)
 
     @property
     def last_working_date(self) -> date | None:
