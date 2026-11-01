@@ -285,7 +285,7 @@ class InternshipRequest:
             for period in self.school_periods
             if period.end_date >= result.start_date and period.start_date <= grid_end
         ]
-        school += [(current, current, label, "Festiu fix del centre") for current, label in self.fixed_holidays(grid_end).items()]
+        school += [(current, current, label, "Festiu fix") for current, label in self.fixed_holidays(grid_end).items()]
         applied: list[dict[str, str]] = [
             {"start": format_display_date(start), "end": format_display_date(end), "label": label, "source": source}
             for start, end, label, source in sorted(school, key=lambda item: item[0])

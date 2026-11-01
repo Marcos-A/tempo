@@ -259,9 +259,9 @@ def test_recurring_holidays_apply_on_working_days_outside_selected_ranges():
     assert days[date(2026, 12, 25)].label == "Vacances de Nadal"
     applied = request.applied_periods(result, until=date(2027, 7, 31))
     assert [(item["start"], item["source"]) for item in applied] == [
-        ("08/12/2026", "Festiu fix del centre"),
+        ("08/12/2026", "Festiu fix"),
         ("22/12/2026", "Calendari del centre"),
-        ("24/06/2027", "Festiu fix del centre"),
+        ("24/06/2027", "Festiu fix"),
     ]
 
     # Without the break, Christmas Day is listed on its own.
