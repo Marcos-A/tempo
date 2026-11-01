@@ -1454,15 +1454,17 @@
   }
 
   // General agreements in first year allow up to 400 h in total. Tempo has no
-  // course field: a group with a "2" in it (e.g. GAJ2) is taken as second
-  // year. Only on screen, like the 4 h warning; the exports leave it out.
+  // course field: the group tells the year, a "2" (e.g. GAJ2) meaning second
+  // year and a "1" first year. Without either, the warning is conditional.
+  // Only on screen, like the 4 h warning; the exports leave it out.
   function renderFirstYearWarning() {
     const target = (Number(state.target_hours) || 0) * 60 + (Number(state.target_minutes) || 0);
-    const isSecondYear = String(state.metadata.group_name || "").includes("2");
+    const group = String(state.metadata.group_name || "");
     const limit = formatMinutes(FIRST_YEAR_MAX_MINUTES);
-    $("first-year-warning").textContent = `El total supera les ${limit}: recorda que a primer curs la modalitat general en permet com a màxim ${FIRST_YEAR_MAX_MINUTES / 60}. `
-      + "Si l'alumne és de segon, indica'n el grup (p. ex. GAJ2) a les dades de l'estudiant.";
-    $("first-year-warning").hidden = !(state.modality === "general" && target > FIRST_YEAR_MAX_MINUTES && !isSecondYear);
+    $("first-year-warning").textContent = group.includes("1")
+      ? `El total supera les ${limit}: recorda que a 1r curs la modalitat general en permet fins a un màxim de ${FIRST_YEAR_MAX_MINUTES / 60}.`
+      : `El total supera les ${limit}: si l'alumne és de 1r curs, recorda que a la modalitat general el límit és de ${limit}.`;
+    $("first-year-warning").hidden = !(state.modality === "general" && target > FIRST_YEAR_MAX_MINUTES && !group.includes("2"));
   }
 
   /* ---------- Per-day editor ---------- */
