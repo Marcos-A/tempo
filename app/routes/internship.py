@@ -32,6 +32,8 @@ from app.services.hours import BLOCK_MINUTE_CHOICES, MINUTES_PER_HOUR, format_mi
 from app.services.internship import (
     DAY_KIND_OVERRIDE,
     MAX_DAILY_HOURS,
+    MODALITY_GENERAL,
+    MODALITY_LABELS,
     InternshipCalendar,
     InternshipSchedule,
     build_internship_calendar,
@@ -57,9 +59,12 @@ MAX_TARGET_HOURS = 3000
 MAX_EXTRA_PERIODS = 100
 MAX_SKIPPED_HOLIDAYS = 200
 MAX_SCHEDULE_CHANGES = 20
-WEEKDAY_LABELS = ("Dilluns", "Dimarts", "Dimecres", "Dijous", "Divendres")
-# A recurring holiday only matters when it falls on a day that can have hours.
-WORKING_WEEKDAYS = range(len(WEEKDAY_LABELS))
+WEEKDAY_LABELS = ("Dilluns", "Dimarts", "Dimecres", "Dijous", "Divendres", "Dissabte")
+# Weekdays (Monday=0) that can have a weekly schedule: Monday to Friday, plus
+# Saturday when the agreement includes it. A recurring holiday only matters
+# when it falls on one of them.
+WORKING_WEEKDAYS = range(5)
+WORKING_WEEKDAYS_WITH_SATURDAY = range(6)
 MAX_LABEL_LENGTH = 120
 MAX_METADATA_LENGTH = 200
 METADATA_KEYS = tuple(key for key, _ in METADATA_FIELDS)
@@ -71,6 +76,8 @@ DETAIL_COLUMNS = (
 )
 # Inputs embedded in the HTML export so it can be opened again in the planner.
 PLAN_KEYS = (
+    "modality",
+    "include_saturdays",
     "start_date",
     "target_hours",
     "target_minutes",
@@ -98,14 +105,17 @@ def _parse_minutes(value: object, *, max_hours: int, field_label: str) -> int:
     return minutes
 
 
-def _parse_weekdays(raw: object, *, label_prefix: str = "") -> dict[int, int]:
-    """Validate Monday-to-Friday minutes sent as {"0": minutes, ...}."""
+def _parse_weekdays(raw: object, weekdays: range, *, label_prefix: str = "") -> dict[int, int]:
+    """Validate the minutes of each working weekday, sent as {"0": minutes, ...}.
+
+    Days outside `weekdays` (Saturday when it is not included) are ignored.
+    """
 
     if not isinstance(raw, dict):
         raise ValueError("Horari setmanal no vàlid.")
     return {
-        index: _parse_minutes(raw.get(str(index)), max_hours=MAX_DAILY_HOURS, field_label=f"{label_prefix}{label}")
-        for index, label in enumerate(WEEKDAY_LABELS)
+        index: _parse_minutes(raw.get(str(index)), max_hours=MAX_DAILY_HOURS, field_label=f"{label_prefix}{WEEKDAY_LABELS[index]}")
+        for index in weekdays
     }
 
 
@@ -126,6 +136,12 @@ class InternshipRequest:
         if not isinstance(payload, dict):
             raise ValueError("Dades de càlcul no vàlides.")
 
+        self.modality = str(payload.get("modality") or MODALITY_GENERAL)
+        if self.modality not in MODALITY_LABELS:
+            raise ValueError("Modalitat de pràctiques no vàlida.")
+        self.include_saturdays = payload.get("include_saturdays") is True
+        self.working_weekdays = WORKING_WEEKDAYS_WITH_SATURDAY if self.include_saturdays else WORKING_WEEKDAYS
+
         self.start_date = parse_date_input(str(payload.get("start_date") or ""))
 
         try:
@@ -143,7 +159,7 @@ class InternshipRequest:
 
         # The agreement's first schedule applies from the start date; each
         # change replaces it from its own date until the next change.
-        self.weekday_minutes = _parse_weekdays(payload.get("weekday_minutes") or {})
+        self.weekday_minutes = _parse_weekdays(payload.get("weekday_minutes") or {}, self.working_weekdays)
         raw_changes = payload.get("schedule_changes") or []
         if len(raw_changes) > MAX_SCHEDULE_CHANGES:
             raise ValueError("Hi ha massa canvis d'horari.")
@@ -155,7 +171,9 @@ class InternshipRequest:
                 raise ValueError(f"L'horari que comença el {display} ha de començar després de la data d'inici de les pràctiques.")
             if change_start in changes:
                 raise ValueError(f"Hi ha dos horaris que comencen el {display}.")
-            changes[change_start] = _parse_weekdays(item.get("weekday_minutes") or {}, label_prefix=f"Horari del {display}, ")
+            changes[change_start] = _parse_weekdays(
+                item.get("weekday_minutes") or {}, self.working_weekdays, label_prefix=f"Horari del {display}, "
+            )
         self.schedule = InternshipSchedule(self.weekday_minutes, list(changes.items()))
 
         try:
@@ -214,7 +232,7 @@ class InternshipRequest:
         return {
             current: label
             for current, label in recurring_dates(self.holidays, self.start_date, until).items()
-            if current.weekday() in WORKING_WEEKDAYS
+            if current.weekday() in self.working_weekdays
             and current not in self.skipped_fixed_dates
             and not any(start <= current <= end for start, end, _ in ranges)
         }
@@ -244,6 +262,7 @@ class InternshipRequest:
             dates,
             self.overrides,
             labels,
+            self.modality,
         )
 
     def applied_periods(self, result: InternshipCalendar, until: date | None = None) -> list[dict[str, str]]:
@@ -300,6 +319,7 @@ def _coverage_warning(db: Session, result: InternshipCalendar, holidays: list[Re
 def _serialize_result(result: InternshipCalendar, warning: str | None) -> dict[str, object]:
     return {
         "ok": True,
+        "modality": result.modality,
         "start_date": result.start_date.isoformat(),
         "end_date": result.end_date.isoformat(),
         "end_date_display": format_display_date(result.end_date),
@@ -340,10 +360,12 @@ def _render_page(request: Request, db: Session, *, state: dict | None = None, er
     active_year = get_active_academic_year(db)
     periods = _school_periods(db)
     default_state = {
+        "modality": MODALITY_GENERAL,
+        "include_saturdays": False,
         "start_date": format_display_date(date.today()),
         "target_hours": "",
         "target_minutes": 0,
-        "weekday_minutes": {str(index): 0 for index in range(5)},
+        "weekday_minutes": {str(index): 0 for index in range(6)},
         "schedule_changes": [],
         "excluded_period_ids": [period.id for period in periods],
         "skipped_fixed_dates": [],
@@ -362,6 +384,7 @@ def _render_page(request: Request, db: Session, *, state: dict | None = None, er
             "metadata_fields": METADATA_FIELDS,
             "max_daily_hours": MAX_DAILY_HOURS,
             "calendar_kind_labels": CALENDAR_KIND_LABELS,
+            "modality_labels": MODALITY_LABELS,
             "school_periods": [
                 {
                     "id": period.id,
@@ -443,6 +466,7 @@ async def export_internship(request: Request, db: Session = Depends(get_db)):
         result,
         metadata=inputs.metadata,
         schedule=inputs.schedule,
+        weekdays=inputs.working_weekdays,
         applied_periods=inputs.applied_periods(result),
         non_working_dates=non_working_dates,
         labels_by_date=labels_by_date,
@@ -458,7 +482,13 @@ async def export_internship(request: Request, db: Session = Depends(get_db)):
 def _detail_columns(metadata: dict[str, str], result: InternshipCalendar, summary: dict) -> list[list[tuple[str, str]]]:
     labels = dict(METADATA_FIELDS)
     columns = [[(labels[key], metadata[key]) for key in keys if metadata.get(key)] for keys in DETAIL_COLUMNS]
-    columns.append([("Data d'inici", format_display_date(result.start_date)), ("Hores totals", summary["target_display"])])
+    columns.append(
+        [
+            ("Modalitat", MODALITY_LABELS[result.modality]),
+            ("Data d'inici", format_display_date(result.start_date)),
+            ("Hores totals", summary["target_display"]),
+        ]
+    )
     return [column for column in columns if column]
 
 
@@ -478,10 +508,10 @@ def _snapshot_context(payload: dict, inputs: InternshipRequest, result: Internsh
         "calendar_kind_labels": CALENDAR_KIND_LABELS,
         "show_schedule_start": has_schedule_starts(result),
         "months": build_month_views(result),
-        "weekday_labels": WEEKDAY_LABELS,
+        "weekday_labels": [WEEKDAY_LABELS[index] for index in inputs.working_weekdays],
         "weekday_short": WEEKDAY_SHORT,
         "schedules": [
-            (title, [format_minutes_label(minutes[index]) if minutes.get(index) else "–" for index in range(5)],
+            (title, [format_minutes_label(minutes[index]) if minutes.get(index) else "–" for index in inputs.working_weekdays],
              format_minutes_label(sum(minutes.values())))
             for title, minutes in schedule_sections(result, inputs.schedule)
         ],

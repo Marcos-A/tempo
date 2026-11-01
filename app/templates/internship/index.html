@@ -58,7 +58,16 @@
       </details>
     </div>
 
-    <div class="two-column form-span">
+    <div class="internship-basics form-span">
+      <div class="field-group">
+        <span class="field-group-label" id="modality-label">Modalitat</span>
+        <div class="segmented" role="radiogroup" aria-labelledby="modality-label">
+          {% for key, label in modality_labels.items() %}
+          <label class="segmented-option"><input type="radio" name="modality" value="{{ key }}" /><span>{{ label }}</span></label>
+          {% endfor %}
+        </div>
+        <span class="field-hint" id="modality-hint"></span>
+      </div>
       <label>
         Data d'inici de les pràctiques
         <input class="date-input" id="start-date" type="text" placeholder="DD/MM/AAAA" inputmode="numeric" pattern="\d{1,2}/\d{1,2}/\d{2,4}" required />
@@ -77,11 +86,15 @@
     </div>
 
     <section class="card-panel form-span internship-panel">
-      <div class="section-heading">
-        <div>
+      <div>
+        <div class="schedule-heading">
           <h2>Horari setmanal</h2>
-          <p class="hint">Hores de pràctiques de cada dia laborable. Els caps de setmana compten com a dies sense horari, però pots afegir-hi hores a dies concrets des del calendari.</p>
+          <label class="checkbox-label saturday-toggle">
+            <input type="checkbox" id="include-saturdays" />
+            <span>Inclou els dissabtes</span>
+          </label>
         </div>
+        <p class="hint" id="schedule-hint"></p>
       </div>
       <div class="schedule-list" id="schedule-list"></div>
       <div class="schedule-add-row">
@@ -232,11 +245,11 @@
         </select>
         <span class="block-time-separator">min</span>
       </span>
-      <button type="button" class="secondary" data-quick-fill-apply>Aplica a dl.–dv.</button>
+      <button type="button" class="secondary" data-quick-fill-apply></button>
     </div>
     <div class="weekday-grid internship-weekdays">
-      {% for weekday_label, weekday_index in [('Dilluns', 0), ('Dimarts', 1), ('Dimecres', 2), ('Dijous', 3), ('Divendres', 4)] %}
-      <div class="field-group">
+      {% for weekday_label, weekday_index in [('Dilluns', 0), ('Dimarts', 1), ('Dimecres', 2), ('Dijous', 3), ('Divendres', 4), ('Dissabte', 5)] %}
+      <div class="field-group"{% if weekday_index == 5 %} data-saturday-field{% endif %}>
         <span class="field-group-label">{{ weekday_label }}</span>
         <span class="time-field">
           <select class="time-select" data-weekday-hours="{{ weekday_index }}" aria-label="Hores {{ weekday_label|lower }}">
@@ -340,8 +353,11 @@
   const KIND_LABELS = {{ calendar_kind_labels|tojson }};
   const serverState = {{ state|tojson }};
   const FIXED_HOLIDAYS = {{ fixed_holidays|tojson }};
-  // Weekdays (Monday=0) on which a recurring holiday changes the calendar; see WORKING_WEEKDAYS on the server.
-  const WORKING_WEEKDAYS = [0, 1, 2, 3, 4];
+  const MODALITIES = {{ modality_labels|tojson }};
+  const MODALITY_HINTS = {
+    general: "Fins al 31 de juliol del curs en què comencen.",
+    intensiva: "Pot continuar el curs següent, a partir de l'1 de setembre.",
+  };
   const hasServerError = {{ 'true' if error else 'false' }};
 
   const $ = (id) => document.getElementById(id);
@@ -399,12 +415,18 @@
     return minutes ? `${hours}h${pad(minutes)}` : `${hours}h`;
   }
 
+  function emptyWeekdays() {
+    return { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
+  }
+
   function defaultState() {
     return {
+      modality: "general",
+      include_saturdays: false,
       start_date: serverState.start_date,
       target_hours: "",
       target_minutes: 0,
-      weekday_minutes: { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0 },
+      weekday_minutes: emptyWeekdays(),
       schedule_changes: [],
       unchecked_period_ids: [],
       skipped_fixed_dates: [],
@@ -422,6 +444,8 @@
       merged.unchecked_period_ids = allPeriodIds.filter((id) => !selected.has(id));
     }
     delete merged.excluded_period_ids;
+    if (!Object.hasOwn(MODALITIES, merged.modality)) merged.modality = base.modality;
+    merged.include_saturdays = merged.include_saturdays === true;
     merged.weekday_minutes = { ...base.weekday_minutes, ...(raw.weekday_minutes || {}) };
     merged.schedule_changes = (Array.isArray(raw.schedule_changes) ? raw.schedule_changes : []).map((change) => ({
       start: String(change.start || ""),
@@ -461,6 +485,8 @@
   function buildPayload() {
     const unchecked = new Set(state.unchecked_period_ids.map(Number));
     return {
+      modality: state.modality,
+      include_saturdays: state.include_saturdays,
       start_date: state.start_date,
       target_hours: state.target_hours,
       target_minutes: Number(state.target_minutes) || 0,
@@ -480,6 +506,11 @@
   /* ---------- Inputs -> state ---------- */
 
   function renderInputs() {
+    document.querySelectorAll('input[name="modality"]').forEach((radio) => {
+      radio.checked = radio.value === state.modality;
+    });
+    $("modality-hint").textContent = MODALITY_HINTS[state.modality];
+    $("include-saturdays").checked = state.include_saturdays;
     $("start-date").value = state.start_date || "";
     $("target-hours").value = state.target_hours || "";
     $("target-minutes").value = String(state.target_minutes || 0);
@@ -505,8 +536,16 @@
     return index === 0 ? state.weekday_minutes : state.schedule_changes[index - 1].weekday_minutes;
   }
 
+  // Weekdays (Monday=0) that take a weekly schedule, and on which a recurring
+  // holiday changes the calendar; see `working_weekdays` on the server.
+  function workingWeekdays() {
+    return state.include_saturdays ? [0, 1, 2, 3, 4, 5] : [0, 1, 2, 3, 4];
+  }
+
+  // Saturday hours stay in the draft while Saturdays are off, so ticking the
+  // option again brings them back, but they don't count.
   function weeklyTotal(weekdayMinutes) {
-    return Object.values(weekdayMinutes).reduce((sum, value) => sum + (Number(value) || 0), 0);
+    return workingWeekdays().reduce((sum, day) => sum + (Number(weekdayMinutes[day]) || 0), 0);
   }
 
   function displayToIso(text) {
@@ -540,6 +579,10 @@
     list.replaceChildren();
     for (let index = 0; index <= state.schedule_changes.length; index += 1) list.append(buildScheduleBlock(index));
     list.classList.toggle("has-changes", state.schedule_changes.length > 0);
+    list.classList.toggle("has-saturday", state.include_saturdays);
+    $("schedule-hint").textContent = state.include_saturdays
+      ? "Hores de pràctiques de cada dia de dilluns a dissabte. Els diumenges compten com a dies sense horari, però pots afegir-hi hores a dies concrets des del calendari."
+      : "Hores de pràctiques de cada dia laborable. Els caps de setmana compten com a dies sense horari, però pots afegir-hi hores a dies concrets des del calendari.";
     $("schedule-add").hidden = state.schedule_changes.length >= MAX_SCHEDULE_CHANGES;
     $("schedule-add-hint").hidden = state.schedule_changes.length > 0;
     refreshSchedules();
@@ -552,7 +595,8 @@
     block.querySelector(".schedule-from-start").hidden = index > 0;
     block.querySelector(".schedule-start").hidden = index === 0;
 
-    for (let day = 0; day < 5; day += 1) {
+    block.querySelector("[data-saturday-field]").hidden = !state.include_saturdays;
+    for (let day = 0; day < 6; day += 1) {
       const hours = block.querySelector(`[data-weekday-hours="${day}"]`);
       const minutes = block.querySelector(`[data-weekday-minutes="${day}"]`);
       const value = Number(weekdaysOf(index)[day]) || 0;
@@ -566,10 +610,12 @@
         });
       });
     }
-    block.querySelector("[data-quick-fill-apply]").addEventListener("click", () => {
+    const quickFill = block.querySelector("[data-quick-fill-apply]");
+    quickFill.textContent = state.include_saturdays ? "Aplica a dl.–ds." : "Aplica a dl.–dv.";
+    quickFill.addEventListener("click", () => {
       const value = (Number(block.querySelector("[data-quick-fill-hours]").value) || 0) * 60
         + (Number(block.querySelector("[data-quick-fill-minutes]").value) || 0);
-      for (let day = 0; day < 5; day += 1) weekdaysOf(index)[day] = value;
+      workingWeekdays().forEach((day) => { weekdaysOf(index)[day] = value; });
       renderSchedules();
       changed({ immediate: true });
     });
@@ -642,8 +688,9 @@
   /* ---------- Recurring holidays ---------- */
 
   // Same rules as InternshipRequest.fixed_holidays on the server: every
-  // yearly date from the start to the deadline, except those on a weekend
-  // and those already inside a selected school period or an added range.
+  // yearly date from the start to the deadline, except those on a day that
+  // takes no weekly schedule and those already inside a selected school
+  // period or an added range.
   function inSelectedRange(iso) {
     const unchecked = new Set(state.unchecked_period_ids.map(Number));
     if (schoolPeriods.some((period) => !unchecked.has(period.id) && period.start <= iso && iso <= period.end)) return true;
@@ -654,7 +701,7 @@
   }
 
   function fixedHolidayOn(iso) {
-    if (!WORKING_WEEKDAYS.includes(weekdayIndex(iso)) || inSelectedRange(iso)) return null;
+    if (!workingWeekdays().includes(weekdayIndex(iso)) || inSelectedRange(iso)) return null;
     const [, month, day] = iso.split("-").map(Number);
     return FIXED_HOLIDAYS.find((holiday) => holiday.month === month && holiday.day === day) || null;
   }
@@ -745,7 +792,7 @@
         checked.forEach((period) => found.checked.add(period.label || "sense motiu"));
       } else if (extras.some(([start, end]) => start <= iso && iso <= end)) {
         found.extra = true;
-      } else if (day.getDay() === 0 || day.getDay() === 6) {
+      } else if (!workingWeekdays().includes((day.getDay() + 6) % 7)) {
         found.weekend = true;
       } else if (isAppliedFixedHoliday(iso)) {
         found.checked.add(fixedHolidayOn(iso).label || "festiu fix");
@@ -764,7 +811,7 @@
     if (found.extra) {
       return `${subject} ja ${isSingleDay ? "és" : "són"} a la llista de dies afegits. No cal afegir-${isSingleDay ? "lo" : "los"} de nou.`;
     }
-    return `${isSingleDay ? "Aquest dia cau" : "Aquests dies cauen"} en cap de setmana, que ja no compta com a dia de pràctiques. `
+    return `${isSingleDay ? "Aquest dia cau" : "Aquests dies cauen"} en ${state.include_saturdays ? "diumenge" : "cap de setmana"}, que ja no compta com a dia de pràctiques. `
       + "Si hi vols posar hores, fes clic al dia al calendari resultant.";
   }
 
@@ -810,6 +857,13 @@
 
   let initialised = false;
 
+  // The modality changes the deadline, and with it the listed fixed holidays.
+  function setModality(modality) {
+    state.modality = modality;
+    renderInputs();
+    changed({ immediate: true });
+  }
+
   function changed({ immediate = false } = {}) {
     // Any edit means the user has taken over the restored data.
     if (initialised) hideRestoreNotice();
@@ -820,6 +874,17 @@
     debounceTimer = window.setTimeout(recalculate, immediate ? 0 : 300);
   }
 
+  document.querySelectorAll('input[name="modality"]').forEach((radio) => {
+    radio.addEventListener("change", () => setModality(radio.value));
+  });
+  $("include-saturdays").addEventListener("change", (event) => {
+    state.include_saturdays = event.target.checked;
+    renderSchedules();
+    // Saturday fixed holidays appear or disappear with the option.
+    renderSchoolPeriodVisibility();
+    renderExtraPeriods();
+    changed({ immediate: true });
+  });
   $("start-date").addEventListener("input", (event) => {
     state.start_date = event.target.value.trim();
     renderSchoolPeriodVisibility();
@@ -922,8 +987,10 @@
     if (!window.confirm("Vols esborrar totes les dades i començar un calendari nou?")) return;
     hideRestoreNotice();
     state = normalizeState(serverState);
+    state.modality = "general";
+    state.include_saturdays = false;
     state.target_hours = "";
-    state.weekday_minutes = { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0 };
+    state.weekday_minutes = emptyWeekdays();
     state.schedule_changes = [];
     state.unchecked_period_ids = [];
     state.skipped_fixed_dates = [];
@@ -1284,7 +1351,7 @@
   function defaultMinutesOn(iso) {
     const known = lastResult?.days.find((item) => item.date === iso);
     if (known) return known.default_minutes;
-    if (isNonWorking(iso)) return 0;
+    if (isNonWorking(iso) || !workingWeekdays().includes(weekdayIndex(iso))) return 0;
     // The latest schedule that has started by `iso` (changes are sorted by date).
     let weekdays = state.weekday_minutes;
     state.schedule_changes.forEach((change, index) => {
@@ -1402,14 +1469,14 @@
     $("day-editor-minutes").value = String(current % 60);
     $("range-start").value = displayDate(range ? range[0] : day.date);
     $("range-end").value = range ? displayDate(range[1]) : "";
-    // Start from the weekdays the agreement uses; Monday to Friday if none yet.
+    // Start from the weekdays the agreement uses; all working weekdays if none yet.
     const used = new Set();
     [state.weekday_minutes, ...state.schedule_changes.map((change) => change.weekday_minutes)].forEach((weekdays) => {
-      Object.entries(weekdays).forEach(([index, minutes]) => Number(minutes) > 0 && used.add(Number(index)));
+      workingWeekdays().forEach((index) => Number(weekdays[index]) > 0 && used.add(index));
     });
     rangeChips.forEach((chip) => {
       const index = Number(chip.dataset.rangeWeekday);
-      chip.checked = used.size ? used.has(index) : index < 5;
+      chip.checked = used.size ? used.has(index) : workingWeekdays().includes(index);
     });
     $("range-non-working").checked = false;
     rangeDetails.open = Boolean(range);

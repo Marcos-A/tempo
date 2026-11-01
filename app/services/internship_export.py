@@ -28,6 +28,7 @@ from openpyxl.styles import Alignment, Border, Font, PatternFill, Protection, Si
 from openpyxl.utils import get_column_letter
 
 from app.date_utils import format_display_date, format_month_label
+from app.services.calendar import WEEKDAY_NAMES
 from app.services.hours import format_minutes_label
 from app.services.internship import (
     DAY_KIND_HOLIDAY,
@@ -35,6 +36,7 @@ from app.services.internship import (
     DAY_KIND_WEEKEND,
     DAY_KIND_WORKING,
     MAX_DAILY_HOURS,
+    MODALITY_LABELS,
     InternshipCalendar,
     InternshipSchedule,
     classify_day,
@@ -245,6 +247,7 @@ def build_internship_workbook(
     metadata: dict[str, str],
     schedule: InternshipSchedule | dict[int, int],
     applied_periods: list[dict[str, str]],
+    weekdays: range = range(5),
     non_working_dates: set[date] | None = None,
     labels_by_date: dict[date, str] | None = None,
 ) -> BytesIO:
@@ -253,7 +256,8 @@ def build_internship_workbook(
     `applied_periods` lists the non-working periods that were applied, as
     dictionaries with `start`, `end`, `label` and `source` display strings.
     `non_working_dates` and `labels_by_date` mark the non-teaching days after
-    the planned end date, which the grid also shows.
+    the planned end date, which the grid also shows. `weekdays` are the
+    weekdays with a schedule (Monday=0), listed in the configuration sheet.
     """
 
     schedule = InternshipSchedule.coerce(schedule)
@@ -283,6 +287,8 @@ def build_internship_workbook(
         grid.cell(row=row, column=4).protection = UNLOCKED
         row += 1
 
+    row += 1
+    _label_value_row(grid, row, "Modalitat", MODALITY_LABELS[result.modality])
     row += 1
     _label_value_row(grid, row, "Data d'inici", result.start_date)
     grid.cell(row=row, column=4).number_format = "DD/MM/YYYY"
@@ -555,9 +561,9 @@ def build_internship_workbook(
         if title:
             config.append([title])
             config.cell(row=config.max_row, column=1).font = Font(italic=True, color="607165")
-        for index, weekday in enumerate(("Dilluns", "Dimarts", "Dimecres", "Dijous", "Divendres")):
+        for index in weekdays:
             minutes = weekday_minutes.get(index, 0)
-            config.append([weekday, format_minutes_label(minutes) if minutes else "-"])
+            config.append([WEEKDAY_NAMES[index], format_minutes_label(minutes) if minutes else "-"])
     config.append([])
     config.append(["Dies sense pràctiques aplicats"])
     config.cell(row=config.max_row, column=1).font = Font(bold=True)

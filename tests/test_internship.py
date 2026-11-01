@@ -1,6 +1,7 @@
 """Tests for the internship calendar: day-by-day calculation, overrides and XLSX, HTML and PDF exports."""
 
 import json
+from io import BytesIO
 from datetime import date, datetime, timedelta
 
 import pytest
@@ -243,6 +244,29 @@ def test_recurring_holidays_can_be_unticked_or_covered_by_an_added_range():
     days = {day.date: day for day in request.calculate().days}
     assert days[date(2026, 12, 8)].kind == DAY_KIND_WORKING
     assert days[date(2027, 6, 24)].label == "Empresa tancada"
+
+
+def test_saturdays_count_only_when_included():
+    saturday = date(2026, 10, 17)
+    weekdays = {str(index): 420 for index in range(6)}
+    request = InternshipRequest(_payload(target_hours="3000", weekday_minutes=weekdays), [], HOLIDAYS)
+    assert 5 not in request.weekday_minutes
+    assert {day.date: day for day in request.calculate().days}[saturday].minutes == 0
+    # 1 May 2027 is a Saturday: it only becomes a fixed holiday once Saturdays have hours.
+    assert date(2027, 5, 1) not in request.fixed_holidays(date(2027, 7, 31))
+
+    request = InternshipRequest(_payload(target_hours="3000", weekday_minutes=weekdays, include_saturdays=True), [], HOLIDAYS)
+    assert request.weekday_minutes[5] == 420
+    days = {day.date: day for day in request.calculate().days}
+    assert (days[saturday].minutes, days[saturday].kind) == (420, DAY_KIND_WORKING)
+    assert days[date(2027, 5, 1)].kind == DAY_KIND_HOLIDAY
+
+
+def test_request_validates_modality():
+    assert InternshipRequest(_payload(), []).calculate().modality == "general"
+    assert InternshipRequest(_payload(modality="intensiva"), []).calculate().modality == "intensiva"
+    with pytest.raises(ValueError, match="Modalitat"):
+        InternshipRequest(_payload(modality="nocturna"), [])
 
 
 def test_target_accepts_minutes():
@@ -787,14 +811,34 @@ def test_html_export_groups_header_details_in_columns(client):
         [dt.split("</dt>")[0] for dt in column.split("<dt>")[1:]]
         for column in html.split('<dl class="snapshot-column">')[1:]
     ]
-    columns[-1] = columns[-1][:2]
+    columns[-1] = columns[-1][:3]
     assert columns == [
         ["Estudiant", "Grup"],
         ["Empresa", "Tutor/a de l&#39;empresa", "Correu del tutor/a de l&#39;empresa"],
-        ["Data d&#39;inici", "Hores totals"],
+        ["Modalitat", "Data d&#39;inici", "Hores totals"],
     ]
     # With no student or company details, only the dates remain.
     assert _html_export(test_client, _payload(metadata={})).text.count('<dl class="snapshot-column">') == 1
+
+
+def test_exports_show_modality_and_saturday_schedule(client):
+    test_client, _ = client
+    weekdays = {str(index): 240 for index in range(6)}
+    html = _html_export(test_client, _payload(modality="intensiva", include_saturdays=True, weekday_minutes=weekdays)).text
+    assert "<dt>Modalitat</dt><dd>Intensiva</dd>" in html
+    assert "<th>Dissabte</th>" in html
+    plan = json.loads(html.split('id="tempo-internship-plan">')[1].split("</script>")[0])["plan"]
+    assert (plan["modality"], plan["include_saturdays"]) == ("intensiva", True)
+    assert "<th>Dissabte</th>" not in _html_export(test_client, _payload(weekday_minutes=weekdays)).text
+
+    response = test_client.post(
+        "/practiques/export",
+        data={"payload": json.dumps(_payload(include_saturdays=True, weekday_minutes=weekdays))},
+    )
+    workbook = load_workbook(BytesIO(response.content))
+    assert "Modalitat:" in [cell.value for cell in workbook["Calendari"]["A"]]
+    config = [row[0] for row in workbook["Configuració"].iter_rows(values_only=True)]
+    assert "Dissabte" in config and "Diumenge" not in config
 
 
 def _pdf_export(test_client, payload):

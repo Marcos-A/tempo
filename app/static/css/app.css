@@ -1750,6 +1750,73 @@ select.time-select {
   font-variant-numeric: tabular-nums;
 }
 
+/* Modality, start date and total hours share the first row of the form. */
+.internship-basics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  align-items: start;
+  gap: 1rem;
+}
+
+.segmented {
+  display: inline-flex;
+  width: fit-content;
+  border: 1px solid var(--line-strong);
+  border-radius: 4px;
+  background: var(--card);
+  overflow: hidden;
+}
+
+.segmented-option {
+  display: block;
+  font-weight: 500;
+}
+
+.segmented-option input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.segmented-option span {
+  display: block;
+  padding: 0.75rem 1.1rem;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.segmented-option + .segmented-option span {
+  border-left: 1px solid var(--line-strong);
+}
+
+.segmented-option input:checked + span {
+  background: var(--accent-dark);
+  color: #fff;
+}
+
+.segmented-option input:focus-visible + span {
+  outline: 2px dashed var(--accent);
+  outline-offset: -4px;
+}
+
+.field-hint {
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.schedule-heading {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.5rem 1rem;
+}
+
+.saturday-toggle {
+  font-weight: 500;
+  white-space: nowrap;
+}
+
 .internship-panel {
   display: grid;
   gap: 1rem;
@@ -2585,7 +2652,18 @@ kbd {
   }
 }
 
+/* Six weekdays sit in two even rows of three: Monday to Wednesday, Thursday to Saturday. */
+@media (min-width: 901px) {
+  .schedule-list.has-saturday .internship-weekdays {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
 @media (max-width: 900px) {
+  .internship-basics {
+    grid-template-columns: 1fr;
+  }
+
   .non-working-layout,
   .internship-summary {
     grid-template-columns: repeat(2, minmax(0, 1fr));

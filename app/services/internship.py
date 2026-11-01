@@ -22,6 +22,12 @@ DAY_KIND_HOLIDAY = "holiday"
 DAY_KIND_WEEKEND = "weekend"
 DAY_KIND_OVERRIDE = "override"
 
+# A general agreement ends with the school year; an intensive one can carry on
+# into the next one.
+MODALITY_GENERAL = "general"
+MODALITY_INTENSIVE = "intensiva"
+MODALITY_LABELS = {MODALITY_GENERAL: "General", MODALITY_INTENSIVE: "Intensiva"}
+
 
 @dataclass(frozen=True)
 class InternshipDay:
@@ -49,6 +55,7 @@ class InternshipCalendar:
     target_minutes: int
     deadline: date
     days: list[InternshipDay] = field(default_factory=list)
+    modality: str = MODALITY_GENERAL
 
     @property
     def end_date(self) -> date:
@@ -160,6 +167,7 @@ def build_internship_calendar(
     non_working_dates: set[date],
     overrides: dict[date, int] | None = None,
     labels_by_date: dict[date, str] | None = None,
+    modality: str = MODALITY_GENERAL,
 ) -> InternshipCalendar:
     """Walk forward from `start_date` adding daily minutes until the target is met.
 
@@ -206,4 +214,6 @@ def build_internship_calendar(
         )
         current += timedelta(days=1)
 
-    return InternshipCalendar(start_date=start_date, target_minutes=target_minutes, deadline=deadline, days=days)
+    return InternshipCalendar(
+        start_date=start_date, target_minutes=target_minutes, deadline=deadline, days=days, modality=modality
+    )
