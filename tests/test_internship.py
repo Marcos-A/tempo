@@ -620,6 +620,13 @@ def test_page_renders_with_nav_and_school_periods(client):
     assert "Planificador curricular" in home.text
 
 
+def test_planner_gets_the_limits_its_warnings_use(client):
+    test_client, _ = client
+    page = test_client.get("/practiques").text
+    assert "const GENERAL_MAX_DAILY_MINUTES = 240;" in page
+    assert "const FIRST_YEAR_MAX_MINUTES = 24000;" in page
+
+
 def test_recurring_holidays_reach_years_without_a_school_calendar(client):
     test_client, Session = client
     with Session() as db:

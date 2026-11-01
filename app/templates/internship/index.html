@@ -190,6 +190,7 @@
     </div>
     <p class="warning-box warning-box-danger" id="result-incomplete" hidden></p>
     <p class="warning-box long-days-warning" id="long-days-warning" hidden></p>
+    <p class="warning-box first-year-warning" id="first-year-warning" hidden></p>
     {% include "internship/_legend.html" %}
     <p class="calendar-edit-hint">
       <span class="calendar-edit-icon" aria-hidden="true">✎</span>
@@ -356,6 +357,7 @@
   const FIXED_HOLIDAYS = {{ fixed_holidays|tojson }};
   const MODALITIES = {{ modality_labels|tojson }};
   const GENERAL_MAX_DAILY_MINUTES = {{ general_max_daily_minutes }};
+  const FIRST_YEAR_MAX_MINUTES = {{ first_year_max_minutes }};
   const MODALITY_HINTS = {
     general: "Fins al 31 de juliol del curs en què comencen.",
     intensiva: "Es pot estendre al llarg de més d'un curs.",
@@ -927,6 +929,8 @@
     input.addEventListener("input", () => {
       state.metadata[input.dataset.metadata] = input.value;
       saveState();
+      // The group says whether the student is in second year.
+      if (input.dataset.metadata === "group_name") renderFirstYearWarning();
     });
   });
   periodCheckboxes.forEach((box) => {
@@ -1131,7 +1135,7 @@
     const sheet = document.createElement("div");
     sheet.className = "png-sheet";
     const copy = $("result-body").cloneNode(true);
-    copy.querySelectorAll("[hidden], .long-days-warning, .calendar-edit-hint, .internship-export-actions, .internship-export-hint, #clear-overrides").forEach((node) => node.remove());
+    copy.querySelectorAll("[hidden], .long-days-warning, .first-year-warning, .calendar-edit-hint, .internship-export-actions, .internship-export-hint, #clear-overrides").forEach((node) => node.remove());
     copy.querySelectorAll(".is-range-anchor").forEach((node) => node.classList.remove("is-range-anchor"));
     // Without its button, the overrides count would sit lower in a leftover inline wrapper.
     copy.querySelectorAll(".internship-stat-value").forEach((node) => { node.textContent = node.textContent.trim(); });
@@ -1251,6 +1255,7 @@
       ? `Hi ha 1 dia amb més de ${longDayLimit}: recorda que cal un tipus d'acord intensiu.`
       : `Hi ha ${data.long_days} dies amb més de ${longDayLimit}: recorda que cal un tipus d'acord intensiu.`;
     $("long-days-warning").hidden = !data.long_days;
+    renderFirstYearWarning();
     $("summary-hours").textContent = `${data.scheduled_display} / ${data.target_display}`;
     $("summary-days").textContent = String(data.working_days);
     const overrideCount = data.days.filter((day) => day.kind === "override").length;
@@ -1347,6 +1352,18 @@
       month.append(days);
       grid.append(month);
     }
+  }
+
+  // General agreements in first year allow up to 400 h in total. Tempo has no
+  // course field: a group with a "2" in it (e.g. GAJ2) is taken as second
+  // year. Only on screen, like the 4 h warning; the exports leave it out.
+  function renderFirstYearWarning() {
+    const target = (Number(state.target_hours) || 0) * 60 + (Number(state.target_minutes) || 0);
+    const isSecondYear = String(state.metadata.group_name || "").includes("2");
+    const limit = formatMinutes(FIRST_YEAR_MAX_MINUTES);
+    $("first-year-warning").textContent = `El total supera les ${limit}: recorda que a primer curs la modalitat general en permet com a màxim ${FIRST_YEAR_MAX_MINUTES / 60}. `
+      + "Si l'alumne és de segon, indica'n el grup (p. ex. GAJ2) a les dades de l'estudiant.";
+    $("first-year-warning").hidden = !(state.modality === "general" && target > FIRST_YEAR_MAX_MINUTES && !isSecondYear);
   }
 
   /* ---------- Per-day editor ---------- */

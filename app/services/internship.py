@@ -32,6 +32,8 @@ MODALITY_INTENSIVE = "intensiva"
 MODALITY_LABELS = {MODALITY_GENERAL: "General", MODALITY_INTENSIVE: "Intensiva"}
 # A general agreement allows up to 4 h a day; longer days need an intensive one.
 GENERAL_MAX_DAILY_MINUTES = 4 * 60
+# A first-year student's general agreement allows up to 400 h in total.
+FIRST_YEAR_MAX_MINUTES = 400 * 60
 
 
 @dataclass(frozen=True)

@@ -32,6 +32,7 @@ from app.services.hours import BLOCK_MINUTE_CHOICES, MINUTES_PER_HOUR, format_mi
 from app.services.internship import (
     DAY_KIND_CLOSED,
     DAY_KIND_OVERRIDE,
+    FIRST_YEAR_MAX_MINUTES,
     GENERAL_MAX_DAILY_MINUTES,
     MAX_DAILY_HOURS,
     MODALITY_GENERAL,
@@ -410,6 +411,7 @@ def _render_page(request: Request, db: Session, *, state: dict | None = None, er
             "calendar_kind_labels": CALENDAR_KIND_LABELS,
             "modality_labels": MODALITY_LABELS,
             "general_max_daily_minutes": GENERAL_MAX_DAILY_MINUTES,
+            "first_year_max_minutes": FIRST_YEAR_MAX_MINUTES,
             "school_periods": [
                 {
                     "id": period.id,
