@@ -40,6 +40,18 @@ def expand_excluded_periods(periods: list[tuple[date, date]]) -> set[date]:
     return excluded_dates
 
 
+def recurring_dates(holidays: list[tuple[int, int, str]], start_date: date, end_date: date) -> dict[date, str]:
+    """Place each (month, day, label) holiday in every year of an inclusive range."""
+
+    found: dict[date, str] = {}
+    for year in range(start_date.year, end_date.year + 1):
+        for month, day, label in holidays:
+            current = date(year, month, day)
+            if start_date <= current <= end_date:
+                found[current] = label
+    return dict(sorted(found.items()))
+
+
 def build_schedule(
     start_date: date,
     end_date: date,

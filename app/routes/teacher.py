@@ -26,6 +26,7 @@ from app.services.allocation import (
 from app.services.academic_years import get_active_academic_year
 from app.services.calendar import ScheduleDay, build_schedule, expand_excluded_periods, total_available_hours
 from app.services.export import build_workbook
+from app.services.holidays import recurring_holiday_dates
 from app.services.hours import BLOCK_MINUTE_CHOICES, MINUTES_PER_HOUR, format_minutes_label, minutes_to_hour_number, parse_hour_minute_pair
 from app.services.usage import MODULES_EXPORT, MODULES_PLAN, MODULES_VIEW, record_usage
 
@@ -355,6 +356,11 @@ async def prepare_plan(request: Request, db: Session = Depends(get_db)):
     periods = db.scalars(select(ExcludedPeriod).where(ExcludedPeriod.academic_year_id == settings.id)).all()
     excluded_dates = expand_excluded_periods([(period.start_date, period.end_date) for period in periods])
     excluded_labels_by_date = _map_excluded_labels_by_date(periods)
+    # Holidays that repeat every year apply on top of the year's own periods.
+    for holiday_date, label in recurring_holiday_dates(db, start_date, end_date).items():
+        excluded_dates.add(holiday_date)
+        if label:
+            excluded_labels_by_date.setdefault(holiday_date, label)
     schedule = build_schedule(start_date, end_date, weekday_hours, excluded_dates)
     total_hours = total_available_hours(schedule)
     block_available_minutes = _summarize_block_available_minutes(schedule, blocks)

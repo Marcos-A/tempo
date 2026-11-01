@@ -23,12 +23,20 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.date_utils import format_display_date, parse_date_input
-from app.models import AcademicYear, ExcludedPeriod
+from app.models import AcademicYear, ExcludedPeriod, RecurringHoliday
 from app.routes.teacher import templates
 from app.services.academic_years import get_active_academic_year
-from app.services.calendar import daterange
+from app.services.calendar import daterange, recurring_dates
+from app.services.holidays import holiday_tuples, list_recurring_holidays
 from app.services.hours import BLOCK_MINUTE_CHOICES, MINUTES_PER_HOUR, format_minutes_label
-from app.services.internship import DAY_KIND_OVERRIDE, MAX_DAILY_HOURS, InternshipCalendar, InternshipSchedule, build_internship_calendar
+from app.services.internship import (
+    DAY_KIND_OVERRIDE,
+    MAX_DAILY_HOURS,
+    InternshipCalendar,
+    InternshipSchedule,
+    build_internship_calendar,
+    internship_deadline,
+)
 from app.services.internship_export import METADATA_FIELDS, build_internship_workbook, calendar_grid_end, schedule_sections
 from app.services.internship_html import (
     CALENDAR_KIND_LABELS,
@@ -47,8 +55,11 @@ router = APIRouter(prefix="/practiques", tags=["internship"])
 
 MAX_TARGET_HOURS = 3000
 MAX_EXTRA_PERIODS = 100
+MAX_SKIPPED_HOLIDAYS = 200
 MAX_SCHEDULE_CHANGES = 20
 WEEKDAY_LABELS = ("Dilluns", "Dimarts", "Dimecres", "Dijous", "Divendres")
+# A recurring holiday only matters when it falls on a day that can have hours.
+WORKING_WEEKDAYS = range(len(WEEKDAY_LABELS))
 MAX_LABEL_LENGTH = 120
 MAX_METADATA_LENGTH = 200
 METADATA_KEYS = tuple(key for key, _ in METADATA_FIELDS)
@@ -66,6 +77,7 @@ PLAN_KEYS = (
     "weekday_minutes",
     "schedule_changes",
     "excluded_period_ids",
+    "skipped_fixed_dates",
     "extra_periods",
     "overrides",
     "metadata",
@@ -110,7 +122,7 @@ def _school_periods(db: Session) -> list[ExcludedPeriod]:
 class InternshipRequest:
     """Validated inputs shared by the live preview and the export."""
 
-    def __init__(self, payload: dict, periods: list[ExcludedPeriod]):
+    def __init__(self, payload: dict, periods: list[ExcludedPeriod], holidays: list[RecurringHoliday] | None = None):
         if not isinstance(payload, dict):
             raise ValueError("Dades de càlcul no vàlides.")
 
@@ -152,6 +164,16 @@ class InternshipRequest:
             raise ValueError("Selecció de períodes no lectius no vàlida.") from None
         self.school_periods = [period for period in periods if period.id in selected_ids]
 
+        # Recurring holidays apply in every year unless one of their dates was unticked.
+        self.holidays = holiday_tuples(holidays or [])
+        raw_skipped = payload.get("skipped_fixed_dates") or []
+        if len(raw_skipped) > MAX_SKIPPED_HOLIDAYS:
+            raise ValueError("Hi ha massa festius fixos desmarcats.")
+        try:
+            self.skipped_fixed_dates = {date.fromisoformat(str(value)) for value in raw_skipped}
+        except ValueError:
+            raise ValueError("Selecció de festius fixos no vàlida.") from None
+
         raw_extra = payload.get("extra_periods") or []
         if len(raw_extra) > MAX_EXTRA_PERIODS:
             raise ValueError("Hi ha massa dies sense pràctiques afegits.")
@@ -178,17 +200,39 @@ class InternshipRequest:
         raw_metadata = payload.get("metadata") or {}
         self.metadata = {key: str(raw_metadata.get(key) or "").strip()[:MAX_METADATA_LENGTH] for key in METADATA_KEYS}
 
+    def _ranges(self) -> list[tuple[date, date, str]]:
+        return [(p.start_date, p.end_date, (p.label or "").strip()) for p in self.school_periods] + self.extra_periods
+
+    def fixed_holidays(self, until: date) -> dict[date, str]:
+        """Recurring holidays from the start date to `until` that change the calendar.
+
+        Matches the planner's list: dates on non-working weekdays, unticked
+        dates and dates already inside a selected or added range are left out.
+        """
+
+        ranges = self._ranges()
+        return {
+            current: label
+            for current, label in recurring_dates(self.holidays, self.start_date, until).items()
+            if current.weekday() in WORKING_WEEKDAYS
+            and current not in self.skipped_fixed_dates
+            and not any(start <= current <= end for start, end, _ in ranges)
+        }
+
     def non_working(self) -> tuple[set[date], dict[date, str]]:
-        """Expand the selected school periods and extra dates into a lookup."""
+        """Expand the selected school periods, extra dates and recurring holidays into a lookup."""
 
         dates: set[date] = set()
         labels: dict[date, str] = {}
-        ranges = [(p.start_date, p.end_date, (p.label or "").strip()) for p in self.school_periods] + self.extra_periods
-        for start, end, label in ranges:
+        for start, end, label in self._ranges():
             for current in daterange(start, end):
                 dates.add(current)
                 if label and current not in labels:
                     labels[current] = label
+        for current, label in self.fixed_holidays(internship_deadline(self.start_date)).items():
+            dates.add(current)
+            if label:
+                labels[current] = label
         return dates, labels
 
     def calculate(self) -> InternshipCalendar:
@@ -210,17 +254,16 @@ class InternshipRequest:
         """
 
         grid_end = until or calendar_grid_end(result)
-        applied: list[dict[str, str]] = []
-        for period in self.school_periods:
-            if period.end_date >= result.start_date and period.start_date <= grid_end:
-                applied.append(
-                    {
-                        "start": format_display_date(period.start_date),
-                        "end": format_display_date(period.end_date),
-                        "label": (period.label or "").strip(),
-                        "source": "Calendari del centre",
-                    }
-                )
+        school: list[tuple[date, date, str, str]] = [
+            (period.start_date, period.end_date, (period.label or "").strip(), "Calendari del centre")
+            for period in self.school_periods
+            if period.end_date >= result.start_date and period.start_date <= grid_end
+        ]
+        school += [(current, current, label, "Festiu fix del centre") for current, label in self.fixed_holidays(grid_end).items()]
+        applied: list[dict[str, str]] = [
+            {"start": format_display_date(start), "end": format_display_date(end), "label": label, "source": source}
+            for start, end, label, source in sorted(school, key=lambda item: item[0])
+        ]
         for start, end, label in self.extra_periods:
             if end >= result.start_date and start <= grid_end:
                 applied.append(
@@ -242,15 +285,15 @@ def _error_message(exc: Exception) -> str:
     return "Dades de càlcul no vàlides."
 
 
-def _coverage_warning(db: Session, result: InternshipCalendar) -> str | None:
+def _coverage_warning(db: Session, result: InternshipCalendar, holidays: list[RecurringHoliday]) -> str | None:
     """Warn when the internship runs past the last configured academic year."""
 
     last_year_end = db.scalar(select(AcademicYear.default_end_date).order_by(AcademicYear.default_end_date.desc()))
     if last_year_end is not None and result.end_date > last_year_end:
-        return (
-            f"El calendari del centre només té dies no lectius configurats fins al {format_display_date(last_year_end)}. "
-            "Afegeix aquí els festius posteriors."
-        )
+        message = f"El calendari del centre només té dies no lectius configurats fins al {format_display_date(last_year_end)}. "
+        if holidays:
+            return message + "Els festius fixos de cada any ja hi són; afegeix aquí els altres festius posteriors."
+        return message + "Afegeix aquí els festius posteriors."
     return None
 
 
@@ -303,6 +346,7 @@ def _render_page(request: Request, db: Session, *, state: dict | None = None, er
         "weekday_minutes": {str(index): 0 for index in range(5)},
         "schedule_changes": [],
         "excluded_period_ids": [period.id for period in periods],
+        "skipped_fixed_dates": [],
         "extra_periods": [],
         "overrides": {},
         "metadata": {key: "" for key in METADATA_KEYS},
@@ -332,6 +376,9 @@ def _render_page(request: Request, db: Session, *, state: dict | None = None, er
                 }
                 for period in periods
             ],
+            "fixed_holidays": [
+                {"month": month, "day": day, "label": label} for month, day, label in holiday_tuples(list_recurring_holidays(db))
+            ],
             "state": state or default_state,
         },
         status_code=status_code,
@@ -359,11 +406,12 @@ async def calculate_internship(request: Request, db: Session = Depends(get_db)):
 
     try:
         payload = json.loads(await request.body())
-        inputs = InternshipRequest(payload, _school_periods(db))
+        holidays = list_recurring_holidays(db)
+        inputs = InternshipRequest(payload, _school_periods(db), holidays)
         result = inputs.calculate()
     except (ValueError, TypeError, AttributeError) as exc:
         return JSONResponse({"ok": False, "error": _error_message(exc)}, status_code=status.HTTP_400_BAD_REQUEST)
-    return JSONResponse(_serialize_result(result, _coverage_warning(db, result)))
+    return JSONResponse(_serialize_result(result, _coverage_warning(db, result, holidays)))
 
 
 async def _read_export_form(request: Request, db: Session):
@@ -373,7 +421,7 @@ async def _read_export_form(request: Request, db: Session):
     payload = None
     try:
         payload = json.loads(str(form.get("payload") or ""))
-        inputs = InternshipRequest(payload, _school_periods(db))
+        inputs = InternshipRequest(payload, _school_periods(db), list_recurring_holidays(db))
         result = inputs.calculate()
     except (ValueError, TypeError, AttributeError) as exc:
         state = payload if isinstance(payload, dict) else None

@@ -10,7 +10,7 @@ from sqlalchemy.orm import sessionmaker
 
 from app.database import Base, _configure_sqlite_connection
 from app.main import app
-from app.models import AcademicWeekNumber, AcademicYear, ExcludedPeriod
+from app.models import AcademicWeekNumber, AcademicYear, ExcludedPeriod, RecurringHoliday
 from app.routes import admin as admin_routes
 from app.services.bootstrap import bootstrap_database
 
@@ -188,3 +188,41 @@ def test_update_year_prunes_week_numbers_left_outside_the_new_date_range(tmp_pat
             select(AcademicWeekNumber).where(AcademicWeekNumber.academic_year_id == academic_year.id).order_by(AcademicWeekNumber.week_start_date)
         ).all()
         assert [week.week_start_date for week in remaining_weeks] == [date(2026, 9, 14), date(2026, 9, 21)]
+
+
+def test_recurring_holidays_can_be_added_edited_and_deleted(tmp_path, monkeypatch):
+    """Recurring holidays are global, unique per day and month, and flag duplicated single days."""
+
+    monkeypatch.setenv("ADMIN_USERNAME", "admin")
+    monkeypatch.setenv("ADMIN_PASSWORD", "preview-secret")
+    engine = _legacy_engine(tmp_path / "planner.db")
+    Base.metadata.create_all(bind=engine)
+    SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False, expire_on_commit=False)
+
+    with SessionLocal() as session:
+        year = AcademicYear(label="2026-27", default_start_date=date(2026, 9, 1), default_end_date=date(2027, 6, 30), is_active=True)
+        session.add(year)
+        session.flush()
+        session.add(ExcludedPeriod(academic_year_id=year.id, start_date=date(2027, 5, 1), end_date=date(2027, 5, 1), label="Festa"))
+        session.commit()
+
+        response = admin_routes.add_holiday(_request("/admin/holidays"), "1/5", " Festa del Treball ", str(year.id), session, object())
+        assert response.status_code == 303
+        assert response.headers["location"] == f"/admin?year_id={year.id}&status=holiday-added#recurring-holidays"
+        holiday = session.scalar(select(RecurringHoliday))
+        assert (holiday.day, holiday.month, holiday.label) == (1, 5, "Festa del Treball")
+
+        duplicate = admin_routes.add_holiday(_request("/admin/holidays"), "01/05", None, str(year.id), session, object())
+        assert duplicate.status_code == 400
+        assert duplicate.context["error"] == "El 01/05 ja és un festiu fix."
+        # The year's own 1 May can now be removed.
+        period_id = session.scalar(select(ExcludedPeriod.id))
+        assert duplicate.context["recurring_period_ids"] == {period_id}
+
+        invalid = admin_routes.update_holiday(_request("/admin/holidays/1"), holiday.id, "29/2", None, None, session, object())
+        assert invalid.status_code == 400
+        admin_routes.update_holiday(_request("/admin/holidays/1"), holiday.id, "24/6", "Sant Joan", None, session, object())
+        assert (holiday.day, holiday.month, holiday.label) == (24, 6, "Sant Joan")
+
+        admin_routes.delete_holiday(holiday.id, None, session, object())
+        assert session.scalar(select(RecurringHoliday)) is None

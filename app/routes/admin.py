@@ -14,18 +14,20 @@ from app.auth import verify_password
 from app.build_info import build_footer
 from app.config import get_settings
 from app.database import get_db
-from app.date_utils import format_display_date, format_month_label, parse_date_input
+from app.date_utils import format_day_month, format_display_date, format_month_label, parse_date_input, parse_day_month_input
 from app.dependencies import require_admin
-from app.models import AcademicWeekNumber, AcademicYear, AdminUser, ExcludedPeriod
+from app.models import AcademicWeekNumber, AcademicYear, AdminUser, ExcludedPeriod, RecurringHoliday
 from app.services.academic_weeks import is_vacation_week, iter_week_starts, suggest_week_numbers, week_start
 from app.services.academic_years import activate_academic_year, find_overlapping_year, get_active_academic_year, list_academic_years, suggest_year_label
 from app.services.calendar import expand_excluded_periods
+from app.services.holidays import list_recurring_holidays, recurring_holiday_dates
 from app.services.usage import usage_summary
 
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 templates = Jinja2Templates(directory="app/templates")
 templates.env.filters["date_display"] = format_display_date
+templates.env.filters["day_month"] = lambda holiday: format_day_month(holiday.day, holiday.month)
 settings = get_settings()
 templates.env.globals["app_name"] = settings.app_name
 templates.env.globals["school_name"] = settings.school_name
@@ -33,6 +35,7 @@ templates.env.globals["build_footer"] = build_footer
 SELECTED_YEAR_SECTION_ID = "academic-year-detail"
 EXCLUDED_PERIODS_SECTION_ID = "excluded-periods"
 DANGER_ZONE_SECTION_ID = "danger-zone"
+RECURRING_HOLIDAYS_SECTION_ID = "recurring-holidays"
 WEEK_FIELD_PREFIX = "week_"
 STATUS_MESSAGES = {
     "year-created": ("Curs acadèmic creat.", "ok"),
@@ -43,6 +46,9 @@ STATUS_MESSAGES = {
     "period-updated": ("Període sense classe actualitzat.", "ok"),
     "period-deleted": ("Període sense classe suprimit.", "ok"),
     "weeks-updated": ("Numeració de setmanes desada.", "ok"),
+    "holiday-added": ("Festiu fix afegit.", "ok"),
+    "holiday-updated": ("Festiu fix actualitzat.", "ok"),
+    "holiday-deleted": ("Festiu fix suprimit.", "ok"),
 }
 
 
@@ -135,6 +141,8 @@ def _render_dashboard(
     status_message, status_tone = _status_from_request(request)
 
     periods = _periods_for_year(db, selected_year.id)
+    recurring_holidays = list_recurring_holidays(db)
+    recurring_keys = {(holiday.month, holiday.day) for holiday in recurring_holidays}
     return templates.TemplateResponse(
         request,
         "admin/dashboard.html",
@@ -143,6 +151,13 @@ def _render_dashboard(
             "active_year": active_year,
             "selected_year": selected_year,
             "periods": periods,
+            "recurring_holidays": recurring_holidays,
+            # Single days already covered by a recurring holiday can be removed from the year.
+            "recurring_period_ids": {
+                period.id
+                for period in periods
+                if period.start_date == period.end_date and (period.start_date.month, period.start_date.day) in recurring_keys
+            },
             "selected_period_count": period_counts.get(selected_year.id, 0),
             "selected_week_count": week_counts.get(selected_year.id, 0),
             "error": error,
@@ -594,12 +609,105 @@ def delete_period(year_id: int, period_id: int, db: Session = Depends(get_db), _
     )
 
 
+def _holiday_redirect(year_id: str | None, status_name: str) -> RedirectResponse:
+    """Return to the dashboard, keeping the year being edited when the form sent it."""
+
+    year = int(year_id) if year_id and year_id.isdigit() else None
+    return RedirectResponse(
+        url=_year_dashboard_url(year, status_name=status_name, section_id=RECURRING_HOLIDAYS_SECTION_ID),
+        status_code=status.HTTP_303_SEE_OTHER,
+    )
+
+
+def _holiday_form_error(request: Request, db: Session, year_id: str | None, error: str):
+    selected_year = db.get(AcademicYear, int(year_id)) if year_id and year_id.isdigit() else None
+    return _render_dashboard(
+        request,
+        db,
+        selected_year=selected_year,
+        error=error,
+        focus_section=RECURRING_HOLIDAYS_SECTION_ID,
+        status_code=status.HTTP_400_BAD_REQUEST,
+    )
+
+
+def _validate_holiday(db: Session, day_month_raw: str, holiday_id: int | None = None) -> tuple[int, int]:
+    """Parse a D/M date and reject one that another recurring holiday already uses."""
+
+    day, month = parse_day_month_input(day_month_raw)
+    duplicate = db.scalar(select(RecurringHoliday).where(RecurringHoliday.month == month, RecurringHoliday.day == day))
+    if duplicate is not None and duplicate.id != holiday_id:
+        raise ValueError(f"El {format_day_month(day, month)} ja és un festiu fix.")
+    return day, month
+
+
+@router.post("/holidays")
+def add_holiday(
+    request: Request,
+    day_month_raw: str = Form(..., alias="day_month"),
+    label: Annotated[str | None, Form()] = None,
+    year_id: Annotated[str | None, Form()] = None,
+    db: Session = Depends(get_db),
+    _: AdminUser = Depends(require_admin),
+):
+    """Store a holiday that repeats on the same day every year."""
+
+    try:
+        day, month = _validate_holiday(db, day_month_raw)
+    except ValueError as exc:
+        return _holiday_form_error(request, db, year_id, str(exc))
+    db.add(RecurringHoliday(month=month, day=day, label=(label or "").strip() or None))
+    db.commit()
+    return _holiday_redirect(year_id, "holiday-added")
+
+
+@router.post("/holidays/{holiday_id}")
+def update_holiday(
+    request: Request,
+    holiday_id: int,
+    day_month_raw: str = Form(..., alias="day_month"),
+    label: Annotated[str | None, Form()] = None,
+    year_id: Annotated[str | None, Form()] = None,
+    db: Session = Depends(get_db),
+    _: AdminUser = Depends(require_admin),
+):
+    """Edit one recurring holiday."""
+
+    holiday = db.get(RecurringHoliday, holiday_id)
+    if holiday is None:
+        return _holiday_redirect(year_id, "")
+    try:
+        holiday.day, holiday.month = _validate_holiday(db, day_month_raw, holiday_id)
+    except ValueError as exc:
+        return _holiday_form_error(request, db, year_id, str(exc))
+    holiday.label = (label or "").strip() or None
+    db.commit()
+    return _holiday_redirect(year_id, "holiday-updated")
+
+
+@router.post("/holidays/{holiday_id}/delete")
+def delete_holiday(
+    holiday_id: int,
+    year_id: Annotated[str | None, Form()] = None,
+    db: Session = Depends(get_db),
+    _: AdminUser = Depends(require_admin),
+):
+    """Delete one recurring holiday."""
+
+    holiday = db.get(RecurringHoliday, holiday_id)
+    if holiday is not None:
+        db.delete(holiday)
+        db.commit()
+    return _holiday_redirect(year_id, "holiday-deleted")
+
+
 def _build_week_groups(db: Session, academic_year: AcademicYear) -> list[dict[str, object]]:
     """Prepare the week grid, grouped by month, for one academic year."""
 
     week_starts = iter_week_starts(academic_year.default_start_date, academic_year.default_end_date)
     periods = _periods_for_year(db, academic_year.id)
     excluded_dates = expand_excluded_periods([(period.start_date, period.end_date) for period in periods])
+    excluded_dates.update(recurring_holiday_dates(db, academic_year.default_start_date, academic_year.default_end_date))
     suggestions = suggest_week_numbers(week_starts, excluded_dates)
     saved_numbers = {
         row.week_start_date: row.number

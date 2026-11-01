@@ -49,3 +49,27 @@ def parse_date_input(value: str) -> date:
             pass
 
     raise ValueError("Introdueix una data en format D/M/AA o D/M/AAAA.")
+
+
+def format_day_month(day: int, month: int) -> str:
+    """Return a yearly date in DD/MM format."""
+
+    return f"{day:02d}/{month:02d}"
+
+
+def parse_day_month_input(value: str) -> tuple[int, int]:
+    """Accept D/M for a holiday that repeats every year; return (day, month)."""
+
+    match = re.fullmatch(r"(\d{1,2})/(\d{1,2})", value.strip())
+    if match:
+        day, month = int(match.group(1)), int(match.group(2))
+        if (day, month) == (29, 2):
+            raise ValueError("El 29 de febrer no es repeteix cada any.")
+        try:
+            # 2001 is not a leap year, so this only accepts real yearly dates.
+            date(2001, month, day)
+        except ValueError:
+            pass
+        else:
+            return day, month
+    raise ValueError("Introdueix el dia i el mes en format D/M (p. ex. 1/5).")

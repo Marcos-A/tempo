@@ -47,6 +47,19 @@ class ExcludedPeriod(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
 
+class RecurringHoliday(Base):
+    """Holiday on the same day and month every year, independent of academic years."""
+
+    __tablename__ = "recurring_holidays"
+    __table_args__ = (UniqueConstraint("month", "day", name="uq_recurring_holidays_month_day"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    month: Mapped[int] = mapped_column(Integer)
+    day: Mapped[int] = mapped_column(Integer)
+    label: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
 class AcademicWeekNumber(Base):
     """Admin-assigned week number for one Monday-to-Sunday calendar week."""
 

@@ -39,7 +39,7 @@ Tempo té dues eines, accessibles des de la capçalera de l'aplicació.
 **[Planificador curricular](#planificador-curricular)** (`/`)
 
 - definir el calendari lectiu d'un mòdul a partir de dies reals de classe
-- excloure períodes no lectius i dates bloquejades des de l'àrea d'administració
+- excloure períodes no lectius i dates bloquejades des de l'àrea d'administració, amb festius fixos que es repeteixen cada any
 - repartir Resultats d'Aprenentatge en seqüència o en blocs paral·lels
 - revisar la distribució abans de generar el fitxer final
 - exportar la planificació en un llibre XLSX preparat per a revisió manual
@@ -97,7 +97,7 @@ Indica la data d'inici, les hores totals (amb minuts) i les hores de cada dia de
 
 ### 2. Revisa els dies sense pràctiques i el calendari
 
-Els períodes del calendari del centre surten marcats i es poden desmarcar si no afecten l'empresa (p. ex. pràctiques durant les vacances escolars). També s'hi poden afegir altres dies, com festius locals de l'empresa o festius posteriors a les classes. Si les pràctiques van més enllà dels dies no lectius configurats al calendari del centre, un avís en aquesta mateixa secció recorda afegir-hi els festius posteriors. El calendari es recalcula en directe i mostra la data de fi, les hores planificades i els dies amb pràctiques; el darrer dia només rep les hores que falten. Quan hi ha diversos períodes, el primer dia de cadascun queda marcat al calendari.
+Els períodes del calendari del centre surten marcats i es poden desmarcar si no afecten l'empresa (p. ex. pràctiques durant les vacances escolars). Els festius fixos (els que l'administració marca com a repetits cada any, p. ex. l'1 de maig) hi surten un cop per cada any que abasten les pràctiques, també en cursos encara no configurats, i també es poden desmarcar un per un. Només hi surten quan cauen en un dia laborable i no queden dins d'un altre període marcat o afegit: si cauen en cap de setmana o dins de les vacances de Nadal, no cal llistar-los a part. També s'hi poden afegir altres dies, com festius locals de l'empresa o festius posteriors a les classes. Si les pràctiques van més enllà dels dies no lectius configurats al calendari del centre, un avís en aquesta mateixa secció recorda afegir-hi els festius posteriors que canvien de data cada any (els fixos ja hi són). El calendari es recalcula en directe i mostra la data de fi, les hores planificades i els dies amb pràctiques; el darrer dia només rep les hores que falten. Quan hi ha diversos períodes, el primer dia de cadascun queda marcat al calendari.
 
 ![Dies sense pràctiques, calendari resultant amb la data de fi, botons de descàrrega en XLSX, HTML, PDF i PNG i la nota que explica cada format i que l'HTML es pot tornar a obrir](docs/screenshots/tempo-practiques-step-2-calendari.png)
 
@@ -226,7 +226,7 @@ Els desplegaments que defineixen `APP_ENV` mostren la compilació desplegada en 
 ### Administració
 
 - `/admin` està protegit per autenticació
-- permet gestionar anys acadèmics i dates excloses
+- permet gestionar anys acadèmics i dates excloses, i també festius fixos (dia i mes) que s'apliquen a tots els cursos, fins i tot als que encara no s'han configurat
 - `/admin/usage` mostra quantes vegades s'ha obert cada eina i quantes planificacions i exportacions (en el cas de les pràctiques, separades entre XLSX, HTML, PDF i PNG) s'han completat, per als últims 7 i 30 dies, el total i les últimes 12 setmanes. El recompte és anònim: només es desa un número per dia i acció, sense adreces IP, galetes ni dades del navegador, i no inclou robots ni monitors
 - no apareix enllaçat des de la interfície pública
 

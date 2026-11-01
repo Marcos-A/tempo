@@ -10,7 +10,7 @@ from zipfile import ZipFile
 import pytest
 from openpyxl import load_workbook
 
-from app.date_utils import format_display_date, format_month_label, parse_date_input
+from app.date_utils import format_display_date, format_month_label, parse_date_input, parse_day_month_input
 from app.services.academic_weeks import (
     is_vacation_week,
     iter_week_starts,
@@ -20,7 +20,7 @@ from app.services.academic_weeks import (
     week_start,
 )
 from app.services.allocation import BlockPlan, RAPlan, allocate_ra_hours, allocate_ra_hours_by_blocks, validate_ra_distribution
-from app.services.calendar import build_schedule, expand_excluded_periods, total_available_hours
+from app.services.calendar import build_schedule, expand_excluded_periods, recurring_dates, total_available_hours
 from app.services.export import build_workbook
 from app.routes.teacher import _build_block_plans, _default_ra_state
 from app.services.hours import format_minutes_label, parse_hour_minute_pair
@@ -697,6 +697,24 @@ def test_parse_date_input_keeps_iso_backwards_compatible():
     """Older saved forms or direct POSTs using ISO dates should still work."""
 
     assert parse_date_input("2025-12-09") == date(2025, 12, 9)
+
+
+def test_parse_day_month_input_accepts_yearly_dates_only():
+    assert parse_day_month_input("1/5") == (1, 5)
+    assert parse_day_month_input(" 25/12 ") == (25, 12)
+    for value in ("29/2", "31/4", "1/13", "1/5/2027", ""):
+        with pytest.raises(ValueError):
+            parse_day_month_input(value)
+
+
+def test_recurring_dates_repeat_in_every_year_of_the_range():
+    holidays = [(12, 25, "Nadal"), (1, 1, "Cap d'Any")]
+    assert recurring_dates(holidays, date(2026, 9, 1), date(2028, 1, 1)) == {
+        date(2026, 12, 25): "Nadal",
+        date(2027, 1, 1): "Cap d'Any",
+        date(2027, 12, 25): "Nadal",
+        date(2028, 1, 1): "Cap d'Any",
+    }
 
 
 def test_format_display_date_returns_dd_mm_yyyy():

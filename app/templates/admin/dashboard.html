@@ -151,6 +151,9 @@
         </td>
         <td>
           <span class="period-type" data-start-input-id="period-start-{{ period.id }}" data-end-input-id="period-end-{{ period.id }}">{{ 'Data única' if period.start_date == period.end_date else 'Interval' }}</span>
+          {% if period.id in recurring_period_ids %}
+          <span class="inline-note">Ja és un festiu fix: el pots suprimir.</span>
+          {% endif %}
         </td>
         <td>
           <div class="table-actions">
@@ -171,9 +174,64 @@
   {% endif %}
 </section>
 
+<section class="card exclusions-card" id="recurring-holidays">
+  <h2>Festius fixos</h2>
+  <p class="inline-note">Es repeteixen cada any el mateix dia i s'apliquen a tots els cursos, també als que encara no s'han configurat (p. ex. a unes pràctiques que s'allarguen fins al curs vinent). Els festius que canvien de data, com Setmana Santa, s'afegeixen a cada curs.</p>
+  <form method="post" action="/admin/holidays" class="holiday-form">
+    <input type="hidden" name="year_id" value="{{ selected_year.id }}" />
+    <label>
+      Dia i mes
+      <input class="day-month-input" type="text" name="day_month" placeholder="DD/MM" inputmode="numeric" pattern="\d{1,2}/\d{1,2}" required />
+    </label>
+    <label>
+      Nom del festiu
+      <span class="optional-label">Opcional</span>
+      <input type="text" name="label" placeholder="P.ex. Festa del Treball" maxlength="255" />
+    </label>
+    <button type="submit" class="admin-panel-submit">Afegeix el festiu</button>
+  </form>
+  {% if recurring_holidays %}
+  <table class="holiday-table">
+    <thead>
+      <tr>
+        <th>Dia i mes</th>
+        <th>Nom</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for holiday in recurring_holidays %}
+      <tr>
+        <td>
+          <input class="day-month-input" type="text" name="day_month" value="{{ holiday|day_month }}" placeholder="DD/MM" inputmode="numeric" pattern="\d{1,2}/\d{1,2}" required form="holiday-edit-{{ holiday.id }}" aria-label="Dia i mes" />
+        </td>
+        <td>
+          <input type="text" name="label" value="{{ holiday.label or '' }}" placeholder="Nom opcional" maxlength="255" form="holiday-edit-{{ holiday.id }}" aria-label="Nom del festiu" />
+        </td>
+        <td>
+          <div class="table-actions">
+            <form method="post" action="/admin/holidays/{{ holiday.id }}" id="holiday-edit-{{ holiday.id }}">
+              <input type="hidden" name="year_id" value="{{ selected_year.id }}" />
+              <button type="submit">Desa</button>
+            </form>
+            <form method="post" action="/admin/holidays/{{ holiday.id }}/delete">
+              <input type="hidden" name="year_id" value="{{ selected_year.id }}" />
+              <button type="submit" class="secondary">Suprimeix</button>
+            </form>
+          </div>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p>No hi ha cap festiu fix configurat.</p>
+  {% endif %}
+</section>
+
 <section class="card delete-course-card" id="danger-zone">
   <h2>Suprimeix el curs</h2>
-  <p class="warning-box">Suprimir un curs també eliminarà les seves exclusions i la seva numeració de setmanes.</p>
+  <p class="warning-box">Suprimir un curs també eliminarà les seves exclusions i la seva numeració de setmanes. Els festius fixos no s'eliminen.</p>
   {% if selected_year.is_active %}
   <p class="error-text">No es pot suprimir mentre sigui el curs actiu per al professorat.</p>
   {% else %}

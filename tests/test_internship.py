@@ -12,7 +12,7 @@ from sqlalchemy.pool import StaticPool
 
 from app.database import Base, get_db
 from app.main import app
-from app.models import AcademicYear, ExcludedPeriod
+from app.models import AcademicYear, ExcludedPeriod, RecurringHoliday
 from app.routes.internship import InternshipRequest, _export_filename
 from app.services.internship import (
     DAY_KIND_HOLIDAY,
@@ -185,11 +185,64 @@ def test_request_applies_only_selected_school_periods_and_extra_dates():
         {"target_hours": "0"},
         {"overrides": {"not-a-date": 60}},
         {"extra_periods": [{"start": "20/10/2026", "end": "19/10/2026"}]},
+        {"skipped_fixed_dates": ["not-a-date"]},
     ],
 )
 def test_request_validation_rejects_bad_input(changes):
     with pytest.raises(ValueError):
         InternshipRequest(_payload(**changes), []).calculate()
+
+
+def _holiday(month, day, label):
+    return RecurringHoliday(month=month, day=day, label=label)
+
+
+HOLIDAYS = [
+    _holiday(11, 1, "Tots Sants"),  # Sunday in 2026
+    _holiday(12, 8, "Immaculada"),  # Tuesday in 2026
+    _holiday(12, 25, "Nadal"),  # Friday in 2026, inside the Christmas break
+    _holiday(5, 1, "Festa del Treball"),  # Saturday in 2027
+    _holiday(6, 24, "Sant Joan"),  # Thursday in 2027
+]
+
+
+def test_recurring_holidays_apply_on_working_days_outside_selected_ranges():
+    christmas = _period(1, date(2026, 12, 22), date(2027, 1, 7), "Vacances de Nadal")
+    request = InternshipRequest(_payload(target_hours="3000", excluded_period_ids=[1]), [christmas], HOLIDAYS)
+    # Weekend dates and dates inside a selected period are left out of the list.
+    assert request.fixed_holidays(date(2027, 7, 31)) == {date(2026, 12, 8): "Immaculada", date(2027, 6, 24): "Sant Joan"}
+
+    result = request.calculate()
+    days = {day.date: day for day in result.days}
+    assert (days[date(2026, 12, 8)].kind, days[date(2026, 12, 8)].label) == (DAY_KIND_HOLIDAY, "Immaculada")
+    assert (days[date(2026, 11, 1)].kind, days[date(2026, 11, 1)].label) == (DAY_KIND_WEEKEND, "")
+    assert days[date(2026, 12, 25)].label == "Vacances de Nadal"
+    applied = request.applied_periods(result, until=date(2027, 7, 31))
+    assert [(item["start"], item["source"]) for item in applied] == [
+        ("08/12/2026", "Festiu fix del centre"),
+        ("22/12/2026", "Calendari del centre"),
+        ("24/06/2027", "Festiu fix del centre"),
+    ]
+
+    # Without the break, Christmas Day is listed on its own.
+    request = InternshipRequest(_payload(target_hours="3000"), [christmas], HOLIDAYS)
+    assert date(2026, 12, 25) in request.fixed_holidays(date(2027, 7, 31))
+
+
+def test_recurring_holidays_can_be_unticked_or_covered_by_an_added_range():
+    request = InternshipRequest(
+        _payload(
+            target_hours="3000",
+            skipped_fixed_dates=["2026-12-08"],
+            extra_periods=[{"start": "21/06/2027", "end": "25/06/2027", "label": "Empresa tancada"}],
+        ),
+        [],
+        HOLIDAYS,
+    )
+    assert request.fixed_holidays(date(2027, 7, 31)) == {date(2026, 12, 25): "Nadal"}
+    days = {day.date: day for day in request.calculate().days}
+    assert days[date(2026, 12, 8)].kind == DAY_KIND_WORKING
+    assert days[date(2027, 6, 24)].label == "Empresa tancada"
 
 
 def test_target_accepts_minutes():
@@ -477,6 +530,21 @@ def test_page_renders_with_nav_and_school_periods(client):
     home = test_client.get("/")
     assert 'href="/" class="site-nav-link" aria-current="page"' in home.text
     assert "Planificador curricular" in home.text
+
+
+def test_recurring_holidays_reach_years_without_a_school_calendar(client):
+    test_client, Session = client
+    with Session() as db:
+        db.add(RecurringHoliday(month=6, day=24, label="Sant Joan"))
+        db.commit()
+    page = test_client.get("/practiques")
+    assert '"label": "Sant Joan"' in page.text
+
+    # The only configured year ends on 18/06/2027; Sant Joan still applies after it.
+    data = test_client.post("/practiques/calcul", json=_payload(target_hours="3000")).json()
+    sant_joan = next(day for day in data["days"] if day["date"] == "2027-06-24")
+    assert (sant_joan["kind"], sant_joan["label"]) == (DAY_KIND_HOLIDAY, "Sant Joan")
+    assert "Els festius fixos de cada any ja hi són" in data["warning"]
 
 
 def test_calcul_endpoint_returns_days_and_end_date(client):

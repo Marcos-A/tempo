@@ -105,7 +105,7 @@
               <button type="button" class="link-button" data-toggle-periods="off">Desmarca-ho tot</button>
             </span>
           </div>
-          <p class="hint">Desmarca els períodes del calendari del centre que no afectin l'empresa (p. ex. si l'alumne fa pràctiques durant les vacances escolars).</p>
+          <p class="hint">Desmarca els períodes del calendari del centre que no afectin l'empresa (p. ex. si l'alumne fa pràctiques durant les vacances escolars). Els festius fixos surten a cada any de les pràctiques, només quan cauen en un dia laborable fora d'un altre període.</p>
           <ul class="period-list" id="school-period-list">
             {% for period in school_periods %}
             <li data-period-start="{{ period.start }}" data-period-end="{{ period.end }}" data-period-label="{{ period.label }}">
@@ -339,6 +339,9 @@
   const MAX_SCHEDULE_CHANGES = 20;
   const KIND_LABELS = {{ calendar_kind_labels|tojson }};
   const serverState = {{ state|tojson }};
+  const FIXED_HOLIDAYS = {{ fixed_holidays|tojson }};
+  // Weekdays (Monday=0) on which a recurring holiday changes the calendar; see WORKING_WEEKDAYS on the server.
+  const WORKING_WEEKDAYS = [0, 1, 2, 3, 4];
   const hasServerError = {{ 'true' if error else 'false' }};
 
   const $ = (id) => document.getElementById(id);
@@ -404,6 +407,7 @@
       weekday_minutes: { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0 },
       schedule_changes: [],
       unchecked_period_ids: [],
+      skipped_fixed_dates: [],
       extra_periods: [],
       overrides: {},
       metadata: {},
@@ -426,6 +430,7 @@
     merged.overrides = { ...(raw.overrides || {}) };
     merged.metadata = { ...(raw.metadata || {}) };
     merged.extra_periods = Array.isArray(raw.extra_periods) ? raw.extra_periods : [];
+    merged.skipped_fixed_dates = Array.isArray(raw.skipped_fixed_dates) ? raw.skipped_fixed_dates.map(String) : [];
     return merged;
   }
 
@@ -465,6 +470,7 @@
         .filter((_, index) => scheduleChangeStatus(index).iso)
         .map((change) => ({ start: change.start, weekday_minutes: change.weekday_minutes })),
       excluded_period_ids: allPeriodIds.filter((id) => !unchecked.has(id)),
+      skipped_fixed_dates: state.skipped_fixed_dates,
       extra_periods: state.extra_periods,
       overrides: state.overrides,
       metadata: state.metadata,
@@ -633,16 +639,85 @@
     });
   }
 
+  /* ---------- Recurring holidays ---------- */
+
+  // Same rules as InternshipRequest.fixed_holidays on the server: every
+  // yearly date from the start to the deadline, except those on a weekend
+  // and those already inside a selected school period or an added range.
+  function inSelectedRange(iso) {
+    const unchecked = new Set(state.unchecked_period_ids.map(Number));
+    if (schoolPeriods.some((period) => !unchecked.has(period.id) && period.start <= iso && iso <= period.end)) return true;
+    return state.extra_periods.some((period) => {
+      const [start, end] = extraRangeIso(period);
+      return start <= iso && iso <= end;
+    });
+  }
+
+  function fixedHolidayOn(iso) {
+    if (!WORKING_WEEKDAYS.includes(weekdayIndex(iso)) || inSelectedRange(iso)) return null;
+    const [, month, day] = iso.split("-").map(Number);
+    return FIXED_HOLIDAYS.find((holiday) => holiday.month === month && holiday.day === day) || null;
+  }
+
+  function isAppliedFixedHoliday(iso) {
+    return Boolean(fixedHolidayOn(iso)) && !state.skipped_fixed_dates.includes(iso);
+  }
+
+  function listedFixedHolidays() {
+    if (!FIXED_HOLIDAYS.length) return [];
+    const start = parseDisplayDate(state.start_date);
+    const fromIso = start ? dateToIso(start) : dateToIso(new Date());
+    const toIso = deadlineFor(fromIso);
+    const found = [];
+    for (let year = Number(fromIso.slice(0, 4)); year <= Number(toIso.slice(0, 4)); year += 1) {
+      FIXED_HOLIDAYS.forEach((holiday) => {
+        const iso = `${year}-${pad(holiday.month)}-${pad(holiday.day)}`;
+        if (fromIso <= iso && iso <= toIso && fixedHolidayOn(iso)) found.push({ iso, label: holiday.label });
+      });
+    }
+    return found.sort((left, right) => left.iso.localeCompare(right.iso));
+  }
+
+  // The yearly dates sit among the school periods in date order.
+  function renderFixedHolidays() {
+    const list = $("school-period-list");
+    list.querySelectorAll("[data-fixed-item]").forEach((item) => item.remove());
+    const periodItems = [...list.children];
+    const skipped = new Set(state.skipped_fixed_dates);
+    listedFixedHolidays().forEach(({ iso, label }) => {
+      const item = document.createElement("li");
+      item.dataset.fixedItem = "";
+      const option = document.createElement("label");
+      option.className = "checkbox-label period-option";
+      const box = document.createElement("input");
+      box.type = "checkbox";
+      box.dataset.fixedDate = iso;
+      box.checked = !skipped.has(iso);
+      const text = document.createElement("span");
+      const dates = document.createElement("span");
+      dates.className = "period-dates";
+      dates.textContent = displayDate(iso);
+      const name = document.createElement("span");
+      name.className = "period-label";
+      name.textContent = ` ${label || "Festiu fix"} · cada any`;
+      text.append(dates, name);
+      option.append(box, text);
+      item.append(option);
+      list.insertBefore(item, periodItems.find((other) => other.dataset.periodStart > iso) || null);
+    });
+  }
+
   function renderSchoolPeriodVisibility() {
+    renderFixedHolidays();
     const start = parseDisplayDate(state.start_date);
     const startIso = start ? dateToIso(start) : null;
     let visible = 0;
     document.querySelectorAll("#school-period-list li").forEach((item) => {
-      const show = !startIso || item.dataset.periodEnd >= startIso;
+      const show = item.dataset.fixedItem !== undefined || !startIso || item.dataset.periodEnd >= startIso;
       item.hidden = !show;
       if (show) visible += 1;
     });
-    const hasAny = periodCheckboxes.length > 0;
+    const hasAny = periodCheckboxes.length > 0 || FIXED_HOLIDAYS.length > 0;
     $("school-period-none").hidden = hasAny;
     $("school-period-empty").hidden = !hasAny || visible > 0;
     document.querySelector(".non-working-actions").hidden = visible === 0;
@@ -672,6 +747,8 @@
         found.extra = true;
       } else if (day.getDay() === 0 || day.getDay() === 6) {
         found.weekend = true;
+      } else if (isAppliedFixedHoliday(iso)) {
+        found.checked.add(fixedHolidayOn(iso).label || "festiu fix");
       } else {
         return null;
       }
@@ -723,6 +800,7 @@
       remove.addEventListener("click", () => {
         state.extra_periods.splice(index, 1);
         renderExtraPeriods();
+        renderSchoolPeriodVisibility();
         changed();
       });
       item.append(text, remove);
@@ -779,8 +857,20 @@
       else unchecked.add(id);
       state.unchecked_period_ids = [...unchecked];
       renderExtraPeriods();
+      renderSchoolPeriodVisibility();
       changed({ immediate: true });
     });
+  });
+  // The yearly dates are rebuilt whenever the list changes, so listen on the list.
+  $("school-period-list").addEventListener("change", (event) => {
+    const iso = event.target.dataset.fixedDate;
+    if (!iso) return;
+    const skipped = new Set(state.skipped_fixed_dates);
+    if (event.target.checked) skipped.delete(iso);
+    else skipped.add(iso);
+    state.skipped_fixed_dates = [...skipped];
+    renderExtraPeriods();
+    changed({ immediate: true });
   });
   document.querySelectorAll("[data-toggle-periods]").forEach((button) => {
     button.addEventListener("click", () => {
@@ -790,6 +880,10 @@
       const unchecked = new Set(state.unchecked_period_ids.map(Number));
       visibleIds.forEach((id) => (turnOn ? unchecked.delete(id) : unchecked.add(id)));
       state.unchecked_period_ids = [...unchecked];
+      // Unticking a period can list more yearly dates, so toggle those that are listed afterwards.
+      const skipped = new Set(state.skipped_fixed_dates);
+      listedFixedHolidays().forEach(({ iso }) => (turnOn ? skipped.delete(iso) : skipped.add(iso)));
+      state.skipped_fixed_dates = [...skipped];
       renderInputs();
       changed({ immediate: true });
     });
@@ -821,6 +915,7 @@
     $("extra-end").value = "";
     $("extra-label").value = "";
     renderExtraPeriods();
+    renderSchoolPeriodVisibility();
     changed({ immediate: true });
   });
   function resetAll() {
@@ -831,6 +926,7 @@
     state.weekday_minutes = { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0 };
     state.schedule_changes = [];
     state.unchecked_period_ids = [];
+    state.skipped_fixed_dates = [];
     state.extra_periods = [];
     state.overrides = {};
     state.metadata = {};
@@ -1182,12 +1278,7 @@
   // Same rules as the server (InternshipRequest.non_working), for dates the
   // current result may not reach yet.
   function isNonWorking(iso) {
-    const unchecked = new Set(state.unchecked_period_ids.map(Number));
-    if (schoolPeriods.some((period) => !unchecked.has(period.id) && period.start <= iso && iso <= period.end)) return true;
-    return state.extra_periods.some((period) => {
-      const [start, end] = extraRangeIso(period);
-      return start <= iso && iso <= end;
-    });
+    return inSelectedRange(iso) || isAppliedFixedHoliday(iso);
   }
 
   function defaultMinutesOn(iso) {
@@ -1204,10 +1295,14 @@
   }
 
   // 31 July of the school year the internship starts in; nothing runs later.
+  function deadlineFor(startIso) {
+    const year = Number(startIso.slice(0, 4));
+    return `${Number(startIso.slice(5, 7)) <= 7 ? year : year + 1}-07-31`;
+  }
+
   function deadlineIso() {
     const start = parseDisplayDate(state.start_date);
-    if (!start) return null;
-    return `${start.getMonth() <= 6 ? start.getFullYear() : start.getFullYear() + 1}-07-31`;
+    return start ? deadlineFor(dateToIso(start)) : null;
   }
 
   /* The days the range covers, or an `error` explaining why there are none. */

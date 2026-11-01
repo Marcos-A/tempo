@@ -39,7 +39,7 @@ Tempo has two tools, both reachable from the app header.
 **[Curriculum Planner](#curriculum-planner)** (`/`)
 
 - defines a teaching calendar from real class days
-- excludes no-class periods and blocked dates from the admin area
+- excludes no-class periods and blocked dates from the admin area, with fixed holidays that repeat every year
 - distributes learning outcomes sequentially or in parallel blocks
 - lets teachers review the distribution before export
 - exports the final planning workbook as XLSX for manual review
@@ -97,7 +97,7 @@ Enter the start date, total hours (minutes supported) and the hours for each wee
 
 ### 2. Review Days Without Internship And The Calendar
 
-The school calendar's periods are pre-selected and can be unticked when they do not affect the company (e.g. an internship that runs through school holidays). Other days can be added too, such as the company's local holidays or holidays after classes end. If the internship runs past the non-teaching days configured in the school calendar, a warning in this same section reminds users to add the later holidays. The calendar recalculates live and shows the end date, planned hours and internship days; the last day only receives the hours still needed. When there are several periods, the first day of each one is marked on the calendar.
+The school calendar's periods are pre-selected and can be unticked when they do not affect the company (e.g. an internship that runs through school holidays). Fixed holidays (those the admin marks as repeating every year, e.g. 1 May) are listed once for each year the internship spans, including academic years not configured yet, and can also be unticked one by one. They are only listed when they fall on a working day and are not inside another selected or added period: one on a weekend or inside the Christmas break does not need its own entry. Other days can be added too, such as the company's local holidays or holidays after classes end. If the internship runs past the non-teaching days configured in the school calendar, a warning in this same section reminds users to add the later holidays whose date changes every year (fixed ones are already included). The calendar recalculates live and shows the end date, planned hours and internship days; the last day only receives the hours still needed. When there are several periods, the first day of each one is marked on the calendar.
 
 ![Days without internship, the resulting calendar with its end date, the XLSX, HTML, PDF and PNG download buttons and the note that explains each format and that the HTML can be opened again](docs/screenshots/tempo-practiques-step-2-calendari.png)
 
@@ -226,7 +226,7 @@ Deployments that set `APP_ENV` show the deployed build in a small footer and exp
 ### Admin Flow
 
 - `/admin` is authentication-protected
-- it manages academic years and excluded dates
+- it manages academic years and excluded dates, plus fixed holidays (day and month) that apply to every academic year, including those not configured yet
 - `/admin/usage` shows how often each tool was opened and how many plans and exports were completed (for internships, split between XLSX, HTML, PDF and PNG), for the last 7 and 30 days, all time, and the last 12 weeks. Counting is anonymous: only one number per day and action is stored, with no IP addresses, cookies, or browser data, and bots and monitors are skipped
 - it is not linked from the public UI
 
