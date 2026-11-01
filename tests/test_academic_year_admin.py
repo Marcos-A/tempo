@@ -226,3 +226,23 @@ def test_recurring_holidays_can_be_added_edited_and_deleted(tmp_path, monkeypatc
 
         admin_routes.delete_holiday(holiday.id, None, session, object())
         assert session.scalar(select(RecurringHoliday)) is None
+
+
+def test_exclusions_list_the_years_recurring_holidays_except_sundays_and_covered_days():
+    year = AcademicYear(id=1, label="2026-27", default_start_date=date(2026, 9, 1), default_end_date=date(2027, 6, 30))
+    christmas = ExcludedPeriod(id=1, academic_year_id=1, start_date=date(2026, 12, 23), end_date=date(2027, 1, 7), label="Nadal")
+    holidays = [
+        RecurringHoliday(month=11, day=1, label="Tots Sants"),  # Sunday in 2026
+        RecurringHoliday(month=12, day=8, label="Immaculada"),  # Tuesday
+        RecurringHoliday(month=12, day=25, label="Nadal"),  # inside the break
+        RecurringHoliday(month=5, day=1, label="Festa del Treball"),  # Saturday in 2027
+        RecurringHoliday(month=7, day=25, label="Sant Jaume"),  # after the year ends
+    ]
+
+    rows = admin_routes._exclusion_rows(year, [christmas], holidays)
+
+    assert [(row["date"], row.get("holiday")) for row in rows] == [
+        (date(2026, 12, 8), {"label": "Immaculada", "is_saturday": False}),
+        (date(2026, 12, 23), None),
+        (date(2027, 5, 1), {"label": "Festa del Treball", "is_saturday": True}),
+    ]

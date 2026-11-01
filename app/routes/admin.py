@@ -19,8 +19,8 @@ from app.dependencies import require_admin
 from app.models import AcademicWeekNumber, AcademicYear, AdminUser, ExcludedPeriod, RecurringHoliday
 from app.services.academic_weeks import is_vacation_week, iter_week_starts, suggest_week_numbers, week_start
 from app.services.academic_years import activate_academic_year, find_overlapping_year, get_active_academic_year, list_academic_years, suggest_year_label
-from app.services.calendar import expand_excluded_periods
-from app.services.holidays import list_recurring_holidays, recurring_holiday_dates
+from app.services.calendar import expand_excluded_periods, recurring_dates
+from app.services.holidays import holiday_tuples, list_recurring_holidays, recurring_holiday_dates
 from app.services.usage import usage_summary
 
 
@@ -78,6 +78,24 @@ def _periods_for_year(db: Session, academic_year_id: int) -> list[ExcludedPeriod
         .where(ExcludedPeriod.academic_year_id == academic_year_id)
         .order_by(ExcludedPeriod.start_date, ExcludedPeriod.end_date, ExcludedPeriod.id)
     ).all()
+
+
+def _exclusion_rows(academic_year: AcademicYear, periods: list[ExcludedPeriod], holidays: list[RecurringHoliday]) -> list[dict[str, object]]:
+    """The year's periods plus its recurring holidays, in date order.
+
+    A holiday on a Sunday never matters and one inside a period is already
+    covered, so neither gets its own row; Saturdays stay, flagged, because an
+    internship can include them.
+    """
+
+    rows: list[dict[str, object]] = [{"date": period.start_date, "period": period} for period in periods]
+    for current, label in recurring_dates(
+        holiday_tuples(holidays), academic_year.default_start_date, academic_year.default_end_date
+    ).items():
+        if current.weekday() == 6 or any(period.start_date <= current <= period.end_date for period in periods):
+            continue
+        rows.append({"date": current, "holiday": {"label": label, "is_saturday": current.weekday() == 5}})
+    return sorted(rows, key=lambda row: row["date"])
 
 
 def _year_dashboard_url(year_id: int | None = None, *, status_name: str | None = None, section_id: str | None = None) -> str:
@@ -150,7 +168,7 @@ def _render_dashboard(
             "academic_year_rows": academic_year_rows,
             "active_year": active_year,
             "selected_year": selected_year,
-            "periods": periods,
+            "exclusion_rows": _exclusion_rows(selected_year, periods, recurring_holidays),
             "recurring_holidays": recurring_holidays,
             # Single days already covered by a recurring holiday can be removed from the year.
             "recurring_period_ids": {

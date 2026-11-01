@@ -126,7 +126,7 @@
 
 <section class="card exclusions-card">
   <h2>Exclusions</h2>
-  {% if periods %}
+  {% if exclusion_rows %}
   <table>
     <thead>
       <tr>
@@ -138,7 +138,20 @@
       </tr>
     </thead>
     <tbody>
-      {% for period in periods %}
+      {% for row in exclusion_rows %}
+      {% if row.holiday %}
+      <tr class="fixed-holiday-row{{ ' fixed-holiday-row--saturday' if row.holiday.is_saturday }}">
+        <td><span class="exclusion-static date-input">{{ row.date|date_display }}</span></td>
+        <td><span class="exclusion-static date-input">{{ row.date|date_display }}</span></td>
+        <td><span class="exclusion-static">{{ row.holiday.label or '–' }}</span></td>
+        <td>
+          Festiu fix
+          {% if row.holiday.is_saturday %}<span class="saturday-tag">Dissabte</span>{% endif %}
+        </td>
+        <td><a class="link-button" href="#recurring-holidays">Edita'l a «Festius fixos»</a></td>
+      </tr>
+      {% else %}
+      {% set period = row.period %}
       <tr>
         <td>
           <input id="period-start-{{ period.id }}" class="date-input" type="text" name="start_date" value="{{ period.start_date|date_display }}" placeholder="DD/MM/AAAA" inputmode="numeric" pattern="\d{1,2}/\d{1,2}/\d{2,4}" required form="period-edit-{{ period.id }}" />
@@ -166,9 +179,13 @@
           </div>
         </td>
       </tr>
+      {% endif %}
       {% endfor %}
     </tbody>
   </table>
+  {% if recurring_holidays %}
+  <p class="inline-note">Els festius fixos del curs hi surten sols, tret dels que cauen en diumenge o dins d'un altre període. Els marcats com a «Dissabte» només compten en unes pràctiques que incloguin dissabtes.</p>
+  {% endif %}
   {% else %}
   <p>No hi ha exclusions configurades per a aquest curs.</p>
   {% endif %}

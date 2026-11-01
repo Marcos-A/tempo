@@ -1449,6 +1449,26 @@ th {
   margin-bottom: 1rem;
 }
 
+.exclusion-static {
+  display: inline-block;
+  padding: 0.6rem 0.7rem;
+}
+
+.fixed-holiday-row--saturday td {
+  color: var(--muted);
+}
+
+.saturday-tag {
+  display: inline-block;
+  margin-left: 0.35rem;
+  padding: 0.1rem 0.5rem;
+  border: 1px solid var(--warning);
+  border-radius: 999px;
+  color: var(--warning);
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
 .holiday-form {
   display: grid;
   grid-template-columns: 9rem minmax(0, 1fr) auto;
