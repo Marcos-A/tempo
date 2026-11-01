@@ -246,6 +246,23 @@
   {% endif %}
 </section>
 
+<section class="card exclusions-card" id="internship-smi">
+  <h2>Salari mínim (SMI)</h2>
+  <p class="inline-note">El calendari de pràctiques el proposa per estimar la retribució mensual en la modalitat intensiva, i cada calendari el pot canviar. Si el deixes buit, caldrà indicar-lo a cada calendari.</p>
+  <form method="post" action="/admin/smi" class="smi-form">
+    <input type="hidden" name="year_id" value="{{ selected_year.id }}" />
+    <label>
+      SMI
+      <span class="optional-label">Opcional</span>
+      <span class="money-field">
+        <input type="text" name="smi" value="{{ smi }}" placeholder="P.ex. 1.184,00" inputmode="decimal" maxlength="20" />
+        <span class="block-time-separator">€</span>
+      </span>
+    </label>
+    <button type="submit" class="admin-panel-submit">Desa l'SMI</button>
+  </form>
+</section>
+
 <section class="card delete-course-card" id="danger-zone">
   <h2>Suprimeix el curs</h2>
   <p class="warning-box">Suprimir un curs també eliminarà les seves exclusions i la seva numeració de setmanes. Els festius fixos no s'eliminen.</p>

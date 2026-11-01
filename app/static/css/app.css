@@ -1814,6 +1814,31 @@ select.time-select {
   outline-offset: -4px;
 }
 
+.money-field {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.money-field input {
+  width: 9.5rem;
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.intensive-pay-note {
+  align-self: center;
+  margin: 0;
+}
+
+.smi-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.75rem 1rem;
+}
+
 .field-hint {
   font-size: 0.85rem;
   color: var(--muted);

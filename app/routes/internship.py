@@ -36,6 +36,7 @@ from app.services.internship import (
     GENERAL_MAX_DAILY_MINUTES,
     MAX_DAILY_HOURS,
     MODALITY_GENERAL,
+    MODALITY_INTENSIVE,
     MODALITY_LABELS,
     InternshipCalendar,
     InternshipSchedule,
@@ -54,6 +55,7 @@ from app.services.internship_html import (
     pdf_stylesheet,
     render_pdf,
 )
+from app.services.pay import GRADE_LABELS, format_euros, get_smi_cents, parse_euros
 from app.services.usage import INTERNSHIP_EXPORT, INTERNSHIP_EXPORT_HTML, INTERNSHIP_EXPORT_PDF, INTERNSHIP_EXPORT_PNG, INTERNSHIP_VIEW, record_usage
 
 
@@ -82,6 +84,8 @@ DETAIL_COLUMNS = (
 PLAN_KEYS = (
     "modality",
     "include_saturdays",
+    "grade",
+    "smi",
     "start_date",
     "target_hours",
     "target_minutes",
@@ -145,6 +149,16 @@ class InternshipRequest:
             raise ValueError("Modalitat de pràctiques no vàlida.")
         self.include_saturdays = payload.get("include_saturdays") is True
         self.working_weekdays = WORKING_WEEKDAYS_WITH_SATURDAY if self.include_saturdays else WORKING_WEEKDAYS
+
+        # Inputs of the intensive modality's pay estimate; a general agreement has none.
+        self.grade = ""
+        self.smi_cents: int | None = None
+        if self.modality == MODALITY_INTENSIVE:
+            self.grade = str(payload.get("grade") or "")
+            if self.grade and self.grade not in GRADE_LABELS:
+                raise ValueError("Grau del cicle no vàlid.")
+            smi_text = str(payload.get("smi") or "").strip()
+            self.smi_cents = parse_euros(smi_text) if smi_text else None
 
         self.start_date = parse_date_input(str(payload.get("start_date") or ""))
 
@@ -225,6 +239,16 @@ class InternshipRequest:
 
         raw_metadata = payload.get("metadata") or {}
         self.metadata = {key: str(raw_metadata.get(key) or "").strip()[:MAX_METADATA_LENGTH] for key in METADATA_KEYS}
+
+    def pay_details(self) -> list[tuple[str, str]]:
+        """Grade and SMI rows for the export headers (intensive modality only)."""
+
+        details = []
+        if self.grade:
+            details.append(("Grau", GRADE_LABELS[self.grade]))
+        if self.smi_cents is not None:
+            details.append(("SMI", f"{format_euros(self.smi_cents)} €"))
+        return details
 
     def _ranges(self) -> list[tuple[date, date, str]]:
         return [(p.start_date, p.end_date, (p.label or "").strip()) for p in self.school_periods] + self.extra_periods
@@ -384,9 +408,12 @@ def _export_filename(metadata: dict[str, str], extension: str = "xlsx") -> str:
 def _render_page(request: Request, db: Session, *, state: dict | None = None, error: str | None = None, status_code: int = 200):
     active_year = get_active_academic_year(db)
     periods = _school_periods(db)
+    admin_smi = get_smi_cents(db)
     default_state = {
         "modality": MODALITY_GENERAL,
         "include_saturdays": False,
+        "grade": "",
+        "smi": "",
         "start_date": format_display_date(date.today()),
         "target_hours": "",
         "target_minutes": 0,
@@ -412,6 +439,9 @@ def _render_page(request: Request, db: Session, *, state: dict | None = None, er
             "modality_labels": MODALITY_LABELS,
             "general_max_daily_minutes": GENERAL_MAX_DAILY_MINUTES,
             "first_year_max_minutes": FIRST_YEAR_MAX_MINUTES,
+            "grade_labels": GRADE_LABELS,
+            # The admin's SMI pre-fills the planner's field; empty means each plan gives its own.
+            "admin_smi": format_euros(admin_smi) if admin_smi is not None else "",
             "school_periods": [
                 {
                     "id": period.id,
@@ -494,6 +524,7 @@ async def export_internship(request: Request, db: Session = Depends(get_db)):
         metadata=inputs.metadata,
         schedule=inputs.schedule,
         weekdays=inputs.working_weekdays,
+        pay_details=inputs.pay_details(),
         applied_periods=inputs.applied_periods(result),
         non_working_dates=non_working_dates,
         labels_by_date=labels_by_date,
@@ -506,12 +537,14 @@ async def export_internship(request: Request, db: Session = Depends(get_db)):
     )
 
 
-def _detail_columns(metadata: dict[str, str], result: InternshipCalendar, summary: dict) -> list[list[tuple[str, str]]]:
+def _detail_columns(inputs: InternshipRequest, result: InternshipCalendar, summary: dict) -> list[list[tuple[str, str]]]:
     labels = dict(METADATA_FIELDS)
+    metadata = inputs.metadata
     columns = [[(labels[key], metadata[key]) for key in keys if metadata.get(key)] for keys in DETAIL_COLUMNS]
     columns.append(
         [
             ("Modalitat", MODALITY_LABELS[result.modality]),
+            *inputs.pay_details(),
             ("Data d'inici", format_display_date(result.start_date)),
             ("Hores totals", summary["target_display"]),
         ]
@@ -529,7 +562,7 @@ def _snapshot_context(payload: dict, inputs: InternshipRequest, result: Internsh
         "pdf_stylesheet": pdf_stylesheet() if pdf else "",
         "logo": inline_logo(),
         "student_name": inputs.metadata.get("student_name", ""),
-        "detail_columns": _detail_columns(inputs.metadata, result, summary),
+        "detail_columns": _detail_columns(inputs, result, summary),
         "summary": summary,
         "override_count": sum(1 for day in result.days if day.kind == DAY_KIND_OVERRIDE),
         "calendar_kind_labels": CALENDAR_KIND_LABELS,

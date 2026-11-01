@@ -263,6 +263,7 @@ def build_internship_workbook(
     schedule: InternshipSchedule | dict[int, int],
     applied_periods: list[dict[str, str]],
     weekdays: range = range(5),
+    pay_details: list[tuple[str, str]] | None = None,
     non_working_dates: set[date] | None = None,
     labels_by_date: dict[date, str] | None = None,
 ) -> BytesIO:
@@ -273,6 +274,8 @@ def build_internship_workbook(
     `non_working_dates` and `labels_by_date` mark the non-teaching days after
     the planned end date, which the grid also shows. `weekdays` are the
     weekdays with a schedule (Monday=0), listed in the configuration sheet.
+    `pay_details` are the intensive modality's (label, value) rows, such as
+    the grade and the SMI, shown under the modality.
     """
 
     schedule = InternshipSchedule.coerce(schedule)
@@ -305,6 +308,9 @@ def build_internship_workbook(
     row += 1
     _label_value_row(grid, row, "Modalitat", MODALITY_LABELS[result.modality])
     row += 1
+    for label, value in pay_details or []:
+        _label_value_row(grid, row, label, value)
+        row += 1
     _label_value_row(grid, row, "Data d'inici", result.start_date)
     grid.cell(row=row, column=4).number_format = "DD/MM/YYYY"
     row += 1

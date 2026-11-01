@@ -21,6 +21,7 @@ from app.services.academic_weeks import is_vacation_week, iter_week_starts, sugg
 from app.services.academic_years import activate_academic_year, find_overlapping_year, get_active_academic_year, list_academic_years, suggest_year_label
 from app.services.calendar import expand_excluded_periods, recurring_dates
 from app.services.holidays import holiday_tuples, list_recurring_holidays, recurring_holiday_dates
+from app.services.pay import format_euros, get_smi_cents, parse_euros, set_smi_cents
 from app.services.usage import usage_summary
 
 
@@ -36,6 +37,7 @@ SELECTED_YEAR_SECTION_ID = "academic-year-detail"
 EXCLUDED_PERIODS_SECTION_ID = "excluded-periods"
 DANGER_ZONE_SECTION_ID = "danger-zone"
 RECURRING_HOLIDAYS_SECTION_ID = "recurring-holidays"
+SMI_SECTION_ID = "internship-smi"
 WEEK_FIELD_PREFIX = "week_"
 STATUS_MESSAGES = {
     "year-created": ("Curs acadèmic creat.", "ok"),
@@ -49,6 +51,8 @@ STATUS_MESSAGES = {
     "holiday-added": ("Festiu fix afegit.", "ok"),
     "holiday-updated": ("Festiu fix actualitzat.", "ok"),
     "holiday-deleted": ("Festiu fix suprimit.", "ok"),
+    "smi-updated": ("SMI desat.", "ok"),
+    "smi-cleared": ("SMI esborrat: cada calendari de pràctiques intensives l'haurà d'indicar.", "ok"),
 }
 
 
@@ -161,6 +165,7 @@ def _render_dashboard(
     periods = _periods_for_year(db, selected_year.id)
     recurring_holidays = list_recurring_holidays(db)
     recurring_keys = {(holiday.month, holiday.day) for holiday in recurring_holidays}
+    smi_cents = get_smi_cents(db)
     return templates.TemplateResponse(
         request,
         "admin/dashboard.html",
@@ -170,6 +175,7 @@ def _render_dashboard(
             "selected_year": selected_year,
             "exclusion_rows": _exclusion_rows(selected_year, periods, recurring_holidays),
             "recurring_holidays": recurring_holidays,
+            "smi": format_euros(smi_cents) if smi_cents is not None else "",
             # Single days already covered by a recurring holiday can be removed from the year.
             "recurring_period_ids": {
                 period.id
@@ -828,5 +834,32 @@ async def update_weeks(request: Request, year_id: int, db: Session = Depends(get
     db.commit()
     return RedirectResponse(
         url=f"/admin/years/{academic_year.id}/weeks?status=weeks-updated",
+        status_code=status.HTTP_303_SEE_OTHER,
+    )
+
+
+@router.post("/smi")
+def update_smi(
+    request: Request,
+    smi: Annotated[str | None, Form()] = None,
+    year_id: Annotated[str | None, Form()] = None,
+    db: Session = Depends(get_db),
+    _: AdminUser = Depends(require_admin),
+):
+    """Set the minimum wage the internship planner offers by default; empty clears it."""
+
+    text = (smi or "").strip()
+    try:
+        cents = parse_euros(text) if text else None
+    except ValueError as exc:
+        selected_year = db.get(AcademicYear, int(year_id)) if year_id and year_id.isdigit() else None
+        return _render_dashboard(
+            request, db, selected_year=selected_year, error=str(exc), focus_section=SMI_SECTION_ID,
+            status_code=status.HTTP_400_BAD_REQUEST,
+        )
+    set_smi_cents(db, cents)
+    year = int(year_id) if year_id and year_id.isdigit() else None
+    return RedirectResponse(
+        url=_year_dashboard_url(year, status_name="smi-updated" if cents else "smi-cleared", section_id=SMI_SECTION_ID),
         status_code=status.HTTP_303_SEE_OTHER,
     )
