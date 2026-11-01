@@ -1,8 +1,10 @@
 {# Shared by the planner and its HTML export so both show the same legend. #}
 <ul class="calendar-legend" aria-label="Llegenda">
-  {% for kind, label in calendar_kind_labels.items() %}
+  {% for kind, label in calendar_kind_labels.items() if kind != "closed" %}
   <li><span class="legend-swatch day-{{ kind }}"></span>{{ label }}</li>
   {% endfor %}
   <li><span class="legend-swatch day-end"></span>Darrer dia</li>
+  {# August only shows up in intensive agreements that run into the next school year. #}
+  <li id="legend-closed"{% if not show_closed %} hidden{% endif %}><span class="legend-swatch day-closed"></span>{{ calendar_kind_labels.closed }}</li>
   <li id="legend-schedule-start"{% if not show_schedule_start %} hidden{% endif %}><span class="legend-swatch day-schedule-start"></span>Canvi d'horari</li>
 </ul>

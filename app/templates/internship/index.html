@@ -198,7 +198,7 @@
       <span class="calendar-edit-icon" aria-hidden="true">✎</span>
       <span><strong>Pots canviar les hores de qualsevol dia:</strong> fes-hi clic i tria'n les hores (també 0 o hores en un festiu o cap de setmana).
       Per canviar-ne molts alhora, fes <kbd>Maj</kbd>+clic al primer dia i <kbd>Maj</kbd>+clic a l'últim.
-      Si treus hores, la data de fi s'endarrereix i el calendari afegeix sol els mesos que calguin, fins al 31 de juliol (a l'agost no es poden fer pràctiques).</span>
+      Si treus hores, la data de fi s'endarrereix i el calendari afegeix sol els mesos que calguin, <span id="edit-hint-limit"></span>.</span>
     </p>
     <div class="month-grid" id="month-grid"></div>
     <div class="internship-export-actions">
@@ -363,6 +363,10 @@
     general: "Fins al 31 de juliol del curs en què comencen.",
     intensiva: "Pot continuar el curs següent, a partir de l'1 de setembre.",
   };
+  const MODALITY_LIMITS = {
+    general: "fins al 31 de juliol (a l'agost no es poden fer pràctiques)",
+    intensiva: "fins al 31 de juliol del curs següent (l'agost no compta)",
+  };
   const hasServerError = {{ 'true' if error else 'false' }};
 
   const $ = (id) => document.getElementById(id);
@@ -515,6 +519,7 @@
       radio.checked = radio.value === state.modality;
     });
     $("modality-hint").textContent = MODALITY_HINTS[state.modality];
+    $("edit-hint-limit").textContent = MODALITY_LIMITS[state.modality];
     $("include-saturdays").checked = state.include_saturdays;
     $("start-date").value = state.start_date || "";
     $("target-hours").value = state.target_hours || "";
@@ -1231,13 +1236,10 @@
 
   function renderResult(data) {
     $("result-body").hidden = false;
-    // Internships cannot run in August: past 31 July the remaining hours need a new agreement.
+    // Past the deadline (31 July) the remaining hours don't fit in this agreement.
     $("summary-end-label").textContent = data.complete ? "Data de fi" : "Darrer dia de pràctiques";
     $("summary-end").textContent = data.complete ? data.end_date_display : data.last_working_display || "–";
-    $("result-incomplete").textContent = data.complete
-      ? ""
-      : `No hi ha prou dies fins al ${data.deadline_display} per completar les ${data.target_display}: en falten ${data.pending_display}. ` +
-        "A l'agost no es poden fer pràctiques, així que caldrà un nou conveni per continuar el curs vinent.";
+    $("result-incomplete").textContent = data.incomplete_message;
     $("result-incomplete").hidden = data.complete;
     // Only on screen: the exports and the PNG leave this warning out.
     const longDayLimit = formatMinutes(GENERAL_MAX_DAILY_MINUTES);
@@ -1259,6 +1261,7 @@
     const hasScheduleChanges = data.days.some((day) => day.schedule > 0);
     const scheduleStarts = new Set(data.days.filter((day, index) => index > 0 && day.schedule !== data.days[index - 1].schedule).map((day) => day.date));
     $("legend-schedule-start").hidden = scheduleStarts.size === 0;
+    $("legend-closed").hidden = !data.days.some((day) => day.kind === "closed");
     const start = isoToDate(data.start_date);
     const end = isoToDate(data.end_date);
     const grid = $("month-grid");
@@ -1296,7 +1299,9 @@
       for (let dayNumber = 1; dayNumber <= daysInMonth; dayNumber += 1) {
         const iso = `${year}-${pad(monthIndex + 1)}-${pad(dayNumber)}`;
         const day = daysByIso.get(iso);
-        const cell = document.createElement(day ? "button" : "span");
+        // August days can't take hours, so they are not buttons.
+        const editable = day && day.kind !== "closed";
+        const cell = document.createElement(editable ? "button" : "span");
         cell.className = "month-day";
         const number = document.createElement("span");
         number.className = "month-day-number";
@@ -1306,7 +1311,6 @@
           cell.classList.add("is-outside");
         } else {
           monthMinutes += day.minutes;
-          cell.type = "button";
           cell.classList.add(`day-${day.kind}`);
           if (data.complete && iso === data.end_date) cell.classList.add("day-end");
           if (scheduleStarts.has(iso)) cell.classList.add("day-schedule-start");
@@ -1322,14 +1326,20 @@
           if (day.partial) parts.push("darrer dia parcial");
           // Planner only, like the warning it explains.
           if (data.modality === "general" && day.minutes > GENERAL_MAX_DAILY_MINUTES) parts.push(`més de ${longDayLimit}`);
-          cell.setAttribute("aria-label", `${parts.join(" · ")}. Fes clic per canviar les hores.`);
-          cell.title = `${parts.join(" · ")}\nFes clic per canviar les hores.`;
           cell.dataset.date = iso;
-          cell.addEventListener("click", (event) => onDayClick(event, day));
+          if (editable) {
+            cell.type = "button";
+            cell.setAttribute("aria-label", `${parts.join(" · ")}. Fes clic per canviar les hores.`);
+            cell.title = `${parts.join(" · ")}\nFes clic per canviar les hores.`;
+            cell.addEventListener("click", (event) => onDayClick(event, day));
+          } else {
+            cell.title = parts.join(" · ");
+          }
         }
         days.append(cell);
       }
-      monthTotal.textContent = formatMinutes(monthMinutes);
+      // August is closed as a whole; build_month_views uses the same label.
+      monthTotal.textContent = isClosed(`${year}-${pad(monthIndex + 1)}-01`) ? "Tancat" : formatMinutes(monthMinutes);
       month.append(days);
       grid.append(month);
     }
@@ -1365,7 +1375,7 @@
   function defaultMinutesOn(iso) {
     const known = lastResult?.days.find((item) => item.date === iso);
     if (known) return known.default_minutes;
-    if (isNonWorking(iso) || !workingWeekdays().includes(weekdayIndex(iso))) return 0;
+    if (isClosed(iso) || isNonWorking(iso) || !workingWeekdays().includes(weekdayIndex(iso))) return 0;
     // The latest schedule that has started by `iso` (changes are sorted by date).
     let weekdays = state.weekday_minutes;
     state.schedule_changes.forEach((change, index) => {
@@ -1375,10 +1385,16 @@
     return Number(weekdays[weekdayIndex(iso)]) || 0;
   }
 
-  // 31 July of the school year the internship starts in; nothing runs later.
+  // 31 July of the school year the internship starts in, or of the following
+  // one for an intensive agreement; nothing runs later. See internship_deadline.
   function deadlineFor(startIso) {
-    const year = Number(startIso.slice(0, 4));
-    return `${Number(startIso.slice(5, 7)) <= 7 ? year : year + 1}-07-31`;
+    const year = Number(startIso.slice(0, 4)) + (Number(startIso.slice(5, 7)) <= 7 ? 0 : 1);
+    return `${state.modality === "intensiva" ? year + 1 : year}-07-31`;
+  }
+
+  // August never takes hours (the server refuses them).
+  function isClosed(iso) {
+    return iso.slice(5, 7) === "08";
   }
 
   function deadlineIso() {
@@ -1406,7 +1422,7 @@
     let nonWorking = 0;
     for (let cursor = isoToDate(first); dateToIso(cursor) <= last; cursor.setDate(cursor.getDate() + 1)) {
       const iso = dateToIso(cursor);
-      if (!weekdays.has(weekdayIndex(iso))) continue;
+      if (!weekdays.has(weekdayIndex(iso)) || isClosed(iso)) continue;
       if (isNonWorking(iso)) {
         nonWorking += 1;
         if (!includeNonWorking) continue;

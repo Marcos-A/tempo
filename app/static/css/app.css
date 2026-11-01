@@ -2127,6 +2127,7 @@ select.time-select {
 .day-holiday { background: #f4d6d2; }
 .day-weekend { background: #e6e6e6; }
 .day-override { background: #f6e2b3; }
+.day-closed { background: #d3d6cd; }
 .legend-swatch.day-end { background: var(--card); border: 2px solid var(--accent-dark); }
 .legend-swatch.day-schedule-start { background: var(--card); box-shadow: inset 3px 0 0 var(--accent-dark); }
 
@@ -2312,7 +2313,8 @@ button.month-day:focus-visible {
 }
 
 .day-holiday .month-day-hours,
-.day-weekend .month-day-hours {
+.day-weekend .month-day-hours,
+.day-closed .month-day-hours {
   color: var(--muted-faint);
   font-weight: 400;
 }

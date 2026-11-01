@@ -7,7 +7,8 @@ The workbook has three sheets:
   week uses two rows, the dates and the editable hours below them. Week, month
   and overall totals are formulas, so editing any day's hours recalculates
   everything, and conditional formatting colours each day by its hours.
-  The grid never goes past 31 July: internships cannot run in August.
+  The grid never goes past the agreement's deadline (31 July), and August
+  days are locked: internships cannot run in August.
   Hours are spreadsheet time values shown as h:mm, so a day is typed as 4:30.
 - "Detall": one row per editable date. Hours link back to the grid and the
   running and remaining totals are formulas.
@@ -31,16 +32,19 @@ from app.date_utils import format_display_date, format_month_label
 from app.services.calendar import WEEKDAY_NAMES
 from app.services.hours import format_minutes_label
 from app.services.internship import (
+    DAY_KIND_CLOSED,
     DAY_KIND_HOLIDAY,
     DAY_KIND_OVERRIDE,
     DAY_KIND_WEEKEND,
     DAY_KIND_WORKING,
     MAX_DAILY_HOURS,
+    MODALITY_GENERAL,
     MODALITY_LABELS,
     InternshipCalendar,
     InternshipSchedule,
     classify_day,
     default_minutes_for,
+    is_closed,
 )
 
 
@@ -49,23 +53,27 @@ KIND_FILLS = {
     DAY_KIND_HOLIDAY: "F4D6D2",
     DAY_KIND_WEEKEND: "E6E6E6",
     DAY_KIND_OVERRIDE: "F6E2B3",
+    DAY_KIND_CLOSED: "D3D6CD",
 }
 KIND_LABELS = {
     DAY_KIND_WORKING: "Laborable",
     DAY_KIND_HOLIDAY: "Festiu / no lectiu",
     DAY_KIND_WEEKEND: "Sense horari (cap de setmana)",
     DAY_KIND_OVERRIDE: "Hores canviades a mà",
+    DAY_KIND_CLOSED: "Agost, sense pràctiques",
 }
 # The grid itself only distinguishes days with hours (green), days without
 # practice time (0 shown as "-", red) and days without a schedule (grey, blank).
 HOURS_FILL_COLOR = KIND_FILLS[DAY_KIND_WORKING]
 NO_HOURS_FILL_COLOR = KIND_FILLS[DAY_KIND_HOLIDAY]
 NO_SCHEDULE_FILL_COLOR = KIND_FILLS[DAY_KIND_WEEKEND]
+CLOSED_FILL_COLOR = KIND_FILLS[DAY_KIND_CLOSED]
 GRID_LEGEND = (
     ("Dia amb hores", HOURS_FILL_COLOR),
     ("Sense pràctiques (0 / -)", NO_HOURS_FILL_COLOR),
     ("Sense horari", NO_SCHEDULE_FILL_COLOR),
 )
+CLOSED_LEGEND = ("Agost (tancat)", CLOSED_FILL_COLOR)
 OUTSIDE_FONT_COLOR = "A0A69A"
 MONTH_TITLE_FILL = PatternFill(fill_type="solid", fgColor="1E3A2D")
 HEADER_FILL = PatternFill(fill_type="solid", fgColor="F2ECE0")
@@ -87,7 +95,7 @@ GRID_INSTRUCTIONS = (
     "Podeu canviar les hores de qualsevol dia escrivint-les a la casella de sota la data. "
     "Els totals, les hores restants i la data de fi es recalculen automàticament.",
     "També podeu afegir hores en dies posteriors a la data de fi prevista: el calendari inclou el mes següent, "
-    "fins al 31 de juliol (a l'agost no es poden fer pràctiques).",
+    "fins al {deadline} (a l'agost no es poden fer pràctiques).",
     "Escriviu les hores en format hores:minuts (h:mm): 4:30 per a 4 h 30 min, 7:00 per a 7 h o 0:45 per a 45 min. "
     "No feu servir decimals: 4,5 no s'accepta. Cada dia admet entre 0:00 i 12:00.",
     "Per indicar que un dia no hi ha pràctiques, escriviu 0: es mostra com «-». Per treure un dia, esborreu-ne el contingut.",
@@ -150,9 +158,16 @@ def month_starts(start: date, end: date) -> list[date]:
 
 
 def calendar_grid_end(result: InternshipCalendar) -> date:
-    """Last date in the exported grid: the end of the month after the end date, but never past 31 July."""
+    """Last date in the exported grid: the end of the month after the end date, but never past the deadline.
 
-    return min(_next_month_start(_next_month_start(result.end_date)) - timedelta(days=1), result.deadline)
+    August cannot take hours, so when it follows the end date the grid runs
+    on to the end of September instead (an intensive agreement can reach it).
+    """
+
+    following = _next_month_start(result.end_date)
+    if is_closed(following):
+        following = _next_month_start(following)
+    return min(_next_month_start(following) - timedelta(days=1), result.deadline)
 
 
 def _label_value_row(sheet, row: int, label: str, value, *, bold_value: bool = False) -> None:
@@ -307,16 +322,21 @@ def build_internship_workbook(
     _label_value_row(grid, end_row, "Data de fi", None, bold_value=True)
     row += 1
     if calendar_grid_end(result) == result.deadline:
-        # The grid stops at 31 July, so hours still missing there need a new agreement.
-        # A formula keeps the notice in step with edits to the grid.
+        # The grid stops at the deadline, so hours still missing there do not fit
+        # in this agreement. A formula keeps the notice in step with edits to the grid.
+        if result.modality == MODALITY_GENERAL:
+            consequence = (
+                "(a l'agost no es poden fer pràctiques). Les hores restants s'hauran de fer amb un nou conveni el curs vinent."
+            )
+        else:
+            consequence = "(un conveni intensiu pot durar com a màxim fins al 31 de juliol del curs següent)."
         grid.merge_cells(start_row=row, start_column=1, end_row=row, end_column=GRID_COLUMNS)
         deadline_note = grid.cell(
             row=row,
             column=1,
             value=(
                 f'=IF($D${remaining_row}>0,"Amb les hores actuals no s\'arriba a l\'objectiu abans del '
-                f"{format_display_date(result.deadline)} (a l'agost no es poden fer pràctiques). "
-                f'Les hores restants s\'hauran de fer amb un nou conveni el curs vinent.","")'
+                f'{format_display_date(result.deadline)} {consequence}","")'
             ),
         )
         deadline_note.font = Font(bold=True, color="B3473A")
@@ -340,7 +360,12 @@ def build_internship_workbook(
     grid.merge_cells(
         start_row=2, start_column=INSTRUCTIONS_FIRST_COLUMN, end_row=end_row + 2, end_column=INSTRUCTIONS_LAST_COLUMN
     )
-    instructions = grid.cell(row=2, column=INSTRUCTIONS_FIRST_COLUMN, value="\n".join(f"• {line}" for line in GRID_INSTRUCTIONS))
+    deadline = format_display_date(result.deadline)
+    instructions = grid.cell(
+        row=2,
+        column=INSTRUCTIONS_FIRST_COLUMN,
+        value="\n".join(f"• {line.format(deadline=deadline)}" for line in GRID_INSTRUCTIONS),
+    )
     instructions.alignment = Alignment(wrap_text=True, vertical="top")
     instructions.font = Font(size=10)
     instructions.fill = HEADER_FILL
@@ -348,7 +373,9 @@ def build_internship_workbook(
     legend_row = row
     grid.cell(row=legend_row, column=1, value="Llegenda:").font = Font(bold=True)
     legend_column = 2
-    for label, color in GRID_LEGEND:
+    grid_end = calendar_grid_end(result)
+    shows_august = any(is_closed(month) for month in month_starts(result.start_date, grid_end))
+    for label, color in GRID_LEGEND + ((CLOSED_LEGEND,) if shows_august else ()):
         grid.merge_cells(start_row=legend_row, start_column=legend_column, end_row=legend_row, end_column=legend_column + 1)
         cell = grid.cell(row=legend_row, column=legend_column, value=label)
         cell.fill = _fill(color)
@@ -359,7 +386,6 @@ def build_internship_workbook(
     row += 2
 
     days_by_date = {day.date: day for day in result.days}
-    grid_end = calendar_grid_end(result)
     hour_cell_by_date: dict[date, str] = {}
     month_total_cells: list[str] = []
     date_ranges: list[str] = []
@@ -406,6 +432,11 @@ def build_internship_workbook(
 
                 if current < result.start_date:
                     date_cell.font = Font(size=8, color=OUTSIDE_FONT_COLOR)
+                    continue
+                if is_closed(current):
+                    # Locked and left out of the totals and the detail sheet.
+                    date_cell.fill = _fill(CLOSED_FILL_COLOR)
+                    hours_cell.fill = _fill(CLOSED_FILL_COLOR)
                     continue
                 day = days_by_date.get(current)
                 minutes = day.minutes if day is not None else None

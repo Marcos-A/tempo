@@ -30,6 +30,7 @@ from app.services.calendar import daterange, recurring_dates
 from app.services.holidays import holiday_tuples, list_recurring_holidays
 from app.services.hours import BLOCK_MINUTE_CHOICES, MINUTES_PER_HOUR, format_minutes_label
 from app.services.internship import (
+    DAY_KIND_CLOSED,
     DAY_KIND_OVERRIDE,
     GENERAL_MAX_DAILY_MINUTES,
     MAX_DAILY_HOURS,
@@ -39,6 +40,7 @@ from app.services.internship import (
     InternshipSchedule,
     build_internship_calendar,
     internship_deadline,
+    is_closed,
 )
 from app.services.internship_export import METADATA_FIELDS, build_internship_workbook, calendar_grid_end, schedule_sections
 from app.services.internship_html import (
@@ -212,6 +214,10 @@ class InternshipRequest:
                 override_date = date.fromisoformat(key)
             except ValueError:
                 raise ValueError("Hi ha un dia modificat amb una data no vàlida.") from None
+            if is_closed(override_date):
+                raise ValueError(
+                    f"A l'agost no es poden fer pràctiques: treu les hores del {format_display_date(override_date)}."
+                )
             self.overrides[override_date] = _parse_minutes(
                 value, max_hours=MAX_DAILY_HOURS, field_label=f"Hores del {format_display_date(override_date)}"
             )
@@ -248,7 +254,7 @@ class InternshipRequest:
                 dates.add(current)
                 if label and current not in labels:
                     labels[current] = label
-        for current, label in self.fixed_holidays(internship_deadline(self.start_date)).items():
+        for current, label in self.fixed_holidays(internship_deadline(self.start_date, self.modality)).items():
             dates.add(current)
             if label:
                 labels[current] = label
@@ -317,6 +323,20 @@ def _coverage_warning(db: Session, result: InternshipCalendar, holidays: list[Re
     return None
 
 
+def _incomplete_message(result: InternshipCalendar) -> str:
+    """Explain the hours that do not fit before the deadline; empty when the target is met."""
+
+    if result.is_complete:
+        return ""
+    message = (
+        f"No hi ha prou dies fins al {format_display_date(result.deadline)} per completar les "
+        f"{format_minutes_label(result.target_minutes)}: en falten {format_minutes_label(result.pending_minutes)}. "
+    )
+    if result.modality == MODALITY_GENERAL:
+        return message + "A l'agost no es poden fer pràctiques, així que caldrà un nou conveni per continuar el curs vinent."
+    return message + "Un conveni intensiu pot durar com a màxim fins al 31 de juliol del curs següent: revisa l'horari o les hores totals."
+
+
 def _serialize_result(result: InternshipCalendar, warning: str | None) -> dict[str, object]:
     return {
         "ok": True,
@@ -328,6 +348,7 @@ def _serialize_result(result: InternshipCalendar, warning: str | None) -> dict[s
         "scheduled_minutes": result.scheduled_minutes,
         "scheduled_display": format_minutes_label(result.scheduled_minutes),
         "complete": result.is_complete,
+        "incomplete_message": _incomplete_message(result),
         "pending_display": format_minutes_label(result.pending_minutes),
         "deadline_display": format_display_date(result.deadline),
         "last_working_display": format_display_date(result.last_working_date) if result.last_working_date else None,
@@ -511,6 +532,7 @@ def _snapshot_context(payload: dict, inputs: InternshipRequest, result: Internsh
         "override_count": sum(1 for day in result.days if day.kind == DAY_KIND_OVERRIDE),
         "calendar_kind_labels": CALENDAR_KIND_LABELS,
         "show_schedule_start": has_schedule_starts(result),
+        "show_closed": any(day.kind == DAY_KIND_CLOSED for day in result.days),
         "months": build_month_views(result),
         "weekday_labels": [WEEKDAY_LABELS[index] for index in inputs.working_weekdays],
         "weekday_short": WEEKDAY_SHORT,

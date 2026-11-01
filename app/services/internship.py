@@ -12,8 +12,10 @@ from datetime import date, timedelta
 from app.services.calendar import WEEKDAY_NAMES
 
 MAX_DAILY_HOURS = 12
-# Internships cannot run in August, so an internship must finish by 31 July of
-# the school year it starts in; any hours left need a new agreement next year.
+# Internships cannot run in August. A general agreement must finish by 31 July
+# of the school year it starts in (any hours left need a new agreement next
+# year); an intensive one can resume in September and run until 31 July of
+# the following school year.
 LAST_INTERNSHIP_MONTH = 7
 CLOSED_MONTH = 8
 
@@ -21,6 +23,7 @@ DAY_KIND_WORKING = "working"
 DAY_KIND_HOLIDAY = "holiday"
 DAY_KIND_WEEKEND = "weekend"
 DAY_KIND_OVERRIDE = "override"
+DAY_KIND_CLOSED = "closed"  # August, inside an intensive agreement.
 
 # A general agreement ends with the school year; an intensive one can carry on
 # into the next one.
@@ -129,13 +132,25 @@ class InternshipSchedule:
         return any(minutes > 0 for weekday_minutes in self.weekly_minutes for minutes in weekday_minutes.values())
 
 
-def internship_deadline(start_date: date) -> date:
-    """Return 31 July of the school year (September to July) that contains `start_date`."""
+def internship_deadline(start_date: date, modality: str = MODALITY_GENERAL) -> date:
+    """Return the last date an agreement starting on `start_date` can reach.
+
+    That is 31 July of the school year (September to July) that contains
+    `start_date`, or of the following one for an intensive agreement.
+    """
 
     if start_date.month == CLOSED_MONTH:
         raise ValueError("A l'agost no es poden fer pràctiques. Indica una data d'inici a partir de setembre.")
     year = start_date.year if start_date.month <= LAST_INTERNSHIP_MONTH else start_date.year + 1
+    if modality == MODALITY_INTENSIVE:
+        year += 1
     return date(year, LAST_INTERNSHIP_MONTH, 31)
+
+
+def is_closed(current: date) -> bool:
+    """August never has internship hours, not even hand-changed ones."""
+
+    return current.month == CLOSED_MONTH
 
 
 def default_minutes_for(
@@ -145,7 +160,7 @@ def default_minutes_for(
 ) -> int:
     """Return the minutes a date would get without any per-day override."""
 
-    if current in non_working_dates:
+    if is_closed(current) or current in non_working_dates:
         return 0
     return schedule.minutes_on(current)
 
@@ -159,6 +174,8 @@ def classify_day(
 ) -> str:
     """Pick the colour category used by the preview and the XLSX export."""
 
+    if is_closed(current):
+        return DAY_KIND_CLOSED
     if is_overridden and minutes != default_minutes:
         return DAY_KIND_OVERRIDE
     if current in non_working_dates:
@@ -182,9 +199,10 @@ def build_internship_calendar(
     `schedule` gives the default minutes of each date; a plain weekday map
     (Monday=0..Sunday=6) is one schedule for the whole internship. `overrides` replaces the minutes of specific dates,
     including adding time on weekends or holidays. The last day only receives
-    the remaining minutes, so the total never exceeds the target. The walk
-    stops at the deadline (31 July) even if the target is not met; the result
-    then reports the pending minutes.
+    the remaining minutes, so the total never exceeds the target. August
+    days get no minutes. The walk stops at the deadline (31 July, see
+    `internship_deadline`) even if the target is not met; the result then
+    reports the pending minutes.
     """
 
     if target_minutes <= 0:
@@ -197,7 +215,7 @@ def build_internship_calendar(
     if not schedule.has_any_minutes() and not has_future_override_time:
         raise ValueError("Indica com a mínim un dia de la setmana amb hores de pràctiques.")
 
-    deadline = internship_deadline(start_date)
+    deadline = internship_deadline(start_date, modality)
     days: list[InternshipDay] = []
     cumulative = 0
     current = start_date
@@ -205,6 +223,8 @@ def build_internship_calendar(
         default_minutes = default_minutes_for(current, schedule, non_working_dates)
         is_overridden = current in overrides
         planned = overrides[current] if is_overridden else default_minutes
+        if is_closed(current):
+            planned = 0
         remaining = target_minutes - cumulative
         minutes = min(planned, remaining)
         cumulative += minutes

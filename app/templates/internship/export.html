@@ -68,10 +68,7 @@
           </div>
         </div>
         {% if not summary.complete %}
-        <p class="warning-box warning-box-danger">
-          No hi ha prou dies fins al {{ summary.deadline_display }} per completar les {{ summary.target_display }}: en falten {{ summary.pending_display }}.
-          A l'agost no es poden fer pràctiques, així que caldrà un nou conveni per continuar el curs vinent.
-        </p>
+        <p class="warning-box warning-box-danger">{{ summary.incomplete_message }}</p>
         {% endif %}
         {% include "internship/_legend.html" %}
         {% macro day_cell(cell) -%}

@@ -27,11 +27,13 @@ from pathlib import Path
 from app.date_utils import format_display_date, format_month_label
 from app.services.hours import MINUTES_PER_HOUR, format_minutes_label
 from app.services.internship import (
+    DAY_KIND_CLOSED,
     DAY_KIND_HOLIDAY,
     DAY_KIND_OVERRIDE,
     DAY_KIND_WEEKEND,
     DAY_KIND_WORKING,
     InternshipCalendar,
+    is_closed,
 )
 from app.services.internship_export import WEEKDAY_SHORT, month_starts
 
@@ -46,6 +48,7 @@ CALENDAR_KIND_LABELS = {
     DAY_KIND_HOLIDAY: "Festiu / no lectiu",
     DAY_KIND_WEEKEND: "Sense horari",
     DAY_KIND_OVERRIDE: "Hores canviades a mà",
+    DAY_KIND_CLOSED: "Agost, sense pràctiques",
 }
 
 
@@ -141,7 +144,8 @@ def build_month_views(result: InternshipCalendar) -> list[dict[str, object]]:
         months.append(
             {
                 "title": format_month_label(month_start),
-                "total": format_minutes_label(month_minutes),
+                # August is closed as a whole: the planner shows the same label.
+                "total": "Tancat" if is_closed(month_start) else format_minutes_label(month_minutes),
                 "leading_blanks": month_start.weekday(),
                 "cells": cells,
             }
