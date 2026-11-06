@@ -19,10 +19,16 @@ jobs:
         with:
           python-version: '3.12'
 
+      # WeasyPrint's system libraries, as in the Dockerfile; without them the PDF test skips.
+      - name: Install system libraries
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libpango-1.0-0 libpangoft2-1.0-0 libharfbuzz-subset0
+
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
       - name: Run tests
-        run: pytest tests/test_services.py
+        run: pytest -rs
