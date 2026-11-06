@@ -84,6 +84,7 @@ DETAIL_COLUMNS = (
 PLAN_KEYS = (
     "modality",
     "include_saturdays",
+    "include_august",
     "grade",
     "smi",
     "start_date",
@@ -149,6 +150,7 @@ class InternshipRequest:
             raise ValueError("Modalitat de pràctiques no vàlida.")
         self.include_saturdays = payload.get("include_saturdays") is True
         self.working_weekdays = WORKING_WEEKDAYS_WITH_SATURDAY if self.include_saturdays else WORKING_WEEKDAYS
+        self.include_august = payload.get("include_august") is True
 
         # Inputs of the intensive modality's pay estimate; a general agreement has none.
         self.grade = ""
@@ -229,7 +231,7 @@ class InternshipRequest:
                 override_date = date.fromisoformat(key)
             except ValueError:
                 raise ValueError("Hi ha un dia modificat amb una data no vàlida.") from None
-            if is_closed(override_date):
+            if is_closed(override_date, self.include_august):
                 raise ValueError(
                     f"A l'agost no es poden fer pràctiques: treu les hores del {format_display_date(override_date)}."
                 )
@@ -279,7 +281,7 @@ class InternshipRequest:
                 dates.add(current)
                 if label and current not in labels:
                     labels[current] = label
-        for current, label in self.fixed_holidays(internship_deadline(self.start_date, self.modality)).items():
+        for current, label in self.fixed_holidays(internship_deadline(self.start_date, self.modality, self.include_august)).items():
             dates.add(current)
             if label:
                 labels[current] = label
@@ -295,6 +297,7 @@ class InternshipRequest:
             self.overrides,
             labels,
             self.modality,
+            self.include_august,
         )
 
     def applied_periods(self, result: InternshipCalendar, until: date | None = None) -> list[dict[str, str]]:
@@ -358,8 +361,11 @@ def _incomplete_message(result: InternshipCalendar) -> str:
         f"{format_minutes_label(result.target_minutes)}: en falten {format_minutes_label(result.pending_minutes)}. "
     )
     if result.modality == MODALITY_GENERAL:
+        if result.include_august:
+            return message + "Caldrà un nou conveni per continuar el curs vinent."
         return message + "A l'agost no es poden fer pràctiques, així que caldrà un nou conveni per continuar el curs vinent."
-    return message + "Un conveni intensiu pot durar com a màxim fins al 31 de juliol del curs següent: revisa l'horari o les hores totals."
+    last_day = "31 d'agost" if result.include_august else "31 de juliol"
+    return message + f"Un conveni intensiu pot durar com a màxim fins al {last_day} del curs següent: revisa l'horari o les hores totals."
 
 
 def _serialize_result(result: InternshipCalendar, warning: str | None) -> dict[str, object]:
@@ -412,6 +418,7 @@ def _render_page(request: Request, db: Session, *, state: dict | None = None, er
     default_state = {
         "modality": MODALITY_GENERAL,
         "include_saturdays": False,
+        "include_august": False,
         "grade": "",
         "smi": "",
         "start_date": format_display_date(date.today()),

@@ -109,10 +109,16 @@
       <div>
         <div class="schedule-heading">
           <h2>Horari setmanal</h2>
-          <label class="checkbox-label saturday-toggle">
-            <input type="checkbox" id="include-saturdays" />
-            <span>Inclou els dissabtes</span>
-          </label>
+          <div class="schedule-options">
+            <label class="checkbox-label schedule-option">
+              <input type="checkbox" id="include-saturdays" />
+              <span>Inclou els dissabtes</span>
+            </label>
+            <label class="checkbox-label schedule-option">
+              <input type="checkbox" id="include-august" />
+              <span>Inclou l'agost</span>
+            </label>
+          </div>
         </div>
         <p class="hint" id="schedule-hint"></p>
       </div>
@@ -383,14 +389,6 @@
   const DEFAULT_GRADE = {{ default_grade|tojson }};
   // The admin's SMI (e.g. "1.184,00"), or "" when each plan has to give its own.
   const ADMIN_SMI = {{ admin_smi|tojson }};
-  const MODALITY_HINTS = {
-    general: "Fins al 31 de juliol del curs en què comencen.",
-    intensiva: "Es pot estendre al llarg de més d'un curs.",
-  };
-  const MODALITY_LIMITS = {
-    general: "fins al 31 de juliol (a l'agost no es poden fer pràctiques)",
-    intensiva: "fins al 31 de juliol del curs següent (l'agost no compta)",
-  };
   const hasServerError = {{ 'true' if error else 'false' }};
 
   const $ = (id) => document.getElementById(id);
@@ -456,6 +454,7 @@
     return {
       modality: "general",
       include_saturdays: false,
+      include_august: false,
       grade: "",
       smi: ADMIN_SMI,
       start_date: serverState.start_date,
@@ -481,6 +480,7 @@
     delete merged.excluded_period_ids;
     if (!Object.hasOwn(MODALITIES, merged.modality)) merged.modality = base.modality;
     merged.include_saturdays = merged.include_saturdays === true;
+    merged.include_august = merged.include_august === true;
     if (!Object.hasOwn(GRADES, merged.grade)) merged.grade = "";
     // The SMI field is never left empty when the admin has set one.
     merged.smi = String(merged.smi || "").trim() || ADMIN_SMI;
@@ -525,6 +525,7 @@
     return {
       modality: state.modality,
       include_saturdays: state.include_saturdays,
+      include_august: state.include_august,
       grade: effectiveGrade(),
       // An invalid amount waits in the form, which says what is wrong.
       smi: parseEuros(state.smi) === null ? "" : state.smi.trim(),
@@ -539,7 +540,8 @@
       excluded_period_ids: allPeriodIds.filter((id) => !unchecked.has(id)),
       skipped_fixed_dates: state.skipped_fixed_dates,
       extra_periods: state.extra_periods,
-      overrides: state.overrides,
+      // Hours in August stay in the draft while it is off, like Saturday hours, but don't count.
+      overrides: Object.fromEntries(Object.entries(state.overrides).filter(([iso]) => !isClosed(iso))),
       metadata: state.metadata,
     };
   }
@@ -550,9 +552,9 @@
     document.querySelectorAll('input[name="modality"]').forEach((radio) => {
       radio.checked = radio.value === state.modality;
     });
-    $("modality-hint").textContent = MODALITY_HINTS[state.modality];
-    $("edit-hint-limit").textContent = MODALITY_LIMITS[state.modality];
+    renderModalityHints();
     $("include-saturdays").checked = state.include_saturdays;
+    $("include-august").checked = state.include_august;
     renderPayInputs();
     $("start-date").value = state.start_date || "";
     $("target-hours").value = state.target_hours || "";
@@ -568,6 +570,16 @@
     renderSchedules();
     renderSchoolPeriodVisibility();
     renderExtraPeriods();
+  }
+
+  // Both hints depend on the modality and on whether August is included.
+  function renderModalityHints() {
+    const lastDay = state.include_august ? "31 d'agost" : "31 de juliol";
+    $("modality-hint").textContent = state.modality === "general"
+      ? `Fins al ${lastDay} del curs en què comencen.`
+      : "Es pot estendre al llarg de més d'un curs.";
+    const closedNote = state.modality === "general" ? " (a l'agost no es poden fer pràctiques)" : " (l'agost no compta)";
+    $("edit-hint-limit").textContent = `fins al ${lastDay}${state.modality === "general" ? "" : " del curs següent"}${state.include_august ? "" : closedNote}`;
   }
 
   /* ---------- Pay estimate inputs (intensive modality) ---------- */
@@ -1021,6 +1033,14 @@
     renderExtraPeriods();
     changed({ immediate: true });
   });
+  $("include-august").addEventListener("change", (event) => {
+    state.include_august = event.target.checked;
+    renderModalityHints();
+    // The deadline moves, and with it the listed fixed holidays.
+    renderSchoolPeriodVisibility();
+    renderExtraPeriods();
+    changed({ immediate: true });
+  });
   $("start-date").addEventListener("input", (event) => {
     state.start_date = event.target.value.trim();
     renderSchoolPeriodVisibility();
@@ -1131,6 +1151,7 @@
     state = normalizeState(serverState);
     state.modality = "general";
     state.include_saturdays = false;
+    state.include_august = false;
     state.target_hours = "";
     state.weekday_minutes = emptyWeekdays();
     state.schedule_changes = [];
@@ -1431,7 +1452,7 @@
       for (let dayNumber = 1; dayNumber <= daysInMonth; dayNumber += 1) {
         const iso = `${year}-${pad(monthIndex + 1)}-${pad(dayNumber)}`;
         const day = daysByIso.get(iso);
-        // August days can't take hours, so they are not buttons.
+        // Closed August days can't take hours, so they are not buttons.
         const editable = day && day.kind !== "closed";
         const cell = document.createElement(editable ? "button" : "span");
         cell.className = "month-day";
@@ -1470,7 +1491,7 @@
         }
         days.append(cell);
       }
-      // August is closed as a whole; build_month_views uses the same label.
+      // A closed August is closed as a whole; build_month_views uses the same label.
       monthTotal.textContent = isClosed(`${year}-${pad(monthIndex + 1)}-01`) ? "Tancat" : formatMinutes(monthMinutes);
       month.append(days);
       grid.append(month);
@@ -1532,15 +1553,17 @@
   }
 
   // 31 July of the school year the internship starts in, or of the following
-  // one for an intensive agreement; nothing runs later. See internship_deadline.
+  // one for an intensive agreement, or 31 August if the agreement includes it;
+  // nothing runs later. See internship_deadline.
   function deadlineFor(startIso) {
-    const year = Number(startIso.slice(0, 4)) + (Number(startIso.slice(5, 7)) <= 7 ? 0 : 1);
-    return `${state.modality === "intensiva" ? year + 1 : year}-07-31`;
+    const lastMonth = state.include_august ? 8 : 7;
+    const year = Number(startIso.slice(0, 4)) + (Number(startIso.slice(5, 7)) <= lastMonth ? 0 : 1);
+    return `${state.modality === "intensiva" ? year + 1 : year}-${pad(lastMonth)}-31`;
   }
 
-  // August never takes hours (the server refuses them).
+  // August takes no hours unless the agreement includes it (the server refuses them).
   function isClosed(iso) {
-    return iso.slice(5, 7) === "08";
+    return !state.include_august && iso.slice(5, 7) === "08";
   }
 
   function deadlineIso() {

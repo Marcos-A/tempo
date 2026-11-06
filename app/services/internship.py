@@ -15,7 +15,8 @@ MAX_DAILY_HOURS = 12
 # Internships cannot run in August. A general agreement must finish by 31 July
 # of the school year it starts in (any hours left need a new agreement next
 # year); an intensive one can resume in September and run until 31 July of
-# the following school year.
+# the following school year. An agreement that includes August takes hours
+# that month too, and its limit moves to 31 August.
 LAST_INTERNSHIP_MONTH = 7
 CLOSED_MONTH = 8
 
@@ -23,7 +24,7 @@ DAY_KIND_WORKING = "working"
 DAY_KIND_HOLIDAY = "holiday"
 DAY_KIND_WEEKEND = "weekend"
 DAY_KIND_OVERRIDE = "override"
-DAY_KIND_CLOSED = "closed"  # August, inside an intensive agreement.
+DAY_KIND_CLOSED = "closed"  # August, unless the agreement includes it.
 
 # A general agreement ends with the school year; an intensive one can carry on
 # into the next one.
@@ -63,6 +64,7 @@ class InternshipCalendar:
     deadline: date
     days: list[InternshipDay] = field(default_factory=list)
     modality: str = MODALITY_GENERAL
+    include_august: bool = False
 
     @property
     def end_date(self) -> date:
@@ -134,35 +136,40 @@ class InternshipSchedule:
         return any(minutes > 0 for weekday_minutes in self.weekly_minutes for minutes in weekday_minutes.values())
 
 
-def internship_deadline(start_date: date, modality: str = MODALITY_GENERAL) -> date:
+def internship_deadline(start_date: date, modality: str = MODALITY_GENERAL, include_august: bool = False) -> date:
     """Return the last date an agreement starting on `start_date` can reach.
 
     That is 31 July of the school year (September to July) that contains
-    `start_date`, or of the following one for an intensive agreement.
+    `start_date`, or of the following one for an intensive agreement. An
+    agreement that includes August runs to 31 August instead.
     """
 
-    if start_date.month == CLOSED_MONTH:
-        raise ValueError("A l'agost no es poden fer pràctiques. Indica una data d'inici a partir de setembre.")
-    year = start_date.year if start_date.month <= LAST_INTERNSHIP_MONTH else start_date.year + 1
+    if is_closed(start_date, include_august):
+        raise ValueError(
+            "A l'agost no es poden fer pràctiques. Indica una data d'inici a partir de setembre o marca «Inclou l'agost»."
+        )
+    last_month = CLOSED_MONTH if include_august else LAST_INTERNSHIP_MONTH
+    year = start_date.year if start_date.month <= last_month else start_date.year + 1
     if modality == MODALITY_INTENSIVE:
         year += 1
-    return date(year, LAST_INTERNSHIP_MONTH, 31)
+    return date(year, last_month, 31)
 
 
-def is_closed(current: date) -> bool:
-    """August never has internship hours, not even hand-changed ones."""
+def is_closed(current: date, include_august: bool = False) -> bool:
+    """August has no internship hours, not even hand-changed ones, unless the agreement includes it."""
 
-    return current.month == CLOSED_MONTH
+    return current.month == CLOSED_MONTH and not include_august
 
 
 def default_minutes_for(
     current: date,
     schedule: InternshipSchedule,
     non_working_dates: set[date],
+    include_august: bool = False,
 ) -> int:
     """Return the minutes a date would get without any per-day override."""
 
-    if is_closed(current) or current in non_working_dates:
+    if is_closed(current, include_august) or current in non_working_dates:
         return 0
     return schedule.minutes_on(current)
 
@@ -173,10 +180,11 @@ def classify_day(
     default_minutes: int,
     is_overridden: bool,
     non_working_dates: set[date],
+    include_august: bool = False,
 ) -> str:
     """Pick the colour category used by the preview and the XLSX export."""
 
-    if is_closed(current):
+    if is_closed(current, include_august):
         return DAY_KIND_CLOSED
     if is_overridden and minutes != default_minutes:
         return DAY_KIND_OVERRIDE
@@ -195,6 +203,7 @@ def build_internship_calendar(
     overrides: dict[date, int] | None = None,
     labels_by_date: dict[date, str] | None = None,
     modality: str = MODALITY_GENERAL,
+    include_august: bool = False,
 ) -> InternshipCalendar:
     """Walk forward from `start_date` adding daily minutes until the target is met.
 
@@ -202,9 +211,9 @@ def build_internship_calendar(
     (Monday=0..Sunday=6) is one schedule for the whole internship. `overrides` replaces the minutes of specific dates,
     including adding time on weekends or holidays. The last day only receives
     the remaining minutes, so the total never exceeds the target. August
-    days get no minutes. The walk stops at the deadline (31 July, see
-    `internship_deadline`) even if the target is not met; the result then
-    reports the pending minutes.
+    days get no minutes unless `include_august` is set. The walk stops at the
+    deadline (see `internship_deadline`) even if the target is not met; the
+    result then reports the pending minutes.
     """
 
     if target_minutes <= 0:
@@ -217,15 +226,15 @@ def build_internship_calendar(
     if not schedule.has_any_minutes() and not has_future_override_time:
         raise ValueError("Indica com a mínim un dia de la setmana amb hores de pràctiques.")
 
-    deadline = internship_deadline(start_date, modality)
+    deadline = internship_deadline(start_date, modality, include_august)
     days: list[InternshipDay] = []
     cumulative = 0
     current = start_date
     while cumulative < target_minutes and current <= deadline:
-        default_minutes = default_minutes_for(current, schedule, non_working_dates)
+        default_minutes = default_minutes_for(current, schedule, non_working_dates, include_august)
         is_overridden = current in overrides
         planned = overrides[current] if is_overridden else default_minutes
-        if is_closed(current):
+        if is_closed(current, include_august):
             planned = 0
         remaining = target_minutes - cumulative
         minutes = min(planned, remaining)
@@ -235,7 +244,7 @@ def build_internship_calendar(
                 date=current,
                 minutes=minutes,
                 default_minutes=default_minutes,
-                kind=classify_day(current, planned, default_minutes, is_overridden, non_working_dates),
+                kind=classify_day(current, planned, default_minutes, is_overridden, non_working_dates, include_august),
                 cumulative_minutes=cumulative,
                 label=labels_by_date.get(current, ""),
                 is_partial=0 < minutes < planned,
@@ -245,5 +254,10 @@ def build_internship_calendar(
         current += timedelta(days=1)
 
     return InternshipCalendar(
-        start_date=start_date, target_minutes=target_minutes, deadline=deadline, days=days, modality=modality
+        start_date=start_date,
+        target_minutes=target_minutes,
+        deadline=deadline,
+        days=days,
+        modality=modality,
+        include_august=include_august,
     )

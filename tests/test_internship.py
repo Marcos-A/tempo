@@ -993,3 +993,72 @@ def test_pdf_export_renders_a_real_pdf(client):
     response = _pdf_export(test_client, _payload())
     assert response.status_code == 200
     assert response.content.startswith(b"%PDF-")
+
+
+def _with_august(target_minutes, start, modality="general", overrides=None):
+    return build_internship_calendar(
+        start, target_minutes, {index: 120 for index in range(5)}, set(), overrides, modality=modality, include_august=True
+    )
+
+
+def test_including_august_moves_the_deadline_to_31_august():
+    assert internship_deadline(date(2026, 10, 12), include_august=True) == date(2027, 8, 31)
+    assert internship_deadline(date(2026, 10, 12), MODALITY_INTENSIVE, True) == date(2028, 8, 31)
+    # August now belongs to the school year that ends with it.
+    assert internship_deadline(date(2027, 8, 2), include_august=True) == date(2027, 8, 31)
+    assert internship_deadline(date(2027, 9, 1), include_august=True) == date(2028, 8, 31)
+
+
+def test_included_august_takes_hours_like_any_other_month():
+    result = _with_august(80 * 60, date(2027, 7, 1), overrides={date(2027, 8, 7): 180})
+    assert result.is_complete and result.end_date.month == 8
+    august = [day for day in result.days if day.date.month == 8]
+    assert {day.kind for day in august} == {DAY_KIND_WORKING, DAY_KIND_WEEKEND, DAY_KIND_OVERRIDE}
+    assert next(day for day in august if day.date == date(2027, 8, 2)).minutes == 120
+    assert next(day for day in august if day.date == date(2027, 8, 7)).minutes == 180
+    # Without the option the same agreement stops at 31 July.
+    closed = build_internship_calendar(date(2027, 7, 1), 80 * 60, {index: 120 for index in range(5)}, set())
+    assert closed.end_date == date(2027, 7, 31) and not closed.is_complete
+
+
+def test_general_agreement_with_august_stops_at_31_august():
+    result = _with_august(3000 * 60, date(2026, 10, 12))
+    assert result.end_date == date(2027, 8, 31) and not result.is_complete
+
+
+def test_request_reads_the_august_option_strictly():
+    payload = _payload(start_date="02/08/2027", overrides={"2027-08-03": 120})
+    with pytest.raises(ValueError, match="Inclou l'agost"):
+        InternshipRequest(_payload(start_date="02/08/2027"), []).calculate()
+    with pytest.raises(ValueError, match="agost.*03/08/2027"):
+        InternshipRequest(payload, [])
+    with pytest.raises(ValueError, match="agost"):
+        InternshipRequest({**payload, "include_august": "true"}, [])
+    result = InternshipRequest({**payload, "include_august": True}, []).calculate()
+    assert result.include_august and result.days[0].kind == DAY_KIND_WORKING
+
+
+def test_calcul_and_exports_with_august_included(client):
+    test_client, _ = client
+    payload = _payload(start_date="01/07/2027", target_hours="150", weekday_minutes={str(index): 240 for index in range(5)}, include_august=True)
+    data = test_client.post("/practiques/calcul", json=payload).json()
+    assert data["ok"] and data["complete"] and data["end_date"].startswith("2027-08")
+    assert DAY_KIND_CLOSED not in {day["kind"] for day in data["days"]}
+
+    tight = test_client.post("/practiques/calcul", json={**payload, "target_hours": "3000"}).json()
+    assert tight["deadline_display"] == "31/08/2027"
+    assert "A l'agost no es poden" not in tight["incomplete_message"]
+
+    html = _html_export(test_client, payload).text
+    assert "Tancat" not in html
+    assert '<li id="legend-closed" hidden>' in html
+    assert json.loads(html.split('id="tempo-internship-plan">')[1].split("</script>")[0])["plan"]["include_august"] is True
+
+    response = test_client.post("/practiques/export", data={"payload": json.dumps(payload)})
+    workbook = load_workbook(BytesIO(response.content))
+    grid = workbook["Calendari"]
+    _find(grid, "Total agost 2027")
+    assert not any(cell.value == "Agost (tancat)" for row in grid.iter_rows() for cell in row)
+    assert "no es poden fer pràctiques" not in grid.cell(row=2, column=10).value
+    assert any(isinstance(row[0].value, datetime) and row[0].value.month == 8 for row in workbook["Detall"].iter_rows(min_row=2))
+

@@ -144,8 +144,8 @@ def build_month_views(result: InternshipCalendar) -> list[dict[str, object]]:
         months.append(
             {
                 "title": format_month_label(month_start),
-                # August is closed as a whole: the planner shows the same label.
-                "total": "Tancat" if is_closed(month_start) else format_minutes_label(month_minutes),
+                # A closed August is closed as a whole: the planner shows the same label.
+                "total": "Tancat" if is_closed(month_start, result.include_august) else format_minutes_label(month_minutes),
                 "leading_blanks": month_start.weekday(),
                 "cells": cells,
             }

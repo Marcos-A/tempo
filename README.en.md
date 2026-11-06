@@ -107,7 +107,7 @@ Clicking any day changes its hours, including setting it to 0 or adding hours on
 
 To change many days at once (e.g. from 20 October to 10 November), Shift+click the first day (it is marked without opening any dialog) and Shift+click the last one, or open "Aplica-ho a més dies" in the day's dialog. This option, folded away by default, asks for a date range and the weekdays it applies to (by default, those with hours in the schedule), shows how many days will change and highlights them on the calendar. With Shift+click the weekdays are not shown: the change applies to the days in the range that have hours in the schedule. Days without internship inside the range (holidays and non-teaching periods) are left alone unless "Inclou també els dies sense pràctiques" is ticked; that option appears when the range contains such days (e.g. to schedule hours during a break the company doesn't take). Each day is stored as an individual change, so it can be adjusted or reset like any other.
 
-Internships cannot run in August, so the calendar never goes past 31 July of the school year it starts in. If the hours do not fit, the app warns and shows the hours still pending, which need a new agreement next school year.
+By default internships cannot run in August, so the calendar never goes past 31 July of the school year it starts in. If the hours do not fit, the app warns and shows the hours still pending, which need a new agreement next school year. The "Inclou l'agost" option, in the weekly schedule, allows hours in August and moves the limit to 31 August.
 
 ![Changing the hours of a whole week picked with Shift+click, with the affected days highlighted on the calendar](docs/screenshots/tempo-practiques-step-3-editor-dia.png)
 

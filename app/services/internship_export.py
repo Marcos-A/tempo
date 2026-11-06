@@ -8,7 +8,8 @@ The workbook has three sheets:
   and overall totals are formulas, so editing any day's hours recalculates
   everything, and conditional formatting colours each day by its hours.
   The grid never goes past the agreement's deadline (31 July), and August
-  days are locked: internships cannot run in August.
+  days are locked: internships cannot run in August. An agreement that
+  includes August treats it like any other month, up to 31 August.
   Hours are spreadsheet time values shown as h:mm, so a day is typed as 4:30.
 - "Detall": one row per editable date. Hours link back to the grid and the
   running and remaining totals are formulas.
@@ -95,7 +96,7 @@ GRID_INSTRUCTIONS = (
     "Podeu canviar les hores de qualsevol dia escrivint-les a la casella de sota la data. "
     "Els totals, les hores restants i la data de fi es recalculen automàticament.",
     "També podeu afegir hores en dies posteriors a la data de fi prevista: el calendari inclou el mes següent, "
-    "fins al {deadline} (a l'agost no es poden fer pràctiques).",
+    "fins al {deadline}{august_note}.",
     "Escriviu les hores en format hores:minuts (h:mm): 4:30 per a 4 h 30 min, 7:00 per a 7 h o 0:45 per a 45 min. "
     "No feu servir decimals: 4,5 no s'accepta. Cada dia admet entre 0:00 i 12:00.",
     "Per indicar que un dia no hi ha pràctiques, escriviu 0: es mostra com «-». Per treure un dia, esborreu-ne el contingut.",
@@ -160,12 +161,12 @@ def month_starts(start: date, end: date) -> list[date]:
 def calendar_grid_end(result: InternshipCalendar) -> date:
     """Last date in the exported grid: the end of the month after the end date, but never past the deadline.
 
-    August cannot take hours, so when it follows the end date the grid runs
-    on to the end of September instead (an intensive agreement can reach it).
+    A closed August cannot take hours, so when it follows the end date the grid
+    runs on to the end of September instead (an intensive agreement can reach it).
     """
 
     following = _next_month_start(result.end_date)
-    if is_closed(following):
+    if is_closed(following, result.include_august):
         following = _next_month_start(following)
     return min(_next_month_start(following) - timedelta(days=1), result.deadline)
 
@@ -330,12 +331,15 @@ def build_internship_workbook(
     if calendar_grid_end(result) == result.deadline:
         # The grid stops at the deadline, so hours still missing there do not fit
         # in this agreement. A formula keeps the notice in step with edits to the grid.
-        if result.modality == MODALITY_GENERAL:
+        if result.modality != MODALITY_GENERAL:
+            last_day = "31 d'agost" if result.include_august else "31 de juliol"
+            consequence = f"(un conveni intensiu pot durar com a màxim fins al {last_day} del curs següent)."
+        elif result.include_august:
+            consequence = "Les hores restants s'hauran de fer amb un nou conveni el curs vinent."
+        else:
             consequence = (
                 "(a l'agost no es poden fer pràctiques). Les hores restants s'hauran de fer amb un nou conveni el curs vinent."
             )
-        else:
-            consequence = "(un conveni intensiu pot durar com a màxim fins al 31 de juliol del curs següent)."
         grid.merge_cells(start_row=row, start_column=1, end_row=row, end_column=GRID_COLUMNS)
         deadline_note = grid.cell(
             row=row,
@@ -367,10 +371,11 @@ def build_internship_workbook(
         start_row=2, start_column=INSTRUCTIONS_FIRST_COLUMN, end_row=end_row + 2, end_column=INSTRUCTIONS_LAST_COLUMN
     )
     deadline = format_display_date(result.deadline)
+    august_note = "" if result.include_august else " (a l'agost no es poden fer pràctiques)"
     instructions = grid.cell(
         row=2,
         column=INSTRUCTIONS_FIRST_COLUMN,
-        value="\n".join(f"• {line.format(deadline=deadline)}" for line in GRID_INSTRUCTIONS),
+        value="\n".join(f"• {line.format(deadline=deadline, august_note=august_note)}" for line in GRID_INSTRUCTIONS),
     )
     instructions.alignment = Alignment(wrap_text=True, vertical="top")
     instructions.font = Font(size=10)
@@ -380,7 +385,7 @@ def build_internship_workbook(
     grid.cell(row=legend_row, column=1, value="Llegenda:").font = Font(bold=True)
     legend_column = 2
     grid_end = calendar_grid_end(result)
-    shows_august = any(is_closed(month) for month in month_starts(result.start_date, grid_end))
+    shows_august = any(is_closed(month, result.include_august) for month in month_starts(result.start_date, grid_end))
     for label, color in GRID_LEGEND + ((CLOSED_LEGEND,) if shows_august else ()):
         grid.merge_cells(start_row=legend_row, start_column=legend_column, end_row=legend_row, end_column=legend_column + 1)
         cell = grid.cell(row=legend_row, column=legend_column, value=label)
@@ -439,7 +444,7 @@ def build_internship_workbook(
                 if current < result.start_date:
                     date_cell.font = Font(size=8, color=OUTSIDE_FONT_COLOR)
                     continue
-                if is_closed(current):
+                if is_closed(current, result.include_august):
                     # Locked and left out of the totals and the detail sheet.
                     date_cell.fill = _fill(CLOSED_FILL_COLOR)
                     hours_cell.fill = _fill(CLOSED_FILL_COLOR)
@@ -529,8 +534,8 @@ def build_internship_workbook(
         if day is not None:
             kind, label = day.kind, day.label
         else:
-            default_minutes = default_minutes_for(current, schedule, non_working_dates)
-            kind = classify_day(current, default_minutes, default_minutes, False, non_working_dates)
+            default_minutes = default_minutes_for(current, schedule, non_working_dates, result.include_august)
+            kind = classify_day(current, default_minutes, default_minutes, False, non_working_dates, result.include_august)
             label = labels_by_date.get(current, "")
         hours_ref = f"Calendari!{hour_cell_by_date[current]}"
         previous = f"F{detail_row - 1}+" if index else ""
