@@ -257,6 +257,14 @@ To run the focused service tests directly:
 pytest tests/test_services.py
 ```
 
+The internship planner also has browser tests in `tests/browser`, for the behaviour that lives in the page's script. They start the app with a temporary database and drive it with Chromium. Without Playwright they are skipped, as in the Docker image, so to run them use an environment of your own:
+
+```bash
+pip install -r requirements-dev.txt
+python -m playwright install chromium
+pytest tests/browser
+```
+
 ## Project Structure
 
 ```text

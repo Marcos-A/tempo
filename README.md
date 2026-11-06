@@ -257,6 +257,14 @@ Per executar les proves focalitzades de serveis:
 pytest tests/test_services.py
 ```
 
+El planificador de pràctiques també té proves de navegador a `tests/browser`, per al comportament que viu a l'script de la pàgina. Inicien l'aplicació amb una base de dades temporal i la controlen amb Chromium. Sense Playwright s'ometen, com passa a la imatge de Docker, així que per executar-les cal un entorn propi:
+
+```bash
+pip install -r requirements-dev.txt
+python -m playwright install chromium
+pytest tests/browser
+```
+
 ## Estructura del projecte
 
 ```text
