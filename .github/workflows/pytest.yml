@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      - preview
   pull_request:
 
 jobs:
@@ -28,7 +29,13 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
+          pip install -r requirements-dev.txt
 
       - name: Run tests
-        run: pytest -rs
+        run: pytest -rs --ignore=tests/browser
+
+      - name: Install the browser for the browser tests
+        run: python -m playwright install --with-deps chromium
+
+      - name: Run browser tests
+        run: pytest -rs tests/browser
