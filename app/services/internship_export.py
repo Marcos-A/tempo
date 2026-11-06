@@ -32,6 +32,7 @@ from openpyxl.utils import get_column_letter
 from app.date_utils import format_display_date, format_month_label
 from app.services.calendar import WEEKDAY_NAMES
 from app.services.hours import format_minutes_label
+from app.services.pay import PayEstimate
 from app.services.internship import (
     DAY_KIND_CLOSED,
     DAY_KIND_HOLIDAY,
@@ -120,6 +121,7 @@ MINUTES_PER_DAY = 24 * 60
 TIME_FORMAT = "[h]:mm"
 DAY_TIME_FORMAT = '[h]:mm;-[h]:mm;"-"'
 TOTAL_FORMAT = '[h]"h"mm'
+MONEY_FORMAT = '#,##0.00 "€";-#,##0.00 "€";;@'  # Hides months without hours.
 WEEK_TOTAL_FORMAT = '[h]"h"mm;-[h]"h"mm;;@'  # Hides zero week totals outside the internship.
 
 
@@ -133,6 +135,20 @@ def _round_to_minute(expression: str) -> str:
     """Wrap a time formula so sums of time values compare exactly against the target."""
 
     return f"ROUND(({expression})*{MINUTES_PER_DAY},0)/{MINUTES_PER_DAY}"
+
+
+def _month_pay_formula(pay: PayEstimate, before: str, until: str, target_ref: str) -> str:
+    """A month's pay from the hours planned before it and up to its end (spreadsheet times).
+
+    Every hour earns the second rate, less the difference for those within
+    the first half of the total; `estimate_pay` works out the same amount.
+    """
+
+    first, second = pay.percents
+    half = f"{target_ref}/2"
+    hourly_euros = float(pay.hourly_cents / 100)
+    at_first = f"(MIN({until},{half})-MIN({before},{half}))"
+    return f"=ROUND(24*{hourly_euros!r}*(({until}-{before})*{second}-{at_first}*{second - first})/100,2)"
 
 
 def _fill(color: str) -> PatternFill:
@@ -265,6 +281,7 @@ def build_internship_workbook(
     applied_periods: list[dict[str, str]],
     weekdays: range = range(5),
     pay_details: list[tuple[str, str]] | None = None,
+    pay_estimate: PayEstimate | None = None,
     non_working_dates: set[date] | None = None,
     labels_by_date: dict[date, str] | None = None,
 ) -> BytesIO:
@@ -276,7 +293,8 @@ def build_internship_workbook(
     the planned end date, which the grid also shows. `weekdays` are the
     weekdays with a schedule (Monday=0), listed in the configuration sheet.
     `pay_details` are the intensive modality's (label, value) rows, such as
-    the grade and the SMI, shown under the modality.
+    the grade and the SMI, shown under the modality. `pay_estimate` adds the
+    estimated pay of each month and in total, as formulas that follow the grid.
     """
 
     schedule = InternshipSchedule.coerce(schedule)
@@ -325,6 +343,10 @@ def build_internship_workbook(
     remaining_row = row
     _label_value_row(grid, remaining_row, "Hores restants", None, bold_value=True)
     row += 1
+    pay_total_row = row
+    if pay_estimate:
+        _label_value_row(grid, pay_total_row, "Retribució estimada", None, bold_value=True)
+        row += 1
     end_row = row
     _label_value_row(grid, end_row, "Data de fi", None, bold_value=True)
     row += 1
@@ -353,6 +375,13 @@ def build_internship_workbook(
         deadline_note.alignment = Alignment(wrap_text=True, vertical="center")
         grid.row_dimensions[row].height = 30
     row += 1
+    if pay_estimate:
+        grid.merge_cells(start_row=row, start_column=1, end_row=row, end_column=GRID_COLUMNS)
+        pay_note = grid.cell(row=row, column=1, value=" ".join(filter(None, (pay_estimate.note, pay_estimate.smi_notice))))
+        pay_note.font = Font(size=9)
+        pay_note.alignment = Alignment(wrap_text=True, vertical="top")
+        grid.row_dimensions[row].height = 76 if pay_estimate.smi_notice else 40
+        row += 2
 
     target_ref = f"$D${target_row}"
     planned_ref = f"$D${planned_row}"
@@ -399,6 +428,7 @@ def build_internship_workbook(
     days_by_date = {day.date: day for day in result.days}
     hour_cell_by_date: dict[date, str] = {}
     month_total_cells: list[str] = []
+    month_pay_cells: list[str] = []
     date_ranges: list[str] = []
     hour_ranges: list[str] = []
 
@@ -497,8 +527,25 @@ def build_internship_workbook(
         month_total.font = Font(bold=True)
         month_total.alignment = Alignment(horizontal="center")
         month_total.border = THIN_BORDER
+        before = f"SUM({','.join(month_total_cells)})" if month_total_cells else "0"
         month_total_cells.append(f"H{row}")
+        if pay_estimate and not is_closed(month_start, result.include_august):
+            row += 1
+            grid.merge_cells(start_row=row, start_column=1, end_row=row, end_column=GRID_COLUMNS - 1)
+            pay_label = grid.cell(row=row, column=1, value="Retribució estimada")
+            pay_label.alignment = Alignment(horizontal="right")
+            until = f"SUM({','.join(month_total_cells)})"
+            month_pay = grid.cell(row=row, column=GRID_COLUMNS, value=_month_pay_formula(pay_estimate, before, until, target_ref))
+            month_pay.number_format = MONEY_FORMAT
+            month_pay.alignment = Alignment(horizontal="center")
+            month_pay.border = THIN_BORDER
+            month_pay_cells.append(f"H{row}")
         row += 2
+
+    if pay_estimate:
+        pay_total = grid.cell(row=pay_total_row, column=4, value=f"=SUM({','.join(month_pay_cells)})")
+        pay_total.number_format = MONEY_FORMAT
+        pay_total.alignment = Alignment(horizontal="left")
 
     _add_day_colour_rules(grid, date_ranges, hour_ranges)
     _add_hours_validation(grid, list(hour_cell_by_date.values()))

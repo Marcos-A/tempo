@@ -248,14 +248,14 @@
 
 <section class="card exclusions-card" id="internship-smi">
   <h2>Salari mínim (SMI)</h2>
-  <p class="inline-note">El calendari de pràctiques el proposa per estimar la retribució mensual en la modalitat intensiva, i cada calendari el pot canviar. Si el deixes buit, caldrà indicar-lo a cada calendari.</p>
+  <p class="inline-note">Indica l'import d'una de les 14 pagues. El calendari de pràctiques el proposa per estimar la retribució mensual en la modalitat intensiva, i cada calendari el pot canviar. Si el deixes buit, caldrà indicar-lo a cada calendari.</p>
   <form method="post" action="/admin/smi" class="smi-form">
     <input type="hidden" name="year_id" value="{{ selected_year.id }}" />
     <label>
-      SMI
+      SMI mensual
       <span class="optional-label">Opcional</span>
       <span class="money-field">
-        <input type="text" name="smi" value="{{ smi }}" placeholder="P.ex. 1.184,00" inputmode="decimal" maxlength="20" />
+        <input type="text" name="smi" value="{{ smi }}" placeholder="P.ex. 1.221,00" inputmode="decimal" maxlength="20" />
         <span class="block-time-separator">€</span>
       </span>
     </label>

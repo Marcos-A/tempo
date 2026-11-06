@@ -26,6 +26,7 @@ from pathlib import Path
 
 from app.date_utils import format_display_date, format_month_label
 from app.services.hours import MINUTES_PER_HOUR, format_minutes_label
+from app.services.pay import month_key
 from app.services.internship import (
     DAY_KIND_CLOSED,
     DAY_KIND_HOLIDAY,
@@ -91,14 +92,16 @@ def format_compact(minutes: int) -> str:
     return f"{hours}h{remaining:02d}" if remaining else f"{hours}h"
 
 
-def build_month_views(result: InternshipCalendar) -> list[dict[str, object]]:
+def build_month_views(result: InternshipCalendar, month_pay: dict[str, str] | None = None) -> list[dict[str, object]]:
     """Describe each month of the calendar the way the planner draws it.
 
     Months run from the start month to the end date's month. Every cell is
     either a blank before the 1st, a date outside the internship, or a day of
-    the internship with its colour class, hours and tooltip.
+    the internship with its colour class, hours and tooltip. `month_pay` gives
+    the estimated pay line of each month that has one, by `month_key`.
     """
 
+    month_pay = month_pay or {}
     days_by_date = {day.date: day for day in result.days}
     has_schedule_changes = any(day.schedule_index > 0 for day in result.days)
     schedule_starts = {
@@ -148,6 +151,7 @@ def build_month_views(result: InternshipCalendar) -> list[dict[str, object]]:
                 "total": "Tancat" if is_closed(month_start, result.include_august) else format_minutes_label(month_minutes),
                 "leading_blanks": month_start.weekday(),
                 "cells": cells,
+                "pay": month_pay.get(month_key(month_start), ""),
             }
         )
     return months

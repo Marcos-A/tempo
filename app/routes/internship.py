@@ -55,7 +55,7 @@ from app.services.internship_html import (
     pdf_stylesheet,
     render_pdf,
 )
-from app.services.pay import DEFAULT_GRADE, GRADE_LABELS, format_euros, get_smi_cents, parse_euros
+from app.services.pay import DEFAULT_GRADE, GRADE_LABELS, PayEstimate, estimate_pay, format_euros, get_smi_cents, parse_euros
 from app.services.usage import INTERNSHIP_EXPORT, INTERNSHIP_EXPORT_HTML, INTERNSHIP_EXPORT_PDF, INTERNSHIP_EXPORT_PNG, INTERNSHIP_VIEW, record_usage
 
 
@@ -249,8 +249,15 @@ class InternshipRequest:
         if self.grade:
             details.append(("Grau", GRADE_LABELS[self.grade]))
         if self.smi_cents is not None:
-            details.append(("SMI", f"{format_euros(self.smi_cents)} €"))
+            details.append(("SMI mensual", f"{format_euros(self.smi_cents)} €"))
         return details
+
+    def pay_estimate(self, result: InternshipCalendar) -> PayEstimate | None:
+        """The plan's estimated pay; only an intensive plan with an SMI has one."""
+
+        if self.smi_cents is None:
+            return None
+        return estimate_pay(result.days, result.target_minutes, self.grade, self.smi_cents)
 
     def _ranges(self) -> list[tuple[date, date, str]]:
         return [(p.start_date, p.end_date, (p.label or "").strip()) for p in self.school_periods] + self.extra_periods
@@ -370,7 +377,7 @@ def _incomplete_message(result: InternshipCalendar) -> str:
     return message + f"Un conveni intensiu pot durar com a màxim fins al {last_day} del curs següent: revisa l'horari o les hores totals."
 
 
-def _serialize_result(result: InternshipCalendar, warning: str | None) -> dict[str, object]:
+def _serialize_result(result: InternshipCalendar, warning: str | None, pay: PayEstimate | None = None) -> dict[str, object]:
     return {
         "ok": True,
         "modality": result.modality,
@@ -390,6 +397,7 @@ def _serialize_result(result: InternshipCalendar, warning: str | None) -> dict[s
         "warning": warning,
         # Only the planner shows this; the exports leave it out.
         "long_days": result.long_day_count if result.modality == MODALITY_GENERAL else 0,
+        "pay": pay.summary() if pay else None,
         "days": [
             {
                 "date": day.date.isoformat(),
@@ -501,7 +509,7 @@ async def calculate_internship(request: Request, db: Session = Depends(get_db)):
         result = inputs.calculate()
     except (ValueError, TypeError, AttributeError) as exc:
         return JSONResponse({"ok": False, "error": _error_message(exc)}, status_code=status.HTTP_400_BAD_REQUEST)
-    return JSONResponse(_serialize_result(result, _coverage_warning(db, result, holidays)))
+    return JSONResponse(_serialize_result(result, _coverage_warning(db, result, holidays), inputs.pay_estimate(result)))
 
 
 async def _read_export_form(request: Request, db: Session):
@@ -535,6 +543,7 @@ async def export_internship(request: Request, db: Session = Depends(get_db)):
         schedule=inputs.schedule,
         weekdays=inputs.working_weekdays,
         pay_details=inputs.pay_details(),
+        pay_estimate=inputs.pay_estimate(result),
         applied_periods=inputs.applied_periods(result),
         non_working_dates=non_working_dates,
         labels_by_date=labels_by_date,
@@ -565,7 +574,7 @@ def _detail_columns(inputs: InternshipRequest, result: InternshipCalendar, summa
 def _snapshot_context(payload: dict, inputs: InternshipRequest, result: InternshipCalendar, *, pdf: bool = False) -> dict:
     """Context for `internship/export.html`, shared by the HTML and PDF copies."""
 
-    summary = _serialize_result(result, None)
+    summary = _serialize_result(result, None, inputs.pay_estimate(result))
     return {
         "pdf": pdf,
         "stylesheet": inline_stylesheet(),
@@ -578,7 +587,7 @@ def _snapshot_context(payload: dict, inputs: InternshipRequest, result: Internsh
         "calendar_kind_labels": CALENDAR_KIND_LABELS,
         "show_schedule_start": has_schedule_starts(result),
         "show_closed": any(day.kind == DAY_KIND_CLOSED for day in result.days),
-        "months": build_month_views(result),
+        "months": build_month_views(result, summary["pay"]["months"] if summary["pay"] else None),
         "weekday_labels": [WEEKDAY_LABELS[index] for index in inputs.working_weekdays],
         "weekday_short": WEEKDAY_SHORT,
         "schedules": [

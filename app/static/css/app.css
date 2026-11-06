@@ -2260,6 +2260,33 @@ select.time-select {
   color: var(--muted);
 }
 
+.month-pay {
+  margin: 0.5rem 0 0;
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--muted);
+  text-align: right;
+}
+
+.internship-pay {
+  display: grid;
+  gap: 0.25rem;
+  margin: 0 0 1rem;
+  padding: 0.8rem 1rem;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+
+.internship-pay-note {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.internship-pay-notice {
+  margin: 0.35rem 0 0;
+}
+
 .month-days {
   display: grid;
   grid-template-columns: repeat(7, minmax(0, 1fr));

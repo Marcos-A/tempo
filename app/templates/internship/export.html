@@ -67,6 +67,14 @@
             <span class="internship-stat-value">{{ override_count }}</span>
           </div>
         </div>
+        {% if summary.pay %}
+        <div class="internship-pay">
+          <span class="internship-stat-label">Retribució estimada</span>
+          <span class="internship-stat-value">{{ summary.pay.total }}</span>
+          <p class="internship-pay-note">{{ summary.pay.note }}</p>
+          {% if summary.pay.smi_notice %}<p class="warning-box internship-pay-notice">{{ summary.pay.smi_notice }}</p>{% endif %}
+        </div>
+        {% endif %}
         {% if not summary.complete %}
         <p class="warning-box warning-box-danger">{{ summary.incomplete_message }}</p>
         {% endif %}
@@ -92,6 +100,7 @@
                   <tr>{% for cell in week %}<td>{{ day_cell(cell) }}</td>{% endfor %}</tr>
                   {% endfor %}
                 </table>
+                {% if month.pay %}<p class="month-pay">{{ month.pay }}</p>{% endif %}
               </section>
             </td>
             {% endfor %}
@@ -111,6 +120,7 @@
               {{ day_cell(cell) }}
               {% endfor %}
             </div>
+            {% if month.pay %}<p class="month-pay">{{ month.pay }}</p>{% endif %}
           </section>
           {% endfor %}
         </div>

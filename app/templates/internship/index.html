@@ -95,14 +95,14 @@
         </div>
       </div>
       <label>
-        SMI
+        SMI mensual
         <span class="money-field">
-          <input id="smi" type="text" inputmode="decimal" maxlength="20" placeholder="P.ex. 1.184,00" autocomplete="off" />
+          <input id="smi" type="text" inputmode="decimal" maxlength="20" placeholder="P.ex. 1.221,00" autocomplete="off" />
           <span class="block-time-separator">€</span>
         </span>
         <span class="error-text" id="smi-error" hidden></span>
       </label>
-      <p class="field-hint intensive-pay-note">El grau i l'SMI serveixen per estimar la retribució mensual, que s'afegirà quan es confirmi la fórmula de càlcul.</p>
+      <p class="field-hint intensive-pay-note">L'import d'una de les 14 pagues de l'SMI. Amb el grau, serveix per estimar la retribució de cada mes.</p>
     </div>
 
     <section class="card-panel form-span internship-panel">
@@ -214,6 +214,12 @@
         <span class="internship-stat-label">Dies amb hores canviades</span>
         <span class="internship-stat-value"><span id="summary-overrides"></span> <button type="button" class="link-button" id="clear-overrides" hidden>Restableix</button></span>
       </div>
+    </div>
+    <div class="internship-pay" id="summary-pay" hidden>
+      <span class="internship-stat-label">Retribució estimada</span>
+      <span class="internship-stat-value" id="summary-pay-total"></span>
+      <p class="internship-pay-note" id="summary-pay-note"></p>
+      <p class="warning-box internship-pay-notice" id="summary-pay-notice" hidden></p>
     </div>
     <p class="warning-box warning-box-danger" id="result-incomplete" hidden></p>
     <p class="warning-box long-days-warning" id="long-days-warning" hidden></p>
@@ -387,7 +393,7 @@
   const FIRST_YEAR_MAX_MINUTES = {{ first_year_max_minutes }};
   const GRADES = {{ grade_labels|tojson }};
   const DEFAULT_GRADE = {{ default_grade|tojson }};
-  // The admin's SMI (e.g. "1.184,00"), or "" when each plan has to give its own.
+  // The admin's SMI (e.g. "1.221,00"), or "" when each plan has to give its own.
   const ADMIN_SMI = {{ admin_smi|tojson }};
   const hasServerError = {{ 'true' if error else 'false' }};
 
@@ -608,7 +614,7 @@
 
   function smiError() {
     if (!state.smi.trim()) return "Indica l'SMI per poder estimar la retribució.";
-    return parseEuros(state.smi) === null ? "Indica l'SMI en euros, p. ex. 1.184,00." : "";
+    return parseEuros(state.smi) === null ? "Indica l'SMI mensual en euros, p. ex. 1.221,00." : "";
   }
 
   function renderPayInputs() {
@@ -1007,12 +1013,12 @@
   document.querySelectorAll('input[name="grade"]').forEach((radio) => {
     radio.addEventListener("change", () => {
       state.grade = radio.value;
-      saveState();
+      changed({ immediate: true });
     });
   });
   $("smi").addEventListener("input", (event) => {
     state.smi = event.target.value;
-    saveState();
+    changed();
     // An empty field is flagged at once; a malformed amount only once the user leaves it.
     if (!state.smi.trim() || !smiError()) renderSmiError();
   });
@@ -1021,7 +1027,7 @@
     if (!state.smi.trim() && ADMIN_SMI) {
       state.smi = ADMIN_SMI;
       $("smi").value = ADMIN_SMI;
-      saveState();
+      changed({ immediate: true });
     }
     renderSmiError();
   });
@@ -1404,6 +1410,11 @@
     $("summary-days").textContent = String(data.working_days);
     const overrideCount = data.days.filter((day) => day.kind === "override").length;
     $("summary-overrides").textContent = String(overrideCount);
+    $("summary-pay").hidden = !data.pay;
+    $("summary-pay-total").textContent = data.pay ? data.pay.total : "";
+    $("summary-pay-note").textContent = data.pay ? data.pay.note : "";
+    $("summary-pay-notice").textContent = data.pay ? data.pay.smi_notice : "";
+    $("summary-pay-notice").hidden = !(data.pay && data.pay.smi_notice);
     $("clear-overrides").hidden = Object.keys(state.overrides).length === 0;
     // The warning asks for holidays the school calendar lacks, so it sits where they are added.
     $("coverage-warning").textContent = data.warning || "";
@@ -1494,6 +1505,13 @@
       // A closed August is closed as a whole; build_month_views uses the same label.
       monthTotal.textContent = isClosed(`${year}-${pad(monthIndex + 1)}-01`) ? "Tancat" : formatMinutes(monthMinutes);
       month.append(days);
+      const monthPay = data.pay && data.pay.months[`${year}-${pad(monthIndex + 1)}`];
+      if (monthPay) {
+        const pay = document.createElement("p");
+        pay.className = "month-pay";
+        pay.textContent = monthPay;
+        month.append(pay);
+      }
       grid.append(month);
     }
   }

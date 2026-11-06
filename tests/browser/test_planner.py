@@ -268,3 +268,23 @@ def test_saved_html_reopens_with_its_options_and_hand_set_hours(plan, tmp_path):
     assert other.page.is_checked("#include-august")
     assert not other.period(EASTER_BREAK).is_checked()
     other.expect_note(None)
+
+
+# The estimate is the server's, so the page must ask for it again when its inputs change.
+
+
+def test_estimate_follows_the_grade_and_the_smi(plan):
+    plan.choose_modality("intensiva")
+    plan.page.fill("#smi", "1221")
+    note = plan.page.locator("#summary-pay-note")
+    total = plan.page.locator("#summary-pay-total")
+    plan._expect(note).to_contain_text("Grau mitjà")
+    plan._expect(plan.page.locator("#summary-pay-notice")).to_contain_text("arriba al 2027")
+    mitja = total.text_content()
+
+    plan.choose_modality("superior")
+    plan._expect(note).to_contain_text("Grau superior")
+    plan._expect(total).not_to_have_text(mitja)
+
+    plan.choose_modality("general")
+    plan._expect(plan.page.locator("#summary-pay")).to_be_hidden()
