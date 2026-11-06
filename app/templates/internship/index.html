@@ -178,6 +178,7 @@
           <ul class="period-list" id="extra-period-list"></ul>
         </div>
       </div>
+      <p class="hint" id="days-off-note" role="status" hidden></p>
     </section>
   </div>
 </section>
@@ -941,7 +942,7 @@
       remove.className = "link-button";
       remove.textContent = "Elimina";
       remove.addEventListener("click", () => {
-        state.extra_periods.splice(index, 1);
+        changeDaysOff(() => state.extra_periods.splice(index, 1));
         renderExtraPeriods();
         renderSchoolPeriodVisibility();
         changed();
@@ -949,6 +950,24 @@
       item.append(text, remove);
       list.append(item);
     });
+  }
+
+  function showDaysOffNote(count = 0) {
+    $("days-off-note").textContent = count === 1
+      ? "S'han tret les hores canviades a mà d'1 dia, que ara és sense pràctiques."
+      : `S'han tret les hores canviades a mà de ${count} dies, que ara són sense pràctiques.`;
+    $("days-off-note").hidden = !count;
+  }
+
+  // Applies a change to the days without internship. The latest change wins:
+  // a day that becomes one of them loses its hand-set hours, or the calendar
+  // would ignore the change. Hours set on such a day afterwards do stay.
+  function changeDaysOff(change) {
+    const alreadyOff = new Set(Object.keys(state.overrides).filter(isNonWorking));
+    change();
+    const dropped = Object.keys(state.overrides).filter((iso) => isNonWorking(iso) && !alreadyOff.has(iso));
+    dropped.forEach((iso) => delete state.overrides[iso]);
+    showDaysOffNote(dropped.length);
   }
 
   let initialised = false;
@@ -1040,7 +1059,7 @@
       const unchecked = new Set(state.unchecked_period_ids.map(Number));
       if (box.checked) unchecked.delete(id);
       else unchecked.add(id);
-      state.unchecked_period_ids = [...unchecked];
+      changeDaysOff(() => { state.unchecked_period_ids = [...unchecked]; });
       renderExtraPeriods();
       renderSchoolPeriodVisibility();
       changed({ immediate: true });
@@ -1053,7 +1072,7 @@
     const skipped = new Set(state.skipped_fixed_dates);
     if (event.target.checked) skipped.delete(iso);
     else skipped.add(iso);
-    state.skipped_fixed_dates = [...skipped];
+    changeDaysOff(() => { state.skipped_fixed_dates = [...skipped]; });
     renderExtraPeriods();
     changed({ immediate: true });
   });
@@ -1064,11 +1083,13 @@
       const visibleIds = periodCheckboxes.filter((box) => !box.closest("li").hidden).map((box) => Number(box.dataset.periodId));
       const unchecked = new Set(state.unchecked_period_ids.map(Number));
       visibleIds.forEach((id) => (turnOn ? unchecked.delete(id) : unchecked.add(id)));
-      state.unchecked_period_ids = [...unchecked];
-      // Unticking a period can list more yearly dates, so toggle those that are listed afterwards.
-      const skipped = new Set(state.skipped_fixed_dates);
-      listedFixedHolidays().forEach(({ iso }) => (turnOn ? skipped.delete(iso) : skipped.add(iso)));
-      state.skipped_fixed_dates = [...skipped];
+      changeDaysOff(() => {
+        state.unchecked_period_ids = [...unchecked];
+        // Unticking a period can list more yearly dates, so toggle those that are listed afterwards.
+        const skipped = new Set(state.skipped_fixed_dates);
+        listedFixedHolidays().forEach(({ iso }) => (turnOn ? skipped.delete(iso) : skipped.add(iso)));
+        state.skipped_fixed_dates = [...skipped];
+      });
       renderInputs();
       changed({ immediate: true });
     });
@@ -1090,11 +1111,11 @@
     errorBox.textContent = message;
     errorBox.hidden = !message;
     if (message) return;
-    state.extra_periods.push({
+    changeDaysOff(() => state.extra_periods.push({
       start: displayDate(dateToIso(start)),
       end: endText ? displayDate(dateToIso(end)) : "",
       label: $("extra-label").value.trim(),
-    });
+    }));
     state.extra_periods.sort((left, right) => dateToIso(parseDisplayDate(left.start)).localeCompare(dateToIso(parseDisplayDate(right.start))));
     $("extra-start").value = "";
     $("extra-end").value = "";
@@ -1106,6 +1127,7 @@
   function resetAll() {
     if (!window.confirm("Vols esborrar totes les dades i començar un calendari nou?")) return;
     hideRestoreNotice();
+    showDaysOffNote();
     state = normalizeState(serverState);
     state.modality = "general";
     state.include_saturdays = false;
@@ -1783,6 +1805,7 @@
     // Missing values fall back to the defaults instead of overwriting them with null.
     const plan = Object.fromEntries(Object.entries(data.plan).filter(([, value]) => value !== null && value !== undefined));
     state = normalizeState(plan);
+    showDaysOffNote();
     renderInputs();
     changed({ immediate: true });
     importedResult = data.result || null;

@@ -103,7 +103,7 @@ Els períodes del calendari del centre surten marcats i es poden desmarcar si no
 
 ### 3. Ajusta les hores d'un dia o de diversos dies
 
-En fer clic a qualsevol dia se'n poden canviar les hores, fins i tot posar-hi 0 o afegir-ne en un festiu o cap de setmana. Si es treuen hores, la data de fi s'endarrereix i el calendari afegeix sol els mesos necessaris.
+En fer clic a qualsevol dia se'n poden canviar les hores, fins i tot posar-hi 0 o afegir-ne en un festiu o cap de setmana. Si es treuen hores, la data de fi s'endarrereix i el calendari afegeix sol els mesos necessaris. Si després un dia amb hores canviades a mà passa a ser un dia sense pràctiques (marcant un període o afegint-lo a «Altres dies sense pràctiques»), en perd les hores i un avís ho indica; es poden tornar a posar des del calendari.
 
 Per canviar les hores de molts dies alhora (p. ex. del 20 d'octubre al 10 de novembre), es fa Maj+clic al primer dia (queda marcat sense obrir cap finestra) i Maj+clic a l'últim, o s'obre «Aplica-ho a més dies» a la finestra del dia. Aquesta opció, plegada per defecte, demana un interval de dates i els dies de la setmana afectats (de sortida, els que tenen hores a l'horari), mostra quants dies canviaran i els ressalta al calendari. Amb Maj+clic no es mostren els dies de la setmana: el canvi s'aplica als dies de l'interval que tenen hores a l'horari. Els dies sense pràctiques de l'interval (festius i períodes no lectius) no es toquen, tret que es marqui «Inclou també els dies sense pràctiques», que apareix quan l'interval en conté (p. ex. per posar hores durant unes vacances que l'empresa no fa). Cada dia queda desat com un canvi individual, així que es pot retocar o restablir com qualsevol altre.
 

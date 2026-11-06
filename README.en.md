@@ -103,7 +103,7 @@ The school calendar's periods are pre-selected and can be unticked when they do 
 
 ### 3. Adjust The Hours Of One Or Several Days
 
-Clicking any day changes its hours, including setting it to 0 or adding hours on a holiday or weekend. Removing hours moves the end date later, and the calendar adds the months it needs on its own.
+Clicking any day changes its hours, including setting it to 0 or adding hours on a holiday or weekend. Removing hours moves the end date later, and the calendar adds the months it needs on its own. If a day with hand-changed hours later becomes a day without internship (by ticking a period or adding it under "Altres dies sense pràctiques"), it loses those hours and a note says so; they can be set again from the calendar.
 
 To change many days at once (e.g. from 20 October to 10 November), Shift+click the first day (it is marked without opening any dialog) and Shift+click the last one, or open "Aplica-ho a més dies" in the day's dialog. This option, folded away by default, asks for a date range and the weekdays it applies to (by default, those with hours in the schedule), shows how many days will change and highlights them on the calendar. With Shift+click the weekdays are not shown: the change applies to the days in the range that have hours in the schedule. Days without internship inside the range (holidays and non-teaching periods) are left alone unless "Inclou també els dies sense pràctiques" is ticked; that option appears when the range contains such days (e.g. to schedule hours during a break the company doesn't take). Each day is stored as an individual change, so it can be adjusted or reset like any other.
 
