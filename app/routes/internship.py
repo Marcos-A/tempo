@@ -258,8 +258,9 @@ class InternshipRequest:
     def fixed_holidays(self, until: date) -> dict[date, str]:
         """Recurring holidays from the start date to `until` that change the calendar.
 
-        Matches the planner's list: dates on non-working weekdays, unticked
-        dates and dates already inside a selected or added range are left out.
+        Matches the planner's list: dates on non-working weekdays, in a closed
+        August, unticked dates and dates already inside a selected or added
+        range are left out.
         """
 
         ranges = self._ranges()
@@ -267,6 +268,7 @@ class InternshipRequest:
             current: label
             for current, label in recurring_dates(self.holidays, self.start_date, until).items()
             if current.weekday() in self.working_weekdays
+            and not is_closed(current, self.include_august)
             and current not in self.skipped_fixed_dates
             and not any(start <= current <= end for start, end, _ in ranges)
         }

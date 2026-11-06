@@ -790,8 +790,8 @@
 
   // Same rules as InternshipRequest.fixed_holidays on the server: every
   // yearly date from the start to the deadline, except those on a day that
-  // takes no weekly schedule and those already inside a selected school
-  // period or an added range.
+  // takes no weekly schedule, those in a closed August and those already
+  // inside a selected school period or an added range.
   function inSelectedRange(iso) {
     const unchecked = new Set(state.unchecked_period_ids.map(Number));
     if (schoolPeriods.some((period) => !unchecked.has(period.id) && period.start <= iso && iso <= period.end)) return true;
@@ -802,7 +802,7 @@
   }
 
   function fixedHolidayOn(iso) {
-    if (!workingWeekdays().includes(weekdayIndex(iso)) || inSelectedRange(iso)) return null;
+    if (!workingWeekdays().includes(weekdayIndex(iso)) || isClosed(iso) || inSelectedRange(iso)) return null;
     const [, month, day] = iso.split("-").map(Number);
     return FIXED_HOLIDAYS.find((holiday) => holiday.month === month && holiday.day === day) || null;
   }

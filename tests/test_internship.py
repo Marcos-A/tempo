@@ -1062,3 +1062,12 @@ def test_calcul_and_exports_with_august_included(client):
     assert "no es poden fer pràctiques" not in grid.cell(row=2, column=10).value
     assert any(isinstance(row[0].value, datetime) and row[0].value.month == 8 for row in workbook["Detall"].iter_rows(min_row=2))
 
+
+def test_fixed_holidays_in_a_closed_august_are_left_out():
+    holidays = [RecurringHoliday(month=8, day=15, label="Assumpció")]
+    # 15 August 2028 is a Tuesday, inside this intensive agreement.
+    payload = _payload(modality="intensiva", start_date="06/09/2027", target_hours="3000")
+    assert date(2028, 8, 15) not in InternshipRequest(payload, [], holidays).non_working()[0]
+    included = InternshipRequest({**payload, "include_august": True}, [], holidays)
+    assert date(2028, 8, 15) in included.non_working()[0]
+
