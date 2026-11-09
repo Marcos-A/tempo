@@ -25,7 +25,8 @@ async def lifespan(_: FastAPI):
 
 
 settings = get_settings()
-app = FastAPI(title=settings.app_name, lifespan=lifespan)
+# The interactive API docs are not needed in use and only map the app for attackers.
+app = FastAPI(title=settings.app_name, lifespan=lifespan, docs_url=None, redoc_url=None, openapi_url=None)
 # Session cookies are needed for the admin login.
 app.add_middleware(SessionMiddleware, secret_key=settings.secret_key, https_only=settings.cookie_secure, same_site="lax")
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
