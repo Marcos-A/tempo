@@ -27,7 +27,7 @@ async def lifespan(_: FastAPI):
 settings = get_settings()
 app = FastAPI(title=settings.app_name, lifespan=lifespan)
 # Session cookies are needed for the admin login.
-app.add_middleware(SessionMiddleware, secret_key=settings.secret_key, https_only=False, same_site="lax")
+app.add_middleware(SessionMiddleware, secret_key=settings.secret_key, https_only=settings.cookie_secure, same_site="lax")
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 
 # The public teacher flow lives at `/`, the internship planner at `/practiques`,
