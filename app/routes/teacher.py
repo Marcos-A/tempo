@@ -31,6 +31,16 @@ from app.services.hours import BLOCK_MINUTE_CHOICES, MINUTES_PER_HOUR, format_mi
 from app.services.usage import MODULES_EXPORT, MODULES_PLAN, MODULES_VIEW, record_usage
 
 
+def _json_for_script(value) -> str:
+    """Serialize data for an inline <script> block, which the template prints unescaped.
+
+    Part of this data comes straight from the submitted form, so a `</script>` in it
+    must not be able to close the block. JSON.parse turns the escapes back into text.
+    """
+
+    return json.dumps(value).replace("<", "\\u003c").replace(">", "\\u003e").replace("&", "\\u0026")
+
+
 router = APIRouter(tags=["teacher"])
 templates = Jinja2Templates(directory="app/templates")
 templates.env.filters["date_display"] = format_display_date
@@ -434,8 +444,8 @@ async def prepare_plan(request: Request, db: Session = Depends(get_db)):
         "teacher/distribution.html",
         {
             "summary": plan_payload,
-            "plan_json": json.dumps(plan_payload),
-            "ra_state_json": json.dumps(_default_ra_state(ra_count, planning_mode, block_available_minutes)),
+            "plan_json": _json_for_script(plan_payload),
+            "ra_state_json": _json_for_script(_default_ra_state(ra_count, planning_mode, block_available_minutes)),
         },
     )
 
@@ -515,8 +525,8 @@ async def export_plan(request: Request, db: Session = Depends(get_db)):
             "teacher/distribution.html",
             {
                 "summary": plan_data,
-                "plan_json": json.dumps(plan_data),
-                "ra_state_json": json.dumps(
+                "plan_json": _json_for_script(plan_data),
+                "ra_state_json": _json_for_script(
                     {
                         "order": ra_order,
                         "names": ra_names,

@@ -16,6 +16,7 @@ class Settings(BaseModel):
     admin_username: str = "admin"
     admin_password: str = "change-me"
     database_url: str = "sqlite:///data/app.db"
+    cookie_secure: bool = False
 
 
 def get_settings() -> Settings:
@@ -30,4 +31,6 @@ def get_settings() -> Settings:
         admin_username=os.getenv("ADMIN_USERNAME", "admin"),
         admin_password=os.getenv("ADMIN_PASSWORD", "change-me"),
         database_url=os.getenv("DATABASE_URL", "sqlite:///data/app.db"),
+        # Deployed environments are HTTPS-only; local development runs on plain HTTP.
+        cookie_secure=os.getenv("APP_ENV", "") in {"production", "preview"},
     )
