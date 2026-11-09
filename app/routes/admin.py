@@ -14,6 +14,7 @@ from app.auth import verify_password
 from app.build_info import build_footer
 from app.config import get_settings
 from app.database import get_db
+from app.login_throttle import LoginThrottle
 from app.date_utils import format_day_month, format_display_date, format_month_label, parse_date_input, parse_day_month_input
 from app.dependencies import require_admin
 from app.models import AcademicWeekNumber, AcademicYear, AdminUser, ExcludedPeriod, RecurringHoliday
@@ -25,6 +26,7 @@ from app.services.usage import usage_summary
 
 
 router = APIRouter(prefix="/admin", tags=["admin"])
+login_throttle = LoginThrottle()
 templates = Jinja2Templates(directory="app/templates")
 templates.env.filters["date_display"] = format_display_date
 templates.env.filters["day_month"] = lambda holiday: format_day_month(holiday.day, holiday.month)
@@ -217,8 +219,18 @@ def login_page(request: Request):
 def login(request: Request, username: str = Form(...), password: str = Form(...), db: Session = Depends(get_db)):
     """Authenticate the admin and store the user id in the session cookie."""
 
+    client = request.client.host if request.client else "unknown"
+    if login_throttle.blocked(client):
+        return templates.TemplateResponse(
+            request,
+            "admin/login.html",
+            {"error": "Massa intents. Torna-ho a provar d'aquí a uns minuts."},
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+        )
+
     user = db.scalar(select(AdminUser).where(AdminUser.username == username))
     if user is None or not verify_password(password, user.password_hash):
+        login_throttle.record_failure(client)
         return templates.TemplateResponse(
             request,
             "admin/login.html",
@@ -226,6 +238,7 @@ def login(request: Request, username: str = Form(...), password: str = Form(...)
             status_code=status.HTTP_400_BAD_REQUEST,
         )
 
+    login_throttle.reset(client)
     request.session["admin_user_id"] = user.id
     return RedirectResponse(url="/admin", status_code=status.HTTP_303_SEE_OTHER)
 
