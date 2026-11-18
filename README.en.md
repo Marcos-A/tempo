@@ -1,7 +1,7 @@
 [Llegiu-lo en català](README.md)
 
 <p align="center">
-  <img src="design/brand/svg/lockup/tempo-lockup-pine.svg" alt="Tempo" width="320">
+  <img src="design/brand/svg/lockup/tempo-lockup-pine.svg" alt="Tempo" width="198">
 </p>
 
 <p align="center">
