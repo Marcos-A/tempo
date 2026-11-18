@@ -91,15 +91,19 @@ La secció `/practiques` és independent de la planificació de mòduls i calcul
 
 ### 1. Configura les pràctiques
 
-Indica la data d'inici, les hores totals (amb minuts) i les hores de cada dia de la setmana. Si el conveni té períodes amb horaris diferents (p. ex. jornada intensiva a l'estiu), afegeix un nou període i indica a partir de quin dia s'aplica. Opcionalment, afegeix les dades de l'estudiant i de l'empresa, que apareixen a la capçalera dels fitxers exportats (XLSX, HTML i PDF). El formulari es conserva al navegador entre visites.
+Tria la modalitat del conveni i indica la data d'inici, les hores totals (amb minuts) i les hores de cada dia de la setmana. Si el conveni té períodes amb horaris diferents (p. ex. jornada intensiva a l'estiu), afegeix un nou període i indica a partir de quin dia s'aplica. Opcionalment, afegeix les dades de l'estudiant i de l'empresa, que apareixen a la capçalera dels fitxers exportats (XLSX, HTML i PDF). El formulari es conserva al navegador entre visites.
 
-![Formulari del planificador d'hores de pràctiques obert des d'un calendari desat, amb l'enllaç «Obre un calendari desat»](docs/screenshots/tempo-practiques-step-1-formulari.png)
+- **General:** les pràctiques acaben dins del curs en què comencen. Si algun dia té més de 4 h, un avís recorda que cal un tipus d'acord intensiu, i si el total passa de 400 h, un altre recorda que a 1r curs la modalitat general no en permet més (no surt si el camp «Grup» conté un «2», de segon curs). Cap dels dos avisos surt a les exportacions.
+- **Intensiva:** les pràctiques poden continuar el curs següent, fins al 31 de juliol. Demana el grau del cicle i l'SMI per estimar la [retribució](#retribució-estimada-modalitat-intensiva) de cada mes.
+- **«Inclou els dissabtes»**, a l'horari setmanal i desmarcada per defecte, afegeix el dissabte a l'horari de cada període, en totes dues modalitats.
+
+![Formulari del planificador d'hores de pràctiques obert des d'un calendari desat, en modalitat intensiva, amb el grau del cicle, l'SMI anual i l'enllaç «Obre un calendari desat»](docs/screenshots/tempo-practiques-step-1-formulari.png)
 
 ### 2. Revisa els dies sense pràctiques i el calendari
 
 Els períodes del calendari del centre surten marcats i es poden desmarcar si no afecten l'empresa (p. ex. pràctiques durant les vacances escolars). Els festius fixos (els que l'administració marca com a repetits cada any, p. ex. l'1 de maig) hi surten un cop per cada any que abasten les pràctiques, també en cursos encara no configurats, i també es poden desmarcar un per un. Només hi surten quan cauen en un dia laborable i no queden dins d'un altre període marcat o afegit: si cauen en cap de setmana o dins de les vacances de Nadal, no cal llistar-los a part. També s'hi poden afegir altres dies, com festius locals de l'empresa o festius posteriors a les classes. Si les pràctiques van més enllà dels dies no lectius configurats al calendari del centre, un avís en aquesta mateixa secció recorda afegir-hi els festius posteriors que canvien de data cada any (els fixos ja hi són). El calendari es recalcula en directe i mostra la data de fi, les hores planificades i els dies amb pràctiques; el darrer dia només rep les hores que falten. Quan hi ha diversos períodes, el primer dia de cadascun queda marcat al calendari.
 
-![Dies sense pràctiques, calendari resultant amb la data de fi, botons de descàrrega en XLSX, HTML, PDF i PNG i la nota que explica cada format i que l'HTML es pot tornar a obrir](docs/screenshots/tempo-practiques-step-2-calendari.png)
+![Dies sense pràctiques, calendari resultant amb la data de fi i la retribució estimada (total i per mes), botons de descàrrega en XLSX, HTML, PDF i PNG i la nota que explica cada format i que l'HTML es pot tornar a obrir](docs/screenshots/tempo-practiques-step-2-calendari.png)
 
 ### 3. Ajusta les hores d'un dia o de diversos dies
 
@@ -107,7 +111,7 @@ En fer clic a qualsevol dia se'n poden canviar les hores, fins i tot posar-hi 0 
 
 Per canviar les hores de molts dies alhora (p. ex. del 20 d'octubre al 10 de novembre), es fa Maj+clic al primer dia (queda marcat sense obrir cap finestra) i Maj+clic a l'últim, o s'obre «Aplica-ho a més dies» a la finestra del dia. Aquesta opció, plegada per defecte, demana un interval de dates i els dies de la setmana afectats (de sortida, els que tenen hores a l'horari), mostra quants dies canviaran i els ressalta al calendari. Amb Maj+clic no es mostren els dies de la setmana: el canvi s'aplica als dies de l'interval que tenen hores a l'horari. Els dies sense pràctiques de l'interval (festius i períodes no lectius) no es toquen, tret que es marqui «Inclou també els dies sense pràctiques», que apareix quan l'interval en conté (p. ex. per posar hores durant unes vacances que l'empresa no fa). Cada dia queda desat com un canvi individual, així que es pot retocar o restablir com qualsevol altre.
 
-Per defecte, a l'agost no es poden fer pràctiques, així que el calendari no passa mai del 31 de juliol del curs en què comencen. Si les hores no hi caben, l'aplicació avisa i mostra les hores que falten, que s'hauran de fer amb un nou conveni el curs vinent. L'opció «Inclou l'agost», a l'horari setmanal, hi permet hores i porta el límit fins al 31 d'agost.
+Per defecte, a l'agost no es poden fer pràctiques, així que el calendari no passa mai del 31 de juliol del curs en què comencen (en la modalitat intensiva, del curs següent, i l'agost entremig queda tancat). Si les hores no hi caben, l'aplicació avisa i mostra les hores que falten, que s'hauran de fer amb un nou conveni el curs vinent. L'opció «Inclou l'agost», a l'horari setmanal, hi permet hores i porta el límit fins al 31 d'agost.
 
 ![Canvi de les hores d'una setmana sencera triada amb Maj+clic, amb els dies afectats ressaltats al calendari](docs/screenshots/tempo-practiques-step-3-editor-dia.png)
 

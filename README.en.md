@@ -91,15 +91,19 @@ The `/practiques` section is independent from module planning and works out when
 
 ### 1. Set Up The Internship
 
-Enter the start date, total hours (minutes supported) and the hours for each weekday. If the agreement has periods with different schedules (e.g. shorter summer hours), add a new period and set the date it applies from. Optionally, add the student and company details shown in the header of the exported files (XLSX, HTML and PDF). The form is kept in the browser between visits.
+Choose the agreement's modality and enter the start date, total hours (minutes supported) and the hours for each weekday. If the agreement has periods with different schedules (e.g. shorter summer hours), add a new period and set the date it applies from. Optionally, add the student and company details shown in the header of the exported files (XLSX, HTML and PDF). The form is kept in the browser between visits.
 
-![Internship hours planner form opened from a saved calendar, with the "Obre un calendari desat" link](docs/screenshots/tempo-practiques-step-1-formulari.png)
+- **General:** the internship ends within the school year it starts in. If any day has more than 4 h, a notice reminds that an intensive-type agreement is needed, and if the total goes over 400 h, another reminds that in first year the general modality allows no more (it does not appear when the "Grup" field contains a "2", for second year). Neither notice appears in the exports.
+- **Intensiva:** the internship can continue into the next school year, up to 31 July. It asks for the training cycle's grade and the SMI to estimate each month's [pay](#estimated-pay-intensive-modality).
+- **"Inclou els dissabtes"**, in the weekly schedule and off by default, adds Saturday to every period's schedule, in both modalities.
+
+![Internship hours planner form opened from a saved calendar, in the intensive modality, with the training cycle's grade, the annual SMI and the "Obre un calendari desat" link](docs/screenshots/tempo-practiques-step-1-formulari.png)
 
 ### 2. Review Days Without Internship And The Calendar
 
 The school calendar's periods are pre-selected and can be unticked when they do not affect the company (e.g. an internship that runs through school holidays). Fixed holidays (those the admin marks as repeating every year, e.g. 1 May) are listed once for each year the internship spans, including academic years not configured yet, and can also be unticked one by one. They are only listed when they fall on a working day and are not inside another selected or added period: one on a weekend or inside the Christmas break does not need its own entry. Other days can be added too, such as the company's local holidays or holidays after classes end. If the internship runs past the non-teaching days configured in the school calendar, a warning in this same section reminds users to add the later holidays whose date changes every year (fixed ones are already included). The calendar recalculates live and shows the end date, planned hours and internship days; the last day only receives the hours still needed. When there are several periods, the first day of each one is marked on the calendar.
 
-![Days without internship, the resulting calendar with its end date, the XLSX, HTML, PDF and PNG download buttons and the note that explains each format and that the HTML can be opened again](docs/screenshots/tempo-practiques-step-2-calendari.png)
+![Days without internship, the resulting calendar with its end date and the estimated pay (total and per month), the XLSX, HTML, PDF and PNG download buttons and the note that explains each format and that the HTML can be opened again](docs/screenshots/tempo-practiques-step-2-calendari.png)
 
 ### 3. Adjust The Hours Of One Or Several Days
 
@@ -107,7 +111,7 @@ Clicking any day changes its hours, including setting it to 0 or adding hours on
 
 To change many days at once (e.g. from 20 October to 10 November), Shift+click the first day (it is marked without opening any dialog) and Shift+click the last one, or open "Aplica-ho a més dies" in the day's dialog. This option, folded away by default, asks for a date range and the weekdays it applies to (by default, those with hours in the schedule), shows how many days will change and highlights them on the calendar. With Shift+click the weekdays are not shown: the change applies to the days in the range that have hours in the schedule. Days without internship inside the range (holidays and non-teaching periods) are left alone unless "Inclou també els dies sense pràctiques" is ticked; that option appears when the range contains such days (e.g. to schedule hours during a break the company doesn't take). Each day is stored as an individual change, so it can be adjusted or reset like any other.
 
-By default internships cannot run in August, so the calendar never goes past 31 July of the school year it starts in. If the hours do not fit, the app warns and shows the hours still pending, which need a new agreement next school year. The "Inclou l'agost" option, in the weekly schedule, allows hours in August and moves the limit to 31 August.
+By default internships cannot run in August, so the calendar never goes past 31 July of the school year it starts in (in the intensive modality, of the next school year, with the August in between closed). If the hours do not fit, the app warns and shows the hours still pending, which need a new agreement next school year. The "Inclou l'agost" option, in the weekly schedule, allows hours in August and moves the limit to 31 August.
 
 ![Changing the hours of a whole week picked with Shift+click, with the affected days highlighted on the calendar](docs/screenshots/tempo-practiques-step-3-editor-dia.png)
 
