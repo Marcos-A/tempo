@@ -111,6 +111,18 @@ By default internships cannot run in August, so the calendar never goes past 31 
 
 ![Changing the hours of a whole week picked with Shift+click, with the affected days highlighted on the calendar](docs/screenshots/tempo-practiques-step-3-editor-dia.png)
 
+### Estimated Pay (Intensive Modality)
+
+In the intensive modality, the planner estimates each month's pay from the training cycle's grade and the minimum wage (SMI, *salari mínim interprofessional*). It is an estimate, not a payslip, and it is shown in the calendar summary, next to each month, and in the XLSX (with formulas that recalculate), HTML and PDF exports.
+
+- **Monthly or annual SMI:** the admin chooses at `/admin` whether the SMI is given as a monthly or an annual amount, and that choice applies everywhere: the planner, the calculation note and the exports show it only in that form, without mentioning the other. The amount the admin saves is offered to every calendar, which can change it; without one, each calendar has to give its own.
+- **The monthly amount is one of the 14 payments, without prorating the extra ones.** With the 2026 SMI it is 1.221,00 €, not 1.424,50 € (the amount with the two extra payments spread over 12 months), which would give an estimate 17 % higher. The annual amount is the total of the 14 payments: 17.094,00 €.
+- **Hourly reference:** the annual SMI (the monthly one × 14) is spread over 12 months of 20 days of 8 h: 17.094,00 € ÷ 12 ÷ 20 ÷ 8 = 8,90 €/h. It is divided by 20 days, rather than by each month's actual working days, because that slightly favours the student.
+- **Percentage by grade:** grau mitjà is paid 50 % of the hourly reference for every hour; grau superior 60 % for the first half of the agreement's total hours and 70 % for the second half. A month can hold hours at both percentages. Until a grade is chosen, it follows the training cycle (CFGM or CFGS), or grau mitjà otherwise.
+- **Each month** pays the hours planned in it, hand-changed ones included, at their percentage, rounded to the cent. The total adds up the rounded months, so it matches what each month shows. For example, a 320 h grau superior agreement with 160 h in September and 160 h in October gives 160 × 8,90 € × 60 % ≈ 854,70 € in September and 160 × 8,90 € × 70 % ≈ 997,15 € in October (the calculation uses the unrounded hourly reference, 8,903125 €).
+- **New year:** if the hours reach a later calendar year, the estimate applies the same SMI to every month and a notice says to check it once the new amount is published.
+- **Calendars made in the other form:** if a draft or a saved HTML was made with a monthly SMI and it is now annual (or the other way round), its amount is converted when it is opened (× 14 or ÷ 14, rounded to the cent). Calendars saved before the choice existed count as monthly.
+
 ### Exported XLSX
 
 - **Calendar:** one grid per month, from the start month to the month after the end date (31 July at the latest), so hours can be added past the planned end. If hours are still missing in July, the sheet says so.
@@ -227,6 +239,7 @@ Deployments that set `APP_ENV` show the deployed build in a small footer and exp
 
 - `/admin` is authentication-protected
 - it manages academic years and excluded dates, plus fixed holidays (day and month) that apply to every academic year, including those not configured yet
+- it sets the SMI for the intensive modality's [estimated pay](#estimated-pay-intensive-modality) and whether it is given as a monthly or an annual amount; switching converts the amount, and switching back restores exactly the last amount saved in that form
 - `/admin/usage` shows how often each tool was opened and how many plans and exports were completed (for internships, split between XLSX, HTML, PDF and PNG), for the last 7 and 30 days, all time, and the last 12 weeks. Counting is anonymous: only one number per day and action is stored, with no IP addresses, cookies, or browser data, and bots and monitors are skipped
 - it is not linked from the public UI
 

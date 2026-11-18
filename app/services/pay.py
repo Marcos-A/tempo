@@ -9,7 +9,9 @@ default, and each plan can change it. Amounts are kept in whole cents.
 The student is paid by the hour for the hours actually planned. The hourly
 reference is the SMI's yearly amount spread over 12 months of 20 days of 8 h:
 1.221,00 € × 14 = 17.094 € ÷ 12 = 1.424,50 € ÷ 20 = 71,225 € ÷ 8 = 8,90 €/h.
-An annual SMI is that yearly amount already (17.094 €).
+An annual SMI is that yearly amount already (17.094 €). A monthly SMI is one
+of the 14 payments, never the amount with the extra payments prorated over
+12 months (1.424,50 €), which would overstate the estimate by 14/12.
 Grau mitjà is paid 50 % of it throughout; grau superior 60 % for the first
 half of the agreement's hours and 70 % for the second half.
 """
