@@ -1789,6 +1789,10 @@ select.time-select {
 
 .segmented-option input {
   position: absolute;
+  /* Inputs are full width by default; a hidden one that size made the page scroll sideways. */
+  width: 1px;
+  height: 1px;
+  margin: 0;
   opacity: 0;
   pointer-events: none;
 }
@@ -1825,11 +1829,6 @@ select.time-select {
   font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
   text-align: right;
-}
-
-.intensive-pay-note {
-  align-self: center;
-  margin: 0;
 }
 
 .smi-form {
