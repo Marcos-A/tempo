@@ -49,6 +49,7 @@ Tempo has two tools, both reachable from the app header.
 - works out a student's internship end date from a start date, total hours and a weekly schedule, which can change between the agreement's periods
 - skips the school calendar's days without internship and lets users add others
 - lets users adjust any day's hours directly on the calendar
+- offers two agreement modalities: general, within the school year, or intensive, which can continue into the next school year and estimates the monthly pay from the minimum wage (SMI)
 - exports it as an editable XLSX that recalculates itself, or as a read-only HTML or PDF copy that looks like the web version, or as a PNG image of the calendar
 
 ## Curriculum Planner
@@ -130,7 +131,7 @@ In the intensive modality, the planner estimates each month's pay from the train
 
 ### Exported XLSX
 
-- **Calendar:** one grid per month, from the start month to the month after the end date (31 July at the latest), so hours can be added past the planned end. If hours are still missing in July, the sheet says so.
+- **Calendar:** one grid per month, from the start month to the month after the end date, so hours can be added past the planned end. It never goes past the agreement's limit: 31 July (in the intensive modality, of the next school year), or 31 August with "Inclou l'agost". The days of a closed August take no hours, and when August comes right after the end date, the extra month is September. If hours are still missing at the limit, the sheet says so.
 - **Hours as `h:mm`:** each day is typed as `4:30`; cells only accept values between `0:00` and `12:00`, so `4` or `4,5` are rejected with a message.
 - **Totals as `4h30`:** weekly, monthly, planned and remaining hours recalculate when any day is edited, as does the end date.
 - **Automatic colours:** days with hours are green and days without internship (`0`, shown as `-`) are red. "Hores planificades" and "Hores restants" turn red until the target is met.
@@ -219,6 +220,12 @@ For branch preview deployments:
 bash scripts/deploy_preview.sh
 ```
 
+The production and preview containers run as an unprivileged user (`10001:10001`), limited to 1 GB of memory and 256 processes. The data directory (`DATA_DIR`) must be writable by that user, or the app cannot write its database:
+
+```bash
+sudo chown -R 10001:10001 /absolute/path/to/data
+```
+
 The `preview` branch is permanent: it is the branch used for preview deployments and must not be deleted, even once it is fully merged into `main`.
 
 ### Build Identification
@@ -238,11 +245,12 @@ Deployments that set `APP_ENV` show the deployed build in a small footer and exp
 - `/` shows the initial module configuration form
 - `/plan` lets users sort, distribute, and validate learning outcomes before export
 - the final export is generated as an XLSX workbook
-- `/practiques` computes an internship calendar from a start date, total hours and a weekly schedule (minutes supported, with optional periods that each have their own schedule), reuses the configured non-teaching periods, lets users adjust any day's hours and exports an editable XLSX or a read-only HTML, PDF or PNG copy (see [Internship Hours Planner](#internship-hours-planner))
+- `/practiques` computes an internship calendar, in the general or the intensive modality, from a start date, total hours and a weekly schedule (minutes supported, with optional periods that each have their own schedule), reuses the configured non-teaching periods, lets users adjust any day's hours and exports an editable XLSX or a read-only HTML, PDF or PNG copy; in the intensive modality, it also estimates the pay (see [Internship Hours Planner](#internship-hours-planner))
 
 ### Admin Flow
 
-- `/admin` is authentication-protected
+- `/admin` is authentication-protected; after 10 failed login attempts within 15 minutes from the same address, it refuses new ones for the rest of that window ("Massa intents", HTTP 429). Attempts are counted in each server process's memory and reset when the app restarts
+- the automatic API docs (`/docs`, `/redoc`, `/openapi.json`) are switched off
 - it manages academic years and excluded dates, plus fixed holidays (day and month) that apply to every academic year, including those not configured yet
 - it sets the SMI for the intensive modality's [estimated pay](#estimated-pay-intensive-modality) and whether it is given as a monthly or an annual amount; switching converts the amount, and switching back restores exactly the last amount saved in that form
 - `/admin/usage` shows how often each tool was opened and how many plans and exports were completed (for internships, split between XLSX, HTML, PDF and PNG), for the last 7 and 30 days, all time, and the last 12 weeks. Counting is anonymous: only one number per day and action is stored, with no IP addresses, cookies, or browser data, and bots and monitors are skipped
@@ -282,6 +290,8 @@ pip install -r requirements-dev.txt
 python -m playwright install chromium
 pytest tests/browser
 ```
+
+Continuous integration (`.github/workflows/pytest.yml`) runs the main suite and the browser tests with Chromium on every push to `main` and `preview` and on every pull request.
 
 ## Project Structure
 

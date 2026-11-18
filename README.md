@@ -49,6 +49,7 @@ Tempo té dues eines, accessibles des de la capçalera de l'aplicació.
 - calcular la data de fi de les pràctiques d'un estudiant a partir de la data d'inici, les hores totals i l'horari setmanal, que pot canviar d'un període a un altre del conveni
 - descomptar els dies sense pràctiques del calendari del centre i afegir-ne d'altres
 - ajustar les hores de qualsevol dia directament al calendari
+- triar la modalitat del conveni: general, dins del curs, o intensiva, que pot continuar el curs següent i estima la retribució mensual a partir de l'SMI
 - exportar-lo en un XLSX editable que es recalcula sol, o en una còpia HTML o PDF de només lectura amb el mateix aspecte que el web, o en una imatge PNG del calendari
 
 ## Planificador curricular
@@ -130,7 +131,7 @@ En la modalitat intensiva, el planificador estima la retribució de cada mes a p
 
 ### Full XLSX exportat
 
-- **Calendari:** una graella per mes, des del mes d'inici fins al mes posterior a la data de fi (com a màxim fins al 31 de juliol), perquè es puguin afegir hores més enllà de la data prevista. Si al juliol encara falten hores, el full ho indica.
+- **Calendari:** una graella per mes, des del mes d'inici fins al mes posterior a la data de fi, perquè es puguin afegir hores més enllà de la data prevista. No passa mai del límit del conveni: el 31 de juliol (en la modalitat intensiva, el del curs següent) o el 31 d'agost amb «Inclou l'agost». Els dies d'un agost tancat no admeten hores, i si l'agost és just després de la data de fi, el mes afegit és el setembre. Si en arribar al límit encara falten hores, el full ho indica.
 - **Hores en format `h:mm`:** cada dia s'escriu com `4:30`; les caselles només accepten valors entre `0:00` i `12:00`, de manera que `4` o `4,5` es rebutgen amb un avís.
 - **Totals en format `4h30`:** setmanes, mesos, hores planificades i hores restants es recalculen en editar qualsevol dia, igual que la data de fi.
 - **Colors automàtics:** els dies amb hores es mostren en verd i els dies sense pràctiques (`0`, que es mostra com `-`) en vermell. «Hores planificades» i «Hores restants» es marquen en vermell mentre no s'arriba a l'objectiu.
@@ -219,6 +220,12 @@ Per a una previsualització de branca:
 bash scripts/deploy_preview.sh
 ```
 
+Els contenidors de producció i de previsualització s'executen com a usuari sense privilegis (`10001:10001`), amb un límit d'1 GB de memòria i de 256 processos. El directori de dades (`DATA_DIR`) ha de ser modificable per aquest usuari, o l'aplicació no podrà escriure la base de dades:
+
+```bash
+sudo chown -R 10001:10001 /absolute/path/to/data
+```
+
 La branca `preview` és permanent: és la que s'utilitza per a les previsualitzacions i no s'ha d'esborrar, encara que ja estigui fusionada a `main`.
 
 ### Identificació de la compilació
@@ -238,11 +245,12 @@ Els desplegaments que defineixen `APP_ENV` mostren la compilació desplegada en 
 - `/` mostra el formulari inicial de configuració del mòdul
 - `/plan` permet ordenar, repartir i validar els RAs abans d'exportar
 - l'exportació final es fa cap a un llibre XLSX
-- `/practiques` calcula el calendari de pràctiques a partir de la data d'inici, les hores totals i l'horari setmanal (amb minuts i, si cal, diversos períodes amb horari propi), reutilitza els períodes no lectius configurats, permet ajustar les hores de qualsevol dia i exporta un XLSX editable o una còpia HTML, PDF o PNG de només lectura (vegeu [Planificador d'hores de pràctiques](#planificador-dhores-de-pràctiques))
+- `/practiques` calcula el calendari de pràctiques, en modalitat general o intensiva, a partir de la data d'inici, les hores totals i l'horari setmanal (amb minuts i, si cal, diversos períodes amb horari propi), reutilitza els períodes no lectius configurats, permet ajustar les hores de qualsevol dia i exporta un XLSX editable o una còpia HTML, PDF o PNG de només lectura; en la modalitat intensiva, també n'estima la retribució (vegeu [Planificador d'hores de pràctiques](#planificador-dhores-de-pràctiques))
 
 ### Administració
 
-- `/admin` està protegit per autenticació
+- `/admin` està protegit per autenticació; després de 10 intents d'inici de sessió fallits en 15 minuts des d'una mateixa adreça, en bloqueja de nous durant la resta d'aquest període («Massa intents», HTTP 429). El recompte es fa a la memòria de cada procés del servidor i es reinicia quan es reinicia l'aplicació
+- la documentació automàtica de l'API (`/docs`, `/redoc`, `/openapi.json`) està desactivada
 - permet gestionar anys acadèmics i dates excloses, i també festius fixos (dia i mes) que s'apliquen a tots els cursos, fins i tot als que encara no s'han configurat
 - hi fixa l'SMI de la [retribució estimada](#retribució-estimada-modalitat-intensiva) de la modalitat intensiva i tria si s'indica com a import mensual o anual; en canviar de forma, l'import es converteix sol i, si torna a la forma anterior, recupera exactament l'últim import desat en aquella forma
 - `/admin/usage` mostra quantes vegades s'ha obert cada eina i quantes planificacions i exportacions (en el cas de les pràctiques, separades entre XLSX, HTML, PDF i PNG) s'han completat, per als últims 7 i 30 dies, el total i les últimes 12 setmanes. El recompte és anònim: només es desa un número per dia i acció, sense adreces IP, galetes ni dades del navegador, i no inclou robots ni monitors
@@ -282,6 +290,8 @@ pip install -r requirements-dev.txt
 python -m playwright install chromium
 pytest tests/browser
 ```
+
+La integració contínua (`.github/workflows/pytest.yml`) executa la suite principal i les proves de navegador amb Chromium a cada push a `main` i `preview` i a cada pull request.
 
 ## Estructura del projecte
 
