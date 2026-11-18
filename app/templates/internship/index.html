@@ -95,14 +95,14 @@
         </div>
       </div>
       <label>
-        SMI mensual
+        {{ smi_label }}
         <span class="money-field">
-          <input id="smi" type="text" inputmode="decimal" maxlength="20" placeholder="P.ex. 1.221,00" autocomplete="off" />
+          <input id="smi" type="text" inputmode="decimal" maxlength="20" placeholder="P.ex. {{ smi_example }}" autocomplete="off" />
           <span class="block-time-separator">€</span>
         </span>
         <span class="error-text" id="smi-error" hidden></span>
       </label>
-      <p class="field-hint intensive-pay-note">L'import d'una de les 14 pagues de l'SMI. Amb el grau, serveix per estimar la retribució de cada mes.</p>
+      <p class="field-hint intensive-pay-note">{% if smi_period == "anual" %}L'import anual de l'SMI, amb les 14 pagues.{% else %}L'import d'una de les 14 pagues de l'SMI.{% endif %} Amb el grau, serveix per estimar la retribució de cada mes.</p>
     </div>
 
     <section class="card-panel form-span internship-panel">
@@ -395,6 +395,10 @@
   const DEFAULT_GRADE = {{ default_grade|tojson }};
   // The admin's SMI (e.g. "1.221,00"), or "" when each plan has to give its own.
   const ADMIN_SMI = {{ admin_smi|tojson }};
+  // Whether the SMI is given monthly or annually; the admin's choice applies to every plan.
+  const SMI_PERIOD = {{ smi_period|tojson }};
+  const SMI_LABEL = {{ smi_label|tojson }};
+  const SMI_EXAMPLE = {{ smi_example|tojson }};
   const hasServerError = {{ 'true' if error else 'false' }};
 
   const $ = (id) => document.getElementById(id);
@@ -463,6 +467,7 @@
       include_august: false,
       grade: "",
       smi: ADMIN_SMI,
+      smi_period: SMI_PERIOD,
       start_date: serverState.start_date,
       target_hours: "",
       target_minutes: 0,
@@ -488,8 +493,11 @@
     merged.include_saturdays = merged.include_saturdays === true;
     merged.include_august = merged.include_august === true;
     if (!Object.hasOwn(GRADES, merged.grade)) merged.grade = "";
-    // The SMI field is never left empty when the admin has set one.
-    merged.smi = String(merged.smi || "").trim() || ADMIN_SMI;
+    // A plan saved under the other SMI form (or before there was a choice, so
+    // monthly) has its amount converted, then the SMI field is never left
+    // empty when the admin has set one.
+    merged.smi = convertSmi(String(merged.smi || "").trim(), raw.smi_period || "mensual") || ADMIN_SMI;
+    merged.smi_period = SMI_PERIOD;
     merged.weekday_minutes = { ...base.weekday_minutes, ...(raw.weekday_minutes || {}) };
     merged.schedule_changes = (Array.isArray(raw.schedule_changes) ? raw.schedule_changes : []).map((change) => ({
       start: String(change.start || ""),
@@ -535,6 +543,7 @@
       grade: effectiveGrade(),
       // An invalid amount waits in the form, which says what is wrong.
       smi: parseEuros(state.smi) === null ? "" : state.smi.trim(),
+      smi_period: SMI_PERIOD,
       start_date: state.start_date,
       target_hours: state.target_hours,
       target_minutes: Number(state.target_minutes) || 0,
@@ -602,6 +611,19 @@
     return cents > 0 && cents <= 100000 * 100 ? cents : null;
   }
 
+  function formatEuros(cents) {
+    const whole = Math.floor(cents / 100).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+    return `${whole},${pad(cents % 100)}`;
+  }
+
+  // Same as convert_smi_cents in app/services/pay.py: 14 payments a year.
+  // An amount that isn't valid is left as it is for the form to flag.
+  function convertSmi(text, fromPeriod) {
+    const cents = parseEuros(text);
+    if (fromPeriod === SMI_PERIOD || cents === null) return text;
+    return formatEuros(SMI_PERIOD === "anual" ? cents * 14 : Math.round(cents / 14));
+  }
+
   // Until the user picks one, the grade follows the training cycle (CFGM or
   // CFGS), or the default, so one is always selected.
   function effectiveGrade() {
@@ -614,7 +636,7 @@
 
   function smiError() {
     if (!state.smi.trim()) return "Indica l'SMI per poder estimar la retribució.";
-    return parseEuros(state.smi) === null ? "Indica l'SMI mensual en euros, p. ex. 1.221,00." : "";
+    return parseEuros(state.smi) === null ? `Indica l'${SMI_LABEL} en euros, p. ex. ${SMI_EXAMPLE}.` : "";
   }
 
   function renderPayInputs() {

@@ -1,12 +1,15 @@
 """The intensive modality's pay estimate: its settings, inputs and calculation.
 
-The admin sets the monthly minimum wage (SMI, paid 14 times a year) once; the
-planner offers it as the default, and each plan can change it. Amounts are
-kept in whole cents.
+The admin sets the minimum wage (SMI) once, and chooses whether it is given
+as the monthly amount (one of its 14 payments) or as the annual one. That
+choice applies everywhere: the planner, the exports and every plan show and
+take the SMI in that form only. The planner offers the admin's amount as the
+default, and each plan can change it. Amounts are kept in whole cents.
 
 The student is paid by the hour for the hours actually planned. The hourly
 reference is the SMI's yearly amount spread over 12 months of 20 days of 8 h:
 1.221,00 € × 14 = 17.094 € ÷ 12 = 1.424,50 € ÷ 20 = 71,225 € ÷ 8 = 8,90 €/h.
+An annual SMI is that yearly amount already (17.094 €).
 Grau mitjà is paid 50 % of it throughout; grau superior 60 % for the first
 half of the agreement's hours and 70 % for the second half.
 """
@@ -26,6 +29,13 @@ from app.models import AppSetting
 from app.services.hours import MINUTES_PER_HOUR, format_minutes_label
 
 SMI_SETTING_KEY = "internship_smi"
+SMI_PERIOD_SETTING_KEY = "internship_smi_period"
+SMI_MONTHLY = "mensual"
+SMI_ANNUAL = "anual"
+SMI_PERIOD_LABELS = {SMI_MONTHLY: "SMI mensual", SMI_ANNUAL: "SMI anual"}
+# Plans saved before the admin could choose had a monthly SMI.
+DEFAULT_SMI_PERIOD = SMI_MONTHLY
+SMI_EXAMPLES = {SMI_MONTHLY: "1.221,00", SMI_ANNUAL: "17.094,00"}
 MAX_SMI_CENTS = 100_000 * 100
 GRADE_LABELS = {"mitja": "Grau mitjà", "superior": "Grau superior"}
 # A grade is always selected; this one applies until the user or the training cycle says otherwise.
@@ -82,10 +92,25 @@ def _hourly_label(hourly_cents: Fraction, percent: int) -> str:
     return f"{percent} % ({format_euros(_whole_cents(hourly_cents * percent / 100))} €/h)"
 
 
-def _estimate_note(smi_cents: int, hourly_cents: Fraction, grade: str, target_minutes: int) -> str:
+def annual_smi_cents(smi_cents: int, period: str) -> int:
+    return smi_cents * SMI_PAYMENTS_PER_YEAR if period == SMI_MONTHLY else smi_cents
+
+
+def convert_smi_cents(smi_cents: int, from_period: str, to_period: str) -> int:
+    """Express an SMI given monthly or annually in the other form (÷ or × 14 payments)."""
+
+    if from_period == to_period:
+        return smi_cents
+    if to_period == SMI_ANNUAL:
+        return smi_cents * SMI_PAYMENTS_PER_YEAR
+    return _whole_cents(Fraction(smi_cents, SMI_PAYMENTS_PER_YEAR))
+
+
+def _estimate_note(smi_cents: int, period: str, hourly_cents: Fraction, grade: str, target_minutes: int) -> str:
     first, second = GRADE_PERCENTS[grade]
+    payments = f" × {SMI_PAYMENTS_PER_YEAR} pagues" if period == SMI_MONTHLY else ""
     formula = (
-        f"{format_euros(smi_cents)} € × {SMI_PAYMENTS_PER_YEAR} pagues ÷ {MONTHS_PER_YEAR} mesos ÷ "
+        f"{format_euros(smi_cents)} €{payments} ÷ {MONTHS_PER_YEAR} mesos ÷ "
         f"{WORKING_DAYS_PER_MONTH} dies ÷ {HOURS_PER_WORKING_DAY} h = {format_euros(_whole_cents(hourly_cents))} €/h"
     )
     if first == second:
@@ -99,19 +124,22 @@ def _estimate_note(smi_cents: int, hourly_cents: Fraction, grade: str, target_mi
     return f"Estimació orientativa, no és una nòmina. {formula}. {rates}."
 
 
-def estimate_pay(days: Iterable[PlannedDay], target_minutes: int, grade: str, smi_cents: int) -> PayEstimate:
+def estimate_pay(
+    days: Iterable[PlannedDay], target_minutes: int, grade: str, smi_cents: int, period: str = SMI_MONTHLY
+) -> PayEstimate:
     """Estimate the pay of each month from the plan's minutes.
 
     Half of the hours means half of the agreement's total, so a month can hold
     both rates and a plan that stops short of its total keeps the same rates.
     The total adds up the rounded months, so it matches what is shown for each.
     Every month uses the same SMI; hours in a later calendar year add a notice,
-    because the SMI usually changes with the new year.
+    because the SMI usually changes with the new year. `period` says whether
+    `smi_cents` is the monthly or the annual SMI.
     """
 
     first, second = GRADE_PERCENTS[grade]
     hourly_cents = Fraction(
-        smi_cents * SMI_PAYMENTS_PER_YEAR, MONTHS_PER_YEAR * WORKING_DAYS_PER_MONTH * HOURS_PER_WORKING_DAY
+        annual_smi_cents(smi_cents, period), MONTHS_PER_YEAR * WORKING_DAYS_PER_MONTH * HOURS_PER_WORKING_DAY
     )
     half = Fraction(target_minutes, 2)
 
@@ -148,7 +176,7 @@ def estimate_pay(days: Iterable[PlannedDay], target_minutes: int, grade: str, sm
         month_cents=month_cents,
         month_labels=month_labels,
         total_cents=sum(month_cents.values()),
-        note=_estimate_note(smi_cents, hourly_cents, grade, target_minutes),
+        note=_estimate_note(smi_cents, period, hourly_cents, grade, target_minutes),
         smi_notice=(
             f"L'SMI sol canviar amb l'any nou i aquest calendari arriba al {max(worked_years)}: "
             "l'estimació aplica el mateix SMI a tots els mesos, així que cal revisar-lo quan es publiqui el nou import."
@@ -158,7 +186,7 @@ def estimate_pay(days: Iterable[PlannedDay], target_minutes: int, grade: str, sm
     )
 
 
-def parse_euros(raw: str) -> int:
+def parse_euros(raw: str, period: str = SMI_MONTHLY) -> int:
     """Return a euro amount such as 1.221,00, 1221,5 or 1221 in cents.
 
     A comma is the decimal separator; dots group thousands. A dot followed
@@ -171,7 +199,7 @@ def parse_euros(raw: str) -> int:
     elif re.fullmatch(r"\d{1,3}(\.\d{3})+", text):
         text = text.replace(".", "")
     if not re.fullmatch(r"\d+(\.\d{1,2})?", text):
-        raise ValueError("Indica l'SMI mensual en euros, p. ex. 1.221,00.")
+        raise ValueError(f"Indica l'{SMI_PERIOD_LABELS[period]} en euros, p. ex. {SMI_EXAMPLES[period]}.")
     whole, _, decimals = text.partition(".")
     cents = int(whole) * 100 + int(decimals.ljust(2, "0") or 0)
     if not 0 < cents <= MAX_SMI_CENTS:
@@ -191,10 +219,25 @@ def get_smi_cents(db: Session) -> int | None:
     return int(setting.value) if setting is not None and setting.value else None
 
 
-def set_smi_cents(db: Session, cents: int | None) -> None:
-    """Store the admin's SMI, or clear it so each plan has to give its own."""
+def get_smi_period(db: Session) -> str:
+    setting = db.get(AppSetting, SMI_PERIOD_SETTING_KEY)
+    return setting.value if setting is not None and setting.value in SMI_PERIOD_LABELS else DEFAULT_SMI_PERIOD
+
+
+def set_smi_cents(db: Session, cents: int | None, period: str | None = None) -> None:
+    """Store the admin's SMI, or clear it so each plan has to give its own.
+
+    `period` (monthly or annual) is stored too when given; it applies even
+    when the amount is cleared.
+    """
 
     setting = db.get(AppSetting, SMI_SETTING_KEY) or AppSetting(key=SMI_SETTING_KEY)
     setting.value = str(cents) if cents is not None else None
     db.add(setting)
+    if period is not None:
+        if period not in SMI_PERIOD_LABELS:
+            raise ValueError("Tipus d'SMI no vàlid.")
+        period_setting = db.get(AppSetting, SMI_PERIOD_SETTING_KEY) or AppSetting(key=SMI_PERIOD_SETTING_KEY)
+        period_setting.value = period
+        db.add(period_setting)
     db.commit()

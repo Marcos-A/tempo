@@ -22,7 +22,15 @@ from app.services.academic_weeks import is_vacation_week, iter_week_starts, sugg
 from app.services.academic_years import activate_academic_year, find_overlapping_year, get_active_academic_year, list_academic_years, suggest_year_label
 from app.services.calendar import expand_excluded_periods, recurring_dates
 from app.services.holidays import holiday_tuples, list_recurring_holidays, recurring_holiday_dates
-from app.services.pay import format_euros, get_smi_cents, parse_euros, set_smi_cents
+from app.services.pay import (
+    SMI_EXAMPLES,
+    SMI_PERIOD_LABELS,
+    format_euros,
+    get_smi_cents,
+    get_smi_period,
+    parse_euros,
+    set_smi_cents,
+)
 from app.services.usage import usage_summary
 
 
@@ -168,6 +176,7 @@ def _render_dashboard(
     recurring_holidays = list_recurring_holidays(db)
     recurring_keys = {(holiday.month, holiday.day) for holiday in recurring_holidays}
     smi_cents = get_smi_cents(db)
+    smi_period = get_smi_period(db)
     return templates.TemplateResponse(
         request,
         "admin/dashboard.html",
@@ -178,6 +187,12 @@ def _render_dashboard(
             "exclusion_rows": _exclusion_rows(selected_year, periods, recurring_holidays),
             "recurring_holidays": recurring_holidays,
             "smi": format_euros(smi_cents) if smi_cents is not None else "",
+            "smi_period": smi_period,
+            "smi_period_options": {"mensual": "Mensual", "anual": "Anual"},
+            "smi_label": SMI_PERIOD_LABELS[smi_period],
+            "smi_labels": SMI_PERIOD_LABELS,
+            "smi_example": SMI_EXAMPLES[smi_period],
+            "smi_examples": SMI_EXAMPLES,
             # Single days already covered by a recurring holiday can be removed from the year.
             "recurring_period_ids": {
                 period.id
@@ -858,19 +873,25 @@ def update_smi(
     year_id: Annotated[str | None, Form()] = None,
     db: Session = Depends(get_db),
     _: AdminUser = Depends(require_admin),
+    smi_period: Annotated[str | None, Form()] = None,
 ):
-    """Set the minimum wage the internship planner offers by default; empty clears it."""
+    """Set the minimum wage the internship planner offers by default; empty clears it.
+
+    The period (monthly or annual) decides how the SMI is shown and asked for
+    everywhere; without one, the current choice stays.
+    """
 
     text = (smi or "").strip()
+    period = smi_period if smi_period in SMI_PERIOD_LABELS else get_smi_period(db)
     try:
-        cents = parse_euros(text) if text else None
+        cents = parse_euros(text, period) if text else None
     except ValueError as exc:
         selected_year = db.get(AcademicYear, int(year_id)) if year_id and year_id.isdigit() else None
         return _render_dashboard(
             request, db, selected_year=selected_year, error=str(exc), focus_section=SMI_SECTION_ID,
             status_code=status.HTTP_400_BAD_REQUEST,
         )
-    set_smi_cents(db, cents)
+    set_smi_cents(db, cents, period)
     year = int(year_id) if year_id and year_id.isdigit() else None
     return RedirectResponse(
         url=_year_dashboard_url(year, status_name="smi-updated" if cents else "smi-cleared", section_id=SMI_SECTION_ID),

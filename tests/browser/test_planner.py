@@ -288,3 +288,45 @@ def test_estimate_follows_the_grade_and_the_smi(plan):
 
     plan.choose_modality("general")
     plan._expect(plan.page.locator("#summary-pay")).to_be_hidden()
+
+
+# The admin chooses a monthly or an annual SMI; the page then shows only that one
+# and converts a draft made under the other, like the server does.
+
+
+def test_an_annual_smi_converts_the_draft_and_the_admins_amount(plan, browser, base_url):
+    plan.choose_modality("intensiva")
+    plan.page.fill("#smi", "1.221,00")
+    total = plan.page.locator("#summary-pay-total")
+    plan._expect(total).not_to_be_empty()
+    monthly_total = total.text_content()
+
+    admin = browser.new_context().new_page()
+
+    def save_smi(period: str, typed: str, expected: str) -> None:
+        admin.goto(f"{base_url}/admin")
+        admin.locator(f"#smi-form label.segmented-option:has(input[value={period}])").click()
+        if typed:
+            admin.fill('#smi-form input[name="smi"]', typed)
+        plan._expect(admin.locator('#smi-form input[name="smi"]')).to_have_value(expected)
+        admin.locator("#smi-form button[type=submit]").click()
+        plan._expect(admin.locator("#smi-amount-label")).to_have_text(f"SMI {period}")
+
+    try:
+        admin.goto(f"{base_url}/admin/login")
+        admin.fill('input[name="username"]', "admin")
+        admin.fill('input[name="password"]', "browser-tests")
+        admin.locator('button[type="submit"]').click()
+        # Switching to annual converts the amount already in the field.
+        save_smi("mensual", "1.221,00", "1.221,00")
+        save_smi("anual", "", "17.094,00")
+
+        plan.open()
+        assert "SMI anual" in plan.page.locator("#intensive-pay").inner_text()
+        assert "SMI mensual" not in plan.page.content()
+        plan._expect(plan.page.locator("#smi")).to_have_value("17.094,00")
+        plan._expect(total).to_have_text(monthly_total)
+        plan._expect(plan.page.locator("#summary-pay-note")).to_contain_text("17.094,00 € ÷ 12 mesos")
+    finally:
+        save_smi("mensual", "", "1.221,00")
+        admin.context.close()

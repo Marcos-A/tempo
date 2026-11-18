@@ -55,7 +55,20 @@ from app.services.internship_html import (
     pdf_stylesheet,
     render_pdf,
 )
-from app.services.pay import DEFAULT_GRADE, GRADE_LABELS, PayEstimate, estimate_pay, format_euros, get_smi_cents, parse_euros
+from app.services.pay import (
+    DEFAULT_GRADE,
+    DEFAULT_SMI_PERIOD,
+    GRADE_LABELS,
+    SMI_EXAMPLES,
+    SMI_PERIOD_LABELS,
+    PayEstimate,
+    convert_smi_cents,
+    estimate_pay,
+    format_euros,
+    get_smi_cents,
+    get_smi_period,
+    parse_euros,
+)
 from app.services.usage import INTERNSHIP_EXPORT, INTERNSHIP_EXPORT_HTML, INTERNSHIP_EXPORT_PDF, INTERNSHIP_EXPORT_PNG, INTERNSHIP_VIEW, record_usage
 
 
@@ -87,6 +100,7 @@ PLAN_KEYS = (
     "include_august",
     "grade",
     "smi",
+    "smi_period",
     "start_date",
     "target_hours",
     "target_minutes",
@@ -141,7 +155,13 @@ def _school_periods(db: Session) -> list[ExcludedPeriod]:
 class InternshipRequest:
     """Validated inputs shared by the live preview and the export."""
 
-    def __init__(self, payload: dict, periods: list[ExcludedPeriod], holidays: list[RecurringHoliday] | None = None):
+    def __init__(
+        self,
+        payload: dict,
+        periods: list[ExcludedPeriod],
+        holidays: list[RecurringHoliday] | None = None,
+        smi_period: str = DEFAULT_SMI_PERIOD,
+    ):
         if not isinstance(payload, dict):
             raise ValueError("Dades de càlcul no vàlides.")
 
@@ -153,14 +173,21 @@ class InternshipRequest:
         self.include_august = payload.get("include_august") is True
 
         # Inputs of the intensive modality's pay estimate; a general agreement has none.
+        # The SMI is always in the admin's form (monthly or annual); a plan made
+        # under the other one (or before the choice, monthly) is converted.
         self.grade = ""
         self.smi_cents: int | None = None
+        self.smi_period = smi_period
         if self.modality == MODALITY_INTENSIVE:
             self.grade = str(payload.get("grade") or DEFAULT_GRADE)
             if self.grade not in GRADE_LABELS:
                 raise ValueError("Grau del cicle no vàlid.")
+            plan_period = str(payload.get("smi_period") or DEFAULT_SMI_PERIOD)
+            if plan_period not in SMI_PERIOD_LABELS:
+                raise ValueError("Tipus d'SMI no vàlid.")
             smi_text = str(payload.get("smi") or "").strip()
-            self.smi_cents = parse_euros(smi_text) if smi_text else None
+            if smi_text:
+                self.smi_cents = convert_smi_cents(parse_euros(smi_text, plan_period), plan_period, smi_period)
 
         self.start_date = parse_date_input(str(payload.get("start_date") or ""))
 
@@ -249,15 +276,22 @@ class InternshipRequest:
         if self.grade:
             details.append(("Grau", GRADE_LABELS[self.grade]))
         if self.smi_cents is not None:
-            details.append(("SMI mensual", f"{format_euros(self.smi_cents)} €"))
+            details.append((SMI_PERIOD_LABELS[self.smi_period], f"{format_euros(self.smi_cents)} €"))
         return details
+
+    def saved_smi(self) -> dict[str, str]:
+        """The SMI as a saved plan keeps it: in the admin's form, whatever the payload said."""
+
+        if self.smi_cents is None:
+            return {}
+        return {"smi": format_euros(self.smi_cents), "smi_period": self.smi_period}
 
     def pay_estimate(self, result: InternshipCalendar) -> PayEstimate | None:
         """The plan's estimated pay; only an intensive plan with an SMI has one."""
 
         if self.smi_cents is None:
             return None
-        return estimate_pay(result.days, result.target_minutes, self.grade, self.smi_cents)
+        return estimate_pay(result.days, result.target_minutes, self.grade, self.smi_cents, self.smi_period)
 
     def _ranges(self) -> list[tuple[date, date, str]]:
         return [(p.start_date, p.end_date, (p.label or "").strip()) for p in self.school_periods] + self.extra_periods
@@ -425,12 +459,14 @@ def _render_page(request: Request, db: Session, *, state: dict | None = None, er
     active_year = get_active_academic_year(db)
     periods = _school_periods(db)
     admin_smi = get_smi_cents(db)
+    smi_period = get_smi_period(db)
     default_state = {
         "modality": MODALITY_GENERAL,
         "include_saturdays": False,
         "include_august": False,
         "grade": "",
         "smi": "",
+        "smi_period": smi_period,
         "start_date": format_display_date(date.today()),
         "target_hours": "",
         "target_minutes": 0,
@@ -460,6 +496,10 @@ def _render_page(request: Request, db: Session, *, state: dict | None = None, er
             "default_grade": DEFAULT_GRADE,
             # The admin's SMI pre-fills the planner's field; empty means each plan gives its own.
             "admin_smi": format_euros(admin_smi) if admin_smi is not None else "",
+            # Monthly or annual, chosen by the admin; the planner only ever shows that one.
+            "smi_period": smi_period,
+            "smi_label": SMI_PERIOD_LABELS[smi_period],
+            "smi_example": SMI_EXAMPLES[smi_period],
             "school_periods": [
                 {
                     "id": period.id,
@@ -505,7 +545,7 @@ async def calculate_internship(request: Request, db: Session = Depends(get_db)):
     try:
         payload = json.loads(await request.body())
         holidays = list_recurring_holidays(db)
-        inputs = InternshipRequest(payload, _school_periods(db), holidays)
+        inputs = InternshipRequest(payload, _school_periods(db), holidays, get_smi_period(db))
         result = inputs.calculate()
     except (ValueError, TypeError, AttributeError) as exc:
         return JSONResponse({"ok": False, "error": _error_message(exc)}, status_code=status.HTTP_400_BAD_REQUEST)
@@ -519,7 +559,7 @@ async def _read_export_form(request: Request, db: Session):
     payload = None
     try:
         payload = json.loads(str(form.get("payload") or ""))
-        inputs = InternshipRequest(payload, _school_periods(db), list_recurring_holidays(db))
+        inputs = InternshipRequest(payload, _school_periods(db), list_recurring_holidays(db), get_smi_period(db))
         result = inputs.calculate()
     except (ValueError, TypeError, AttributeError) as exc:
         state = payload if isinstance(payload, dict) else None
@@ -601,7 +641,7 @@ def _snapshot_context(payload: dict, inputs: InternshipRequest, result: Internsh
             "format": "tempo.internship",
             "version": 1,
             "saved": date.today().isoformat(),
-            "plan": {key: payload.get(key) for key in PLAN_KEYS},
+            "plan": {key: payload.get(key) for key in PLAN_KEYS} | inputs.saved_smi(),
             # Lets the planner warn on import if the school calendar has changed since.
             "result": {"end_date": result.end_date.isoformat(), "scheduled_minutes": result.scheduled_minutes},
         },

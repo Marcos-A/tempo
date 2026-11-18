@@ -248,14 +248,22 @@
 
 <section class="card exclusions-card" id="internship-smi">
   <h2>Salari mínim (SMI)</h2>
-  <p class="inline-note">Indica l'import d'una de les 14 pagues. El calendari de pràctiques el proposa per estimar la retribució mensual en la modalitat intensiva, i cada calendari el pot canviar. Si el deixes buit, caldrà indicar-lo a cada calendari.</p>
-  <form method="post" action="/admin/smi" class="smi-form">
+  <p class="inline-note">Tria si l'SMI s'indica com a import mensual (una de les 14 pagues) o anual: el calendari de pràctiques i les exportacions el mostraran només d'aquesta manera. El calendari proposa l'import per estimar la retribució mensual en la modalitat intensiva, i cada calendari el pot canviar. Si el deixes buit, caldrà indicar-lo a cada calendari.</p>
+  <form method="post" action="/admin/smi" class="smi-form" id="smi-form">
     <input type="hidden" name="year_id" value="{{ selected_year.id }}" />
+    <div class="field-group">
+      <span class="field-group-label" id="smi-period-label">Import</span>
+      <div class="segmented" role="radiogroup" aria-labelledby="smi-period-label">
+        {% for key, label in smi_period_options.items() %}
+        <label class="segmented-option"><input type="radio" name="smi_period" value="{{ key }}" {% if key == smi_period %}checked{% endif %} /><span>{{ label }}</span></label>
+        {% endfor %}
+      </div>
+    </div>
     <label>
-      SMI mensual
+      <span id="smi-amount-label">{{ smi_label }}</span>
       <span class="optional-label">Opcional</span>
       <span class="money-field">
-        <input type="text" name="smi" value="{{ smi }}" placeholder="P.ex. 1.221,00" inputmode="decimal" maxlength="20" />
+        <input type="text" name="smi" value="{{ smi }}" placeholder="P.ex. {{ smi_example }}" inputmode="decimal" maxlength="20" />
         <span class="block-time-separator">€</span>
       </span>
     </label>
@@ -285,6 +293,35 @@
 </script>
 {% endif %}
 <script>
+  // Switching between a monthly and an annual SMI converts the amount already
+  // typed (14 payments a year), so the admin only has to save it.
+  (() => {
+    const form = document.getElementById("smi-form");
+    if (!form) return;
+    const amount = form.elements.smi;
+    const labels = {{ smi_labels|tojson }};
+    const examples = {{ smi_examples|tojson }};
+    const parse = (raw) => {
+      let text = String(raw || "").replace(/€|\s/g, "");
+      if (text.includes(",")) text = text.replace(/\./g, "").replace(",", ".");
+      else if (/^\d{1,3}(\.\d{3})+$/.test(text)) text = text.replace(/\./g, "");
+      if (!/^\d+(\.\d{1,2})?$/.test(text)) return null;
+      const [whole, decimals = ""] = text.split(".");
+      return Number(whole) * 100 + Number(decimals.padEnd(2, "0"));
+    };
+    const format = (cents) =>
+      `${Math.floor(cents / 100).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".")},${String(cents % 100).padStart(2, "0")}`;
+    form.querySelectorAll('input[name="smi_period"]').forEach((radio) => {
+      radio.addEventListener("change", () => {
+        const period = radio.value;
+        document.getElementById("smi-amount-label").textContent = labels[period];
+        amount.placeholder = `P.ex. ${examples[period]}`;
+        const cents = parse(amount.value);
+        if (cents) amount.value = format(period === "anual" ? cents * 14 : Math.round(cents / 14));
+      });
+    });
+  })();
+
   function updatePeriodType(typeNode) {
     const startInput = document.getElementById(typeNode.dataset.startInputId);
     const endInput = document.getElementById(typeNode.dataset.endInputId);

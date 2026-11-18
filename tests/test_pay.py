@@ -14,7 +14,15 @@ from app.database import Base
 from app.models import AcademicYear, AppSetting
 from app.routes import admin as admin_routes
 from app.routes.internship import InternshipRequest
-from app.services.pay import estimate_pay, format_euros, get_smi_cents, parse_euros, set_smi_cents
+from app.services.pay import (
+    convert_smi_cents,
+    estimate_pay,
+    format_euros,
+    get_smi_cents,
+    get_smi_period,
+    parse_euros,
+    set_smi_cents,
+)
 from tests.test_academic_year_admin import _legacy_engine, _request
 from tests.test_internship import _payload, client  # noqa: F401  (pytest fixture)
 
@@ -89,7 +97,7 @@ def test_exports_show_grade_and_smi_in_the_header(client):  # noqa: F811
     html = test_client.post("/practiques/export-html", data={"payload": json.dumps(payload)}).text
     assert "<dt>Grau</dt><dd>Grau mitjà</dd>" in html and "<dt>SMI mensual</dt><dd>1.184,00 €</dd>" in html
     plan = json.loads(html.split('id="tempo-internship-plan">')[1].split("</script>")[0])["plan"]
-    assert (plan["grade"], plan["smi"]) == ("mitja", "1184")
+    assert (plan["grade"], plan["smi"], plan["smi_period"]) == ("mitja", "1.184,00", "mensual")
 
     workbook = load_workbook(BytesIO(test_client.post("/practiques/export", data={"payload": json.dumps(payload)}).content))
     labels = {row[0].value: row[3].value for row in workbook["Calendari"].iter_rows(min_row=3, max_row=15)}
@@ -219,3 +227,73 @@ def test_workbook_formulas_give_the_same_amounts(client):  # noqa: F811
     total = grid.cell(row=labels["Retribució estimada:"], column=4)
     assert round(evaluate(total.value), 2) == 462.96
     assert any("8,90 €/h" in str(row[0].value) for row in grid.iter_rows(max_row=25, max_col=1))
+
+
+def test_admin_chooses_an_annual_smi(tmp_path):
+    engine = _legacy_engine(tmp_path / "planner.db")
+    Base.metadata.create_all(bind=engine)
+    SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False, expire_on_commit=False)
+    with SessionLocal() as session:
+        year = AcademicYear(label="2026-27", default_start_date=date(2026, 9, 1), default_end_date=date(2027, 6, 30), is_active=True)
+        session.add(year)
+        session.commit()
+        assert get_smi_period(session) == "mensual"
+
+        admin_routes.update_smi(_request("/admin/smi"), "17.094,00", str(year.id), session, object(), smi_period="anual")
+        assert (get_smi_cents(session), get_smi_period(session)) == (1709400, "anual")
+
+        # Without a period the choice stays; an invalid amount names the annual SMI.
+        invalid = admin_routes.update_smi(_request("/admin/smi"), "mil", str(year.id), session, object())
+        assert "SMI anual" in invalid.context["error"] and "17.094,00" in invalid.context["error"]
+        assert invalid.context["smi_label"] == "SMI anual"
+
+        admin_routes.update_smi(_request("/admin/smi"), "", str(year.id), session, object(), smi_period="mensual")
+        assert (get_smi_cents(session), get_smi_period(session)) == (None, "mensual")
+
+
+def test_converting_between_monthly_and_annual_smi():
+    assert convert_smi_cents(122100, "mensual", "anual") == 1709400
+    assert convert_smi_cents(1709400, "anual", "mensual") == 122100
+    # 1.000,00 € ÷ 14 = 71,428… rounds to 71,43 €.
+    assert convert_smi_cents(100000, "anual", "mensual") == 7143
+    assert convert_smi_cents(122100, "anual", "anual") == 122100
+
+
+def test_an_annual_smi_gives_the_same_estimate(client):  # noqa: F811
+    days = _worked_days((date(2026, 9, 1), 160))
+    monthly = estimate_pay(days, 320 * 60, "superior", SMI_2026)
+    annual = estimate_pay(days, 320 * 60, "superior", SMI_2026 * 14, "anual")
+    assert annual.month_cents == monthly.month_cents
+    assert "17.094,00 € ÷ 12 mesos" in annual.note and "pagues" not in annual.note
+
+
+def test_the_admins_annual_choice_applies_everywhere(client):  # noqa: F811
+    test_client, Session = client
+    with Session() as db:
+        set_smi_cents(db, 1709400, "anual")
+    page = test_client.get("/practiques").text
+    assert 'const SMI_PERIOD = "anual";' in page and "SMI anual" in page and "SMI mensual" not in page
+
+    # A plan saved with a monthly SMI (or before there was a choice) is converted.
+    legacy = _intensive_plan()
+    assert "smi_period" not in legacy
+    pay = test_client.post("/practiques/calcul", json=legacy).json()["pay"]
+    assert pay["total"] == "462,96 €" and "17.094,00 € ÷ 12 mesos" in pay["note"]
+
+    html = test_client.post("/practiques/export-html", data={"payload": json.dumps(legacy)}).text
+    assert "<dt>SMI anual</dt><dd>17.094,00 €</dd>" in html and "SMI mensual" not in html
+    plan = json.loads(re.search(r'id="tempo-internship-plan"[^>]*>(.*?)</script>', html, re.S).group(1))["plan"]
+    assert (plan["smi"], plan["smi_period"]) == ("17.094,00", "anual")
+
+    annual_plan = {**legacy, "smi": "17.094,00", "smi_period": "anual"}
+    content = test_client.post("/practiques/export", data={"payload": json.dumps(annual_plan)}).content
+    grid = load_workbook(BytesIO(content))["Calendari"]
+    labels = {row[0].value: row[3].value for row in grid.iter_rows(min_row=3, max_row=25, max_col=4) if row[0].value}
+    assert labels["SMI anual:"] == "17.094,00 €" and "SMI mensual:" not in labels
+
+    # Back to monthly: an annual plan shows the monthly amount again.
+    with Session() as db:
+        set_smi_cents(db, 122100, "mensual")
+    html = test_client.post("/practiques/export-html", data={"payload": json.dumps(annual_plan)}).text
+    assert "<dt>SMI mensual</dt><dd>1.221,00 €</dd>" in html and "SMI anual" not in html
+    assert test_client.post("/practiques/calcul", json={**legacy, "smi_period": "setmanal"}).status_code == 400
