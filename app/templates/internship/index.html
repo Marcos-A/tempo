@@ -94,16 +94,16 @@
           {% endfor %}
         </div>
       </div>
-      <div class="field-group">
-        <label>
-          {{ smi_label }}
+      <div class="field-group smi-field">
+        <label class="field-group-label" for="smi">{{ smi_label }}</label>
+        <div class="smi-row">
           <span class="money-field">
             <input id="smi" type="text" inputmode="decimal" maxlength="20" placeholder="P.ex. {{ smi_example }}" autocomplete="off" aria-describedby="smi-hint" />
             <span class="block-time-separator">€</span>
           </span>
-          <span class="error-text" id="smi-error" hidden></span>
-        </label>
-        <span class="field-hint" id="smi-hint">{% if smi_period == "anual" %}L'import anual de l'SMI, amb les 14 pagues.{% else %}L'import d'una de les 14 pagues de l'SMI, sense prorratejar les extres.{% endif %} Amb el grau, serveix per estimar la retribució de cada mes.</span>
+          <span class="field-hint smi-hint" id="smi-hint">{% if smi_period == "anual" %}L'import anual de l'SMI, amb les 14 pagues.{% else %}L'import d'una de les 14 pagues de l'SMI, sense prorratejar les extres.{% endif %} Amb el grau, serveix per estimar la retribució de cada mes.</span>
+        </div>
+        <span class="error-text" id="smi-error" hidden></span>
       </div>
     </div>
 
