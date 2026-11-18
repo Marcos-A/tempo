@@ -26,6 +26,7 @@ from app.services.pay import (
     SMI_EXAMPLES,
     SMI_PERIOD_LABELS,
     format_euros,
+    get_smi_amounts,
     get_smi_cents,
     get_smi_period,
     parse_euros,
@@ -193,6 +194,8 @@ def _render_dashboard(
             "smi_labels": SMI_PERIOD_LABELS,
             "smi_example": SMI_EXAMPLES[smi_period],
             "smi_examples": SMI_EXAMPLES,
+            # Switching forms in the card brings back the last amount saved in the other one.
+            "smi_amounts": {period: format_euros(cents) for period, cents in get_smi_amounts(db).items()},
             # Single days already covered by a recurring holiday can be removed from the year.
             "recurring_period_ids": {
                 period.id

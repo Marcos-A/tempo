@@ -294,13 +294,16 @@
 {% endif %}
 <script>
   // Switching between a monthly and an annual SMI converts the amount already
-  // typed (14 payments a year), so the admin only has to save it.
+  // typed (14 payments a year), so the admin only has to save it. When the
+  // amount last saved in the other form is the same SMI, it comes back exactly
+  // instead of a conversion rounded to the cent.
   (() => {
     const form = document.getElementById("smi-form");
     if (!form) return;
     const amount = form.elements.smi;
     const labels = {{ smi_labels|tojson }};
     const examples = {{ smi_examples|tojson }};
+    const saved = {{ smi_amounts|tojson }};
     const parse = (raw) => {
       let text = String(raw || "").replace(/€|\s/g, "");
       if (text.includes(",")) text = text.replace(/\./g, "").replace(",", ".");
@@ -317,7 +320,12 @@
         document.getElementById("smi-amount-label").textContent = labels[period];
         amount.placeholder = `P.ex. ${examples[period]}`;
         const cents = parse(amount.value);
-        if (cents) amount.value = format(period === "anual" ? cents * 14 : Math.round(cents / 14));
+        if (!cents) return;
+        const converted = period === "anual" ? cents * 14 : Math.round(cents / 14);
+        const remembered = parse(saved[period]);
+        // Same rule as smi_amounts_match in app/services/pay.py.
+        const [monthly, annual] = period === "anual" ? [cents, remembered] : [remembered, cents];
+        amount.value = remembered && Math.round(annual / 14) === monthly ? saved[period] : format(converted);
       });
     });
   })();

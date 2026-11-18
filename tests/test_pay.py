@@ -18,10 +18,12 @@ from app.services.pay import (
     convert_smi_cents,
     estimate_pay,
     format_euros,
+    get_smi_amounts,
     get_smi_cents,
     get_smi_period,
     parse_euros,
     set_smi_cents,
+    smi_amounts_match,
 )
 from tests.test_academic_year_admin import _legacy_engine, _request
 from tests.test_internship import _payload, client  # noqa: F401  (pytest fixture)
@@ -297,3 +299,17 @@ def test_the_admins_annual_choice_applies_everywhere(client):  # noqa: F811
     html = test_client.post("/practiques/export-html", data={"payload": json.dumps(annual_plan)}).text
     assert "<dt>SMI mensual</dt><dd>1.221,00 €</dd>" in html and "SMI anual" not in html
     assert test_client.post("/practiques/calcul", json={**legacy, "smi_period": "setmanal"}).status_code == 400
+
+
+def test_the_admin_card_remembers_the_amount_saved_in_each_form(client):  # noqa: F811
+    _, Session = client
+    with Session() as db:
+        set_smi_cents(db, 1700000, "anual")
+        # 17.000,00 ÷ 14 = 1.214,29, which × 14 would give 17.000,06 (still the same SMI).
+        set_smi_cents(db, 121429, "mensual")
+        assert get_smi_amounts(db) == {"mensual": 121429, "anual": 1700000}
+        assert smi_amounts_match(121429, 1700000) and not smi_amounts_match(121429, 1700100)
+        # Clearing keeps what each form remembers; the setting's form still counts.
+        set_smi_cents(db, None)
+        assert get_smi_amounts(db) == {"mensual": 121429, "anual": 1700000}
+        assert get_smi_period(db) == "mensual"

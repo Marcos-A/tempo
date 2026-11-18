@@ -327,6 +327,14 @@ def test_an_annual_smi_converts_the_draft_and_the_admins_amount(plan, browser, b
         plan._expect(plan.page.locator("#smi")).to_have_value("17.094,00")
         plan._expect(total).to_have_text(monthly_total)
         plan._expect(plan.page.locator("#summary-pay-note")).to_contain_text("17.094,00 € ÷ 12 mesos")
+
+        # An amount that doesn't divide by 14 comes back exactly, not as 17.000,06.
+        save_smi("anual", "17.000,00", "17.000,00")
+        save_smi("mensual", "", "1.214,29")
+        save_smi("anual", "", "17.000,00")
+        # A new amount in one form is converted again, not swapped for the old one.
+        save_smi("anual", "17.500,00", "17.500,00")
+        save_smi("mensual", "", "1.250,00")
     finally:
-        save_smi("mensual", "", "1.221,00")
+        save_smi("mensual", "1.221,00", "1.221,00")
         admin.context.close()

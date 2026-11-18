@@ -36,6 +36,9 @@ SMI_PERIOD_LABELS = {SMI_MONTHLY: "SMI mensual", SMI_ANNUAL: "SMI anual"}
 # Plans saved before the admin could choose had a monthly SMI.
 DEFAULT_SMI_PERIOD = SMI_MONTHLY
 SMI_EXAMPLES = {SMI_MONTHLY: "1.221,00", SMI_ANNUAL: "17.094,00"}
+# The last amount the admin saved in each form, so switching back brings it
+# back exactly instead of a rounded conversion.
+SMI_AMOUNT_SETTING_KEYS = {period: f"internship_smi_{period}" for period in SMI_PERIOD_LABELS}
 MAX_SMI_CENTS = 100_000 * 100
 GRADE_LABELS = {"mitja": "Grau mitjà", "superior": "Grau superior"}
 # A grade is always selected; this one applies until the user or the training cycle says otherwise.
@@ -224,20 +227,45 @@ def get_smi_period(db: Session) -> str:
     return setting.value if setting is not None and setting.value in SMI_PERIOD_LABELS else DEFAULT_SMI_PERIOD
 
 
+def smi_amounts_match(monthly_cents: int, annual_cents: int) -> bool:
+    """Whether a monthly and an annual amount are the same SMI (÷ 14, rounded to the cent)."""
+
+    return convert_smi_cents(annual_cents, SMI_ANNUAL, SMI_MONTHLY) == monthly_cents
+
+
+def get_smi_amounts(db: Session) -> dict[str, int]:
+    """The last amount saved in each form; the current one always counts."""
+
+    amounts = {}
+    for period, key in SMI_AMOUNT_SETTING_KEYS.items():
+        setting = db.get(AppSetting, key)
+        if setting is not None and setting.value:
+            amounts[period] = int(setting.value)
+    current = get_smi_cents(db)
+    if current is not None:
+        amounts[get_smi_period(db)] = current
+    return amounts
+
+
 def set_smi_cents(db: Session, cents: int | None, period: str | None = None) -> None:
     """Store the admin's SMI, or clear it so each plan has to give its own.
 
     `period` (monthly or annual) is stored too when given; it applies even
-    when the amount is cleared.
+    when the amount is cleared. An amount is also remembered for its form.
     """
 
+    if period is not None and period not in SMI_PERIOD_LABELS:
+        raise ValueError("Tipus d'SMI no vàlid.")
+    period = period or get_smi_period(db)
     setting = db.get(AppSetting, SMI_SETTING_KEY) or AppSetting(key=SMI_SETTING_KEY)
     setting.value = str(cents) if cents is not None else None
     db.add(setting)
-    if period is not None:
-        if period not in SMI_PERIOD_LABELS:
-            raise ValueError("Tipus d'SMI no vàlid.")
-        period_setting = db.get(AppSetting, SMI_PERIOD_SETTING_KEY) or AppSetting(key=SMI_PERIOD_SETTING_KEY)
-        period_setting.value = period
-        db.add(period_setting)
+    period_setting = db.get(AppSetting, SMI_PERIOD_SETTING_KEY) or AppSetting(key=SMI_PERIOD_SETTING_KEY)
+    period_setting.value = period
+    db.add(period_setting)
+    if cents is not None:
+        key = SMI_AMOUNT_SETTING_KEYS[period]
+        remembered = db.get(AppSetting, key) or AppSetting(key=key)
+        remembered.value = str(cents)
+        db.add(remembered)
     db.commit()
