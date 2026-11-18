@@ -1765,6 +1765,104 @@ select.time-select {
   font-variant-numeric: tabular-nums;
 }
 
+/* Modality, start date and total hours share the first row of the form. */
+.internship-basics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  align-items: start;
+  gap: 1rem;
+}
+
+.segmented {
+  display: inline-flex;
+  width: fit-content;
+  border: 1px solid var(--line-strong);
+  border-radius: 4px;
+  background: var(--card);
+  overflow: hidden;
+}
+
+.segmented-option {
+  display: block;
+  font-weight: 500;
+}
+
+.segmented-option input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.segmented-option span {
+  display: block;
+  padding: 0.75rem 1.1rem;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.segmented-option + .segmented-option span {
+  border-left: 1px solid var(--line-strong);
+}
+
+.segmented-option input:checked + span {
+  background: var(--accent-dark);
+  color: #fff;
+}
+
+.segmented-option input:focus-visible + span {
+  outline: 2px dashed var(--accent);
+  outline-offset: -4px;
+}
+
+.money-field {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.money-field input {
+  width: 9.5rem;
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.intensive-pay-note {
+  align-self: center;
+  margin: 0;
+}
+
+.smi-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.75rem 1rem;
+}
+
+.field-hint {
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.schedule-heading {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.5rem 1rem;
+}
+
+.schedule-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 1.25rem;
+}
+
+.schedule-option {
+  font-weight: 500;
+  white-space: nowrap;
+}
+
 .internship-panel {
   display: grid;
   gap: 1rem;
@@ -2075,6 +2173,7 @@ select.time-select {
 .day-holiday { background: #f4d6d2; }
 .day-weekend { background: #e6e6e6; }
 .day-override { background: #f6e2b3; }
+.day-closed { background: #d3d6cd; }
 .legend-swatch.day-end { background: var(--card); border: 2px solid var(--accent-dark); }
 .legend-swatch.day-schedule-start { background: var(--card); box-shadow: inset 3px 0 0 var(--accent-dark); }
 
@@ -2159,6 +2258,33 @@ select.time-select {
   font-size: 0.8rem;
   font-weight: 600;
   color: var(--muted);
+}
+
+.month-pay {
+  margin: 0.5rem 0 0;
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--muted);
+  text-align: right;
+}
+
+.internship-pay {
+  display: grid;
+  gap: 0.25rem;
+  margin: 0 0 1rem;
+  padding: 0.8rem 1rem;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+
+.internship-pay-note {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.internship-pay-notice {
+  margin: 0.35rem 0 0;
 }
 
 .month-days {
@@ -2256,7 +2382,8 @@ button.month-day:focus-visible {
 }
 
 .day-holiday .month-day-hours,
-.day-weekend .month-day-hours {
+.day-weekend .month-day-hours,
+.day-closed .month-day-hours {
   color: var(--muted-faint);
   font-weight: 400;
 }
@@ -2600,7 +2727,18 @@ kbd {
   }
 }
 
+/* Six weekdays sit in two even rows of three: Monday to Wednesday, Thursday to Saturday. */
+@media (min-width: 901px) {
+  .schedule-list.has-saturday .internship-weekdays {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
 @media (max-width: 900px) {
+  .internship-basics {
+    grid-template-columns: 1fr;
+  }
+
   .non-working-layout,
   .internship-summary {
     grid-template-columns: repeat(2, minmax(0, 1fr));

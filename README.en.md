@@ -107,9 +107,21 @@ Clicking any day changes its hours, including setting it to 0 or adding hours on
 
 To change many days at once (e.g. from 20 October to 10 November), Shift+click the first day (it is marked without opening any dialog) and Shift+click the last one, or open "Aplica-ho a més dies" in the day's dialog. This option, folded away by default, asks for a date range and the weekdays it applies to (by default, those with hours in the schedule), shows how many days will change and highlights them on the calendar. With Shift+click the weekdays are not shown: the change applies to the days in the range that have hours in the schedule. Days without internship inside the range (holidays and non-teaching periods) are left alone unless "Inclou també els dies sense pràctiques" is ticked; that option appears when the range contains such days (e.g. to schedule hours during a break the company doesn't take). Each day is stored as an individual change, so it can be adjusted or reset like any other.
 
-Internships cannot run in August, so the calendar never goes past 31 July of the school year it starts in. If the hours do not fit, the app warns and shows the hours still pending, which need a new agreement next school year.
+By default internships cannot run in August, so the calendar never goes past 31 July of the school year it starts in. If the hours do not fit, the app warns and shows the hours still pending, which need a new agreement next school year. The "Inclou l'agost" option, in the weekly schedule, allows hours in August and moves the limit to 31 August.
 
 ![Changing the hours of a whole week picked with Shift+click, with the affected days highlighted on the calendar](docs/screenshots/tempo-practiques-step-3-editor-dia.png)
+
+### Estimated Pay (Intensive Modality)
+
+In the intensive modality, the planner estimates each month's pay from the training cycle's grade and the minimum wage (SMI, *salari mínim interprofessional*). It is an estimate, not a payslip, and it is shown in the calendar summary, next to each month, and in the XLSX (with formulas that recalculate), HTML and PDF exports.
+
+- **Monthly or annual SMI:** the admin chooses at `/admin` whether the SMI is given as a monthly or an annual amount, and that choice applies everywhere: the planner, the calculation note and the exports show it only in that form, without mentioning the other. The amount the admin saves is offered to every calendar, which can change it; without one, each calendar has to give its own.
+- **The monthly amount is one of the 14 payments, without prorating the extra ones.** With the 2026 SMI it is 1.221,00 €, not 1.424,50 € (the amount with the two extra payments spread over 12 months), which would give an estimate 17 % higher. The annual amount is the total of the 14 payments: 17.094,00 €.
+- **Hourly reference:** the annual SMI (the monthly one × 14) is spread over 12 months of 20 days of 8 h: 17.094,00 € ÷ 12 ÷ 20 ÷ 8 = 8,90 €/h. It is divided by 20 days, rather than by each month's actual working days, because that slightly favours the student.
+- **Percentage by grade:** grau mitjà is paid 50 % of the hourly reference for every hour; grau superior 60 % for the first half of the agreement's total hours and 70 % for the second half. A month can hold hours at both percentages. Until a grade is chosen, it follows the training cycle (CFGM or CFGS), or grau mitjà otherwise.
+- **Each month** pays the hours planned in it, hand-changed ones included, at their percentage, rounded to the cent. The total adds up the rounded months, so it matches what each month shows. For example, a 320 h grau superior agreement with 160 h in September and 160 h in October gives 160 × 8,90 € × 60 % ≈ 854,70 € in September and 160 × 8,90 € × 70 % ≈ 997,15 € in October (the calculation uses the unrounded hourly reference, 8,903125 €).
+- **New year:** if the hours reach a later calendar year, the estimate applies the same SMI to every month and a notice says to check it once the new amount is published.
+- **Calendars made in the other form:** if a draft or a saved HTML was made with a monthly SMI and it is now annual (or the other way round), its amount is converted when it is opened (× 14 or ÷ 14, rounded to the cent). Calendars saved before the choice existed count as monthly.
 
 ### Exported XLSX
 
@@ -227,6 +239,7 @@ Deployments that set `APP_ENV` show the deployed build in a small footer and exp
 
 - `/admin` is authentication-protected
 - it manages academic years and excluded dates, plus fixed holidays (day and month) that apply to every academic year, including those not configured yet
+- it sets the SMI for the intensive modality's [estimated pay](#estimated-pay-intensive-modality) and whether it is given as a monthly or an annual amount; switching converts the amount, and switching back restores exactly the last amount saved in that form
 - `/admin/usage` shows how often each tool was opened and how many plans and exports were completed (for internships, split between XLSX, HTML, PDF and PNG), for the last 7 and 30 days, all time, and the last 12 weeks. Counting is anonymous: only one number per day and action is stored, with no IP addresses, cookies, or browser data, and bots and monitors are skipped
 - it is not linked from the public UI
 
@@ -255,6 +268,14 @@ To run the focused service tests directly:
 
 ```bash
 pytest tests/test_services.py
+```
+
+The internship planner also has browser tests in `tests/browser`, for the behaviour that lives in the page's script. They start the app with a temporary database and drive it with Chromium. Without Playwright they are skipped, as in the Docker image, so to run them use an environment of your own:
+
+```bash
+pip install -r requirements-dev.txt
+python -m playwright install chromium
+pytest tests/browser
 ```
 
 ## Project Structure

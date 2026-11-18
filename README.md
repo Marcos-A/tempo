@@ -107,9 +107,21 @@ En fer clic a qualsevol dia se'n poden canviar les hores, fins i tot posar-hi 0 
 
 Per canviar les hores de molts dies alhora (p. ex. del 20 d'octubre al 10 de novembre), es fa Maj+clic al primer dia (queda marcat sense obrir cap finestra) i Maj+clic a l'últim, o s'obre «Aplica-ho a més dies» a la finestra del dia. Aquesta opció, plegada per defecte, demana un interval de dates i els dies de la setmana afectats (de sortida, els que tenen hores a l'horari), mostra quants dies canviaran i els ressalta al calendari. Amb Maj+clic no es mostren els dies de la setmana: el canvi s'aplica als dies de l'interval que tenen hores a l'horari. Els dies sense pràctiques de l'interval (festius i períodes no lectius) no es toquen, tret que es marqui «Inclou també els dies sense pràctiques», que apareix quan l'interval en conté (p. ex. per posar hores durant unes vacances que l'empresa no fa). Cada dia queda desat com un canvi individual, així que es pot retocar o restablir com qualsevol altre.
 
-A l'agost no es poden fer pràctiques, així que el calendari no passa mai del 31 de juliol del curs en què comencen. Si les hores no hi caben, l'aplicació avisa i mostra les hores que falten, que s'hauran de fer amb un nou conveni el curs vinent.
+Per defecte, a l'agost no es poden fer pràctiques, així que el calendari no passa mai del 31 de juliol del curs en què comencen. Si les hores no hi caben, l'aplicació avisa i mostra les hores que falten, que s'hauran de fer amb un nou conveni el curs vinent. L'opció «Inclou l'agost», a l'horari setmanal, hi permet hores i porta el límit fins al 31 d'agost.
 
 ![Canvi de les hores d'una setmana sencera triada amb Maj+clic, amb els dies afectats ressaltats al calendari](docs/screenshots/tempo-practiques-step-3-editor-dia.png)
+
+### Retribució estimada (modalitat intensiva)
+
+En la modalitat intensiva, el planificador estima la retribució de cada mes a partir del grau del cicle i del salari mínim interprofessional (SMI). És una estimació orientativa, no una nòmina, i es mostra al resum del calendari, al costat de cada mes, i a les exportacions XLSX (amb fórmules que es recalculen), HTML i PDF.
+
+- **SMI mensual o anual:** l'administració tria a `/admin` si l'SMI s'indica com a import mensual o anual, i la tria s'aplica a tot arreu: el planificador, la nota del càlcul i les exportacions el mostren només d'aquesta manera, sense esmentar l'altra. L'import que hi desa l'administració es proposa a cada calendari, que el pot canviar; si no n'hi ha cap, cal indicar-lo a cada calendari.
+- **L'import mensual és una de les 14 pagues, sense prorratejar les extres.** Amb l'SMI de 2026 és 1.221,00 €, no 1.424,50 € (l'import amb les dues pagues extraordinàries repartides en 12 mesos), que donaria una estimació un 17 % més alta. L'import anual és el total de les 14 pagues: 17.094,00 €.
+- **Preu de referència per hora:** l'SMI anual (el mensual × 14) es reparteix en 12 mesos de 20 dies de 8 h: 17.094,00 € ÷ 12 ÷ 20 ÷ 8 = 8,90 €/h. Es divideix per 20 dies, i no pels dies laborables reals de cada mes, perquè afavoreix lleugerament l'estudiant.
+- **Percentatge segons el grau:** en grau mitjà, el 50 % del preu per hora per a totes les hores; en grau superior, el 60 % per a la primera meitat de les hores totals del conveni i el 70 % per a la segona. Un mes pot tenir hores als dos percentatges. Si no es tria el grau, se segueix el cicle formatiu (CFGM o CFGS) o, si no, el grau mitjà.
+- **Cada mes** cobra les hores planificades en aquell mes, incloses les canviades a mà, al seu percentatge, i s'arrodoneix al cèntim. El total és la suma dels mesos arrodonits, de manera que coincideix amb el que es mostra a cadascun. Per exemple, un conveni de 320 h en grau superior amb 160 h al setembre i 160 h a l'octubre dona 160 × 8,90 € × 60 % ≈ 854,70 € al setembre i 160 × 8,90 € × 70 % ≈ 997,15 € a l'octubre (el càlcul fa servir el preu per hora sense arrodonir, 8,903125 €).
+- **Canvi d'any:** si les hores arriben a un any natural posterior, l'estimació aplica el mateix SMI a tots els mesos i un avís recorda revisar-lo quan es publiqui el nou import.
+- **Calendaris fets amb l'altra forma:** si un esborrany o un HTML desat es va fer amb l'SMI mensual i ara és anual (o al revés), l'import es converteix en obrir-lo (× 14 o ÷ 14, arrodonit al cèntim). Els calendaris desats abans que es pogués triar es consideren mensuals.
 
 ### Full XLSX exportat
 
@@ -227,6 +239,7 @@ Els desplegaments que defineixen `APP_ENV` mostren la compilació desplegada en 
 
 - `/admin` està protegit per autenticació
 - permet gestionar anys acadèmics i dates excloses, i també festius fixos (dia i mes) que s'apliquen a tots els cursos, fins i tot als que encara no s'han configurat
+- hi fixa l'SMI de la [retribució estimada](#retribució-estimada-modalitat-intensiva) de la modalitat intensiva i tria si s'indica com a import mensual o anual; en canviar de forma, l'import es converteix sol i, si torna a la forma anterior, recupera exactament l'últim import desat en aquella forma
 - `/admin/usage` mostra quantes vegades s'ha obert cada eina i quantes planificacions i exportacions (en el cas de les pràctiques, separades entre XLSX, HTML, PDF i PNG) s'han completat, per als últims 7 i 30 dies, el total i les últimes 12 setmanes. El recompte és anònim: només es desa un número per dia i acció, sense adreces IP, galetes ni dades del navegador, i no inclou robots ni monitors
 - no apareix enllaçat des de la interfície pública
 
@@ -255,6 +268,14 @@ Per executar les proves focalitzades de serveis:
 
 ```bash
 pytest tests/test_services.py
+```
+
+El planificador de pràctiques també té proves de navegador a `tests/browser`, per al comportament que viu a l'script de la pàgina. Inicien l'aplicació amb una base de dades temporal i la controlen amb Chromium. Sense Playwright s'ometen, com passa a la imatge de Docker, així que per executar-les cal un entorn propi:
+
+```bash
+pip install -r requirements-dev.txt
+python -m playwright install chromium
+pytest tests/browser
 ```
 
 ## Estructura del projecte

@@ -60,6 +60,16 @@ class RecurringHoliday(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
 
+class AppSetting(Base):
+    """One admin-editable value stored as text under a fixed key."""
+
+    __tablename__ = "app_settings"
+
+    key: Mapped[str] = mapped_column(String(100), primary_key=True)
+    value: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
 class AcademicWeekNumber(Base):
     """Admin-assigned week number for one Monday-to-Sunday calendar week."""
 

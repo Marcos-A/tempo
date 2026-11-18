@@ -30,12 +30,19 @@ from app.services.calendar import daterange, recurring_dates
 from app.services.holidays import holiday_tuples, list_recurring_holidays
 from app.services.hours import BLOCK_MINUTE_CHOICES, MINUTES_PER_HOUR, format_minutes_label
 from app.services.internship import (
+    DAY_KIND_CLOSED,
     DAY_KIND_OVERRIDE,
+    FIRST_YEAR_MAX_MINUTES,
+    GENERAL_MAX_DAILY_MINUTES,
     MAX_DAILY_HOURS,
+    MODALITY_GENERAL,
+    MODALITY_INTENSIVE,
+    MODALITY_LABELS,
     InternshipCalendar,
     InternshipSchedule,
     build_internship_calendar,
     internship_deadline,
+    is_closed,
 )
 from app.services.internship_export import METADATA_FIELDS, build_internship_workbook, calendar_grid_end, schedule_sections
 from app.services.internship_html import (
@@ -48,6 +55,20 @@ from app.services.internship_html import (
     pdf_stylesheet,
     render_pdf,
 )
+from app.services.pay import (
+    DEFAULT_GRADE,
+    DEFAULT_SMI_PERIOD,
+    GRADE_LABELS,
+    SMI_EXAMPLES,
+    SMI_PERIOD_LABELS,
+    PayEstimate,
+    convert_smi_cents,
+    estimate_pay,
+    format_euros,
+    get_smi_cents,
+    get_smi_period,
+    parse_euros,
+)
 from app.services.usage import INTERNSHIP_EXPORT, INTERNSHIP_EXPORT_HTML, INTERNSHIP_EXPORT_PDF, INTERNSHIP_EXPORT_PNG, INTERNSHIP_VIEW, record_usage
 
 
@@ -57,9 +78,12 @@ MAX_TARGET_HOURS = 3000
 MAX_EXTRA_PERIODS = 100
 MAX_SKIPPED_HOLIDAYS = 200
 MAX_SCHEDULE_CHANGES = 20
-WEEKDAY_LABELS = ("Dilluns", "Dimarts", "Dimecres", "Dijous", "Divendres")
-# A recurring holiday only matters when it falls on a day that can have hours.
-WORKING_WEEKDAYS = range(len(WEEKDAY_LABELS))
+WEEKDAY_LABELS = ("Dilluns", "Dimarts", "Dimecres", "Dijous", "Divendres", "Dissabte")
+# Weekdays (Monday=0) that can have a weekly schedule: Monday to Friday, plus
+# Saturday when the agreement includes it. A recurring holiday only matters
+# when it falls on one of them.
+WORKING_WEEKDAYS = range(5)
+WORKING_WEEKDAYS_WITH_SATURDAY = range(6)
 MAX_LABEL_LENGTH = 120
 MAX_METADATA_LENGTH = 200
 METADATA_KEYS = tuple(key for key, _ in METADATA_FIELDS)
@@ -71,6 +95,12 @@ DETAIL_COLUMNS = (
 )
 # Inputs embedded in the HTML export so it can be opened again in the planner.
 PLAN_KEYS = (
+    "modality",
+    "include_saturdays",
+    "include_august",
+    "grade",
+    "smi",
+    "smi_period",
     "start_date",
     "target_hours",
     "target_minutes",
@@ -98,14 +128,17 @@ def _parse_minutes(value: object, *, max_hours: int, field_label: str) -> int:
     return minutes
 
 
-def _parse_weekdays(raw: object, *, label_prefix: str = "") -> dict[int, int]:
-    """Validate Monday-to-Friday minutes sent as {"0": minutes, ...}."""
+def _parse_weekdays(raw: object, weekdays: range, *, label_prefix: str = "") -> dict[int, int]:
+    """Validate the minutes of each working weekday, sent as {"0": minutes, ...}.
+
+    Days outside `weekdays` (Saturday when it is not included) are ignored.
+    """
 
     if not isinstance(raw, dict):
         raise ValueError("Horari setmanal no vàlid.")
     return {
-        index: _parse_minutes(raw.get(str(index)), max_hours=MAX_DAILY_HOURS, field_label=f"{label_prefix}{label}")
-        for index, label in enumerate(WEEKDAY_LABELS)
+        index: _parse_minutes(raw.get(str(index)), max_hours=MAX_DAILY_HOURS, field_label=f"{label_prefix}{WEEKDAY_LABELS[index]}")
+        for index in weekdays
     }
 
 
@@ -122,9 +155,39 @@ def _school_periods(db: Session) -> list[ExcludedPeriod]:
 class InternshipRequest:
     """Validated inputs shared by the live preview and the export."""
 
-    def __init__(self, payload: dict, periods: list[ExcludedPeriod], holidays: list[RecurringHoliday] | None = None):
+    def __init__(
+        self,
+        payload: dict,
+        periods: list[ExcludedPeriod],
+        holidays: list[RecurringHoliday] | None = None,
+        smi_period: str = DEFAULT_SMI_PERIOD,
+    ):
         if not isinstance(payload, dict):
             raise ValueError("Dades de càlcul no vàlides.")
+
+        self.modality = str(payload.get("modality") or MODALITY_GENERAL)
+        if self.modality not in MODALITY_LABELS:
+            raise ValueError("Modalitat de pràctiques no vàlida.")
+        self.include_saturdays = payload.get("include_saturdays") is True
+        self.working_weekdays = WORKING_WEEKDAYS_WITH_SATURDAY if self.include_saturdays else WORKING_WEEKDAYS
+        self.include_august = payload.get("include_august") is True
+
+        # Inputs of the intensive modality's pay estimate; a general agreement has none.
+        # The SMI is always in the admin's form (monthly or annual); a plan made
+        # under the other one (or before the choice, monthly) is converted.
+        self.grade = ""
+        self.smi_cents: int | None = None
+        self.smi_period = smi_period
+        if self.modality == MODALITY_INTENSIVE:
+            self.grade = str(payload.get("grade") or DEFAULT_GRADE)
+            if self.grade not in GRADE_LABELS:
+                raise ValueError("Grau del cicle no vàlid.")
+            plan_period = str(payload.get("smi_period") or DEFAULT_SMI_PERIOD)
+            if plan_period not in SMI_PERIOD_LABELS:
+                raise ValueError("Tipus d'SMI no vàlid.")
+            smi_text = str(payload.get("smi") or "").strip()
+            if smi_text:
+                self.smi_cents = convert_smi_cents(parse_euros(smi_text, plan_period), plan_period, smi_period)
 
         self.start_date = parse_date_input(str(payload.get("start_date") or ""))
 
@@ -143,7 +206,7 @@ class InternshipRequest:
 
         # The agreement's first schedule applies from the start date; each
         # change replaces it from its own date until the next change.
-        self.weekday_minutes = _parse_weekdays(payload.get("weekday_minutes") or {})
+        self.weekday_minutes = _parse_weekdays(payload.get("weekday_minutes") or {}, self.working_weekdays)
         raw_changes = payload.get("schedule_changes") or []
         if len(raw_changes) > MAX_SCHEDULE_CHANGES:
             raise ValueError("Hi ha massa canvis d'horari.")
@@ -155,7 +218,9 @@ class InternshipRequest:
                 raise ValueError(f"L'horari que comença el {display} ha de començar després de la data d'inici de les pràctiques.")
             if change_start in changes:
                 raise ValueError(f"Hi ha dos horaris que comencen el {display}.")
-            changes[change_start] = _parse_weekdays(item.get("weekday_minutes") or {}, label_prefix=f"Horari del {display}, ")
+            changes[change_start] = _parse_weekdays(
+                item.get("weekday_minutes") or {}, self.working_weekdays, label_prefix=f"Horari del {display}, "
+            )
         self.schedule = InternshipSchedule(self.weekday_minutes, list(changes.items()))
 
         try:
@@ -193,6 +258,10 @@ class InternshipRequest:
                 override_date = date.fromisoformat(key)
             except ValueError:
                 raise ValueError("Hi ha un dia modificat amb una data no vàlida.") from None
+            if is_closed(override_date, self.include_august):
+                raise ValueError(
+                    f"A l'agost no es poden fer pràctiques: treu les hores del {format_display_date(override_date)}."
+                )
             self.overrides[override_date] = _parse_minutes(
                 value, max_hours=MAX_DAILY_HOURS, field_label=f"Hores del {format_display_date(override_date)}"
             )
@@ -200,21 +269,47 @@ class InternshipRequest:
         raw_metadata = payload.get("metadata") or {}
         self.metadata = {key: str(raw_metadata.get(key) or "").strip()[:MAX_METADATA_LENGTH] for key in METADATA_KEYS}
 
+    def pay_details(self) -> list[tuple[str, str]]:
+        """Grade and SMI rows for the export headers (intensive modality only)."""
+
+        details = []
+        if self.grade:
+            details.append(("Grau", GRADE_LABELS[self.grade]))
+        if self.smi_cents is not None:
+            details.append((SMI_PERIOD_LABELS[self.smi_period], f"{format_euros(self.smi_cents)} €"))
+        return details
+
+    def saved_smi(self) -> dict[str, str]:
+        """The SMI as a saved plan keeps it: in the admin's form, whatever the payload said."""
+
+        if self.smi_cents is None:
+            return {}
+        return {"smi": format_euros(self.smi_cents), "smi_period": self.smi_period}
+
+    def pay_estimate(self, result: InternshipCalendar) -> PayEstimate | None:
+        """The plan's estimated pay; only an intensive plan with an SMI has one."""
+
+        if self.smi_cents is None:
+            return None
+        return estimate_pay(result.days, result.target_minutes, self.grade, self.smi_cents, self.smi_period)
+
     def _ranges(self) -> list[tuple[date, date, str]]:
         return [(p.start_date, p.end_date, (p.label or "").strip()) for p in self.school_periods] + self.extra_periods
 
     def fixed_holidays(self, until: date) -> dict[date, str]:
         """Recurring holidays from the start date to `until` that change the calendar.
 
-        Matches the planner's list: dates on non-working weekdays, unticked
-        dates and dates already inside a selected or added range are left out.
+        Matches the planner's list: dates on non-working weekdays, in a closed
+        August, unticked dates and dates already inside a selected or added
+        range are left out.
         """
 
         ranges = self._ranges()
         return {
             current: label
             for current, label in recurring_dates(self.holidays, self.start_date, until).items()
-            if current.weekday() in WORKING_WEEKDAYS
+            if current.weekday() in self.working_weekdays
+            and not is_closed(current, self.include_august)
             and current not in self.skipped_fixed_dates
             and not any(start <= current <= end for start, end, _ in ranges)
         }
@@ -229,7 +324,7 @@ class InternshipRequest:
                 dates.add(current)
                 if label and current not in labels:
                     labels[current] = label
-        for current, label in self.fixed_holidays(internship_deadline(self.start_date)).items():
+        for current, label in self.fixed_holidays(internship_deadline(self.start_date, self.modality, self.include_august)).items():
             dates.add(current)
             if label:
                 labels[current] = label
@@ -244,6 +339,8 @@ class InternshipRequest:
             dates,
             self.overrides,
             labels,
+            self.modality,
+            self.include_august,
         )
 
     def applied_periods(self, result: InternshipCalendar, until: date | None = None) -> list[dict[str, str]]:
@@ -297,9 +394,27 @@ def _coverage_warning(db: Session, result: InternshipCalendar, holidays: list[Re
     return None
 
 
-def _serialize_result(result: InternshipCalendar, warning: str | None) -> dict[str, object]:
+def _incomplete_message(result: InternshipCalendar) -> str:
+    """Explain the hours that do not fit before the deadline; empty when the target is met."""
+
+    if result.is_complete:
+        return ""
+    message = (
+        f"No hi ha prou dies fins al {format_display_date(result.deadline)} per completar les "
+        f"{format_minutes_label(result.target_minutes)}: en falten {format_minutes_label(result.pending_minutes)}. "
+    )
+    if result.modality == MODALITY_GENERAL:
+        if result.include_august:
+            return message + "Caldrà un nou conveni per continuar el curs vinent."
+        return message + "A l'agost no es poden fer pràctiques, així que caldrà un nou conveni per continuar el curs vinent."
+    last_day = "31 d'agost" if result.include_august else "31 de juliol"
+    return message + f"Un conveni intensiu pot durar com a màxim fins al {last_day} del curs següent: revisa l'horari o les hores totals."
+
+
+def _serialize_result(result: InternshipCalendar, warning: str | None, pay: PayEstimate | None = None) -> dict[str, object]:
     return {
         "ok": True,
+        "modality": result.modality,
         "start_date": result.start_date.isoformat(),
         "end_date": result.end_date.isoformat(),
         "end_date_display": format_display_date(result.end_date),
@@ -307,12 +422,16 @@ def _serialize_result(result: InternshipCalendar, warning: str | None) -> dict[s
         "scheduled_minutes": result.scheduled_minutes,
         "scheduled_display": format_minutes_label(result.scheduled_minutes),
         "complete": result.is_complete,
+        "incomplete_message": _incomplete_message(result),
         "pending_display": format_minutes_label(result.pending_minutes),
         "deadline_display": format_display_date(result.deadline),
         "last_working_display": format_display_date(result.last_working_date) if result.last_working_date else None,
         "working_days": result.working_day_count,
         "calendar_days": len(result.days),
         "warning": warning,
+        # Only the planner shows this; the exports leave it out.
+        "long_days": result.long_day_count if result.modality == MODALITY_GENERAL else 0,
+        "pay": pay.summary() if pay else None,
         "days": [
             {
                 "date": day.date.isoformat(),
@@ -339,11 +458,19 @@ def _export_filename(metadata: dict[str, str], extension: str = "xlsx") -> str:
 def _render_page(request: Request, db: Session, *, state: dict | None = None, error: str | None = None, status_code: int = 200):
     active_year = get_active_academic_year(db)
     periods = _school_periods(db)
+    admin_smi = get_smi_cents(db)
+    smi_period = get_smi_period(db)
     default_state = {
+        "modality": MODALITY_GENERAL,
+        "include_saturdays": False,
+        "include_august": False,
+        "grade": "",
+        "smi": "",
+        "smi_period": smi_period,
         "start_date": format_display_date(date.today()),
         "target_hours": "",
         "target_minutes": 0,
-        "weekday_minutes": {str(index): 0 for index in range(5)},
+        "weekday_minutes": {str(index): 0 for index in range(6)},
         "schedule_changes": [],
         "excluded_period_ids": [period.id for period in periods],
         "skipped_fixed_dates": [],
@@ -362,6 +489,17 @@ def _render_page(request: Request, db: Session, *, state: dict | None = None, er
             "metadata_fields": METADATA_FIELDS,
             "max_daily_hours": MAX_DAILY_HOURS,
             "calendar_kind_labels": CALENDAR_KIND_LABELS,
+            "modality_labels": MODALITY_LABELS,
+            "general_max_daily_minutes": GENERAL_MAX_DAILY_MINUTES,
+            "first_year_max_minutes": FIRST_YEAR_MAX_MINUTES,
+            "grade_labels": GRADE_LABELS,
+            "default_grade": DEFAULT_GRADE,
+            # The admin's SMI pre-fills the planner's field; empty means each plan gives its own.
+            "admin_smi": format_euros(admin_smi) if admin_smi is not None else "",
+            # Monthly or annual, chosen by the admin; the planner only ever shows that one.
+            "smi_period": smi_period,
+            "smi_label": SMI_PERIOD_LABELS[smi_period],
+            "smi_example": SMI_EXAMPLES[smi_period],
             "school_periods": [
                 {
                     "id": period.id,
@@ -407,11 +545,11 @@ async def calculate_internship(request: Request, db: Session = Depends(get_db)):
     try:
         payload = json.loads(await request.body())
         holidays = list_recurring_holidays(db)
-        inputs = InternshipRequest(payload, _school_periods(db), holidays)
+        inputs = InternshipRequest(payload, _school_periods(db), holidays, get_smi_period(db))
         result = inputs.calculate()
     except (ValueError, TypeError, AttributeError) as exc:
         return JSONResponse({"ok": False, "error": _error_message(exc)}, status_code=status.HTTP_400_BAD_REQUEST)
-    return JSONResponse(_serialize_result(result, _coverage_warning(db, result, holidays)))
+    return JSONResponse(_serialize_result(result, _coverage_warning(db, result, holidays), inputs.pay_estimate(result)))
 
 
 async def _read_export_form(request: Request, db: Session):
@@ -421,7 +559,7 @@ async def _read_export_form(request: Request, db: Session):
     payload = None
     try:
         payload = json.loads(str(form.get("payload") or ""))
-        inputs = InternshipRequest(payload, _school_periods(db), list_recurring_holidays(db))
+        inputs = InternshipRequest(payload, _school_periods(db), list_recurring_holidays(db), get_smi_period(db))
         result = inputs.calculate()
     except (ValueError, TypeError, AttributeError) as exc:
         state = payload if isinstance(payload, dict) else None
@@ -443,6 +581,9 @@ async def export_internship(request: Request, db: Session = Depends(get_db)):
         result,
         metadata=inputs.metadata,
         schedule=inputs.schedule,
+        weekdays=inputs.working_weekdays,
+        pay_details=inputs.pay_details(),
+        pay_estimate=inputs.pay_estimate(result),
         applied_periods=inputs.applied_periods(result),
         non_working_dates=non_working_dates,
         labels_by_date=labels_by_date,
@@ -455,33 +596,42 @@ async def export_internship(request: Request, db: Session = Depends(get_db)):
     )
 
 
-def _detail_columns(metadata: dict[str, str], result: InternshipCalendar, summary: dict) -> list[list[tuple[str, str]]]:
+def _detail_columns(inputs: InternshipRequest, result: InternshipCalendar, summary: dict) -> list[list[tuple[str, str]]]:
     labels = dict(METADATA_FIELDS)
+    metadata = inputs.metadata
     columns = [[(labels[key], metadata[key]) for key in keys if metadata.get(key)] for keys in DETAIL_COLUMNS]
-    columns.append([("Data d'inici", format_display_date(result.start_date)), ("Hores totals", summary["target_display"])])
+    columns.append(
+        [
+            ("Modalitat", MODALITY_LABELS[result.modality]),
+            *inputs.pay_details(),
+            ("Data d'inici", format_display_date(result.start_date)),
+            ("Hores totals", summary["target_display"]),
+        ]
+    )
     return [column for column in columns if column]
 
 
 def _snapshot_context(payload: dict, inputs: InternshipRequest, result: InternshipCalendar, *, pdf: bool = False) -> dict:
     """Context for `internship/export.html`, shared by the HTML and PDF copies."""
 
-    summary = _serialize_result(result, None)
+    summary = _serialize_result(result, None, inputs.pay_estimate(result))
     return {
         "pdf": pdf,
         "stylesheet": inline_stylesheet(),
         "pdf_stylesheet": pdf_stylesheet() if pdf else "",
         "logo": inline_logo(),
         "student_name": inputs.metadata.get("student_name", ""),
-        "detail_columns": _detail_columns(inputs.metadata, result, summary),
+        "detail_columns": _detail_columns(inputs, result, summary),
         "summary": summary,
         "override_count": sum(1 for day in result.days if day.kind == DAY_KIND_OVERRIDE),
         "calendar_kind_labels": CALENDAR_KIND_LABELS,
         "show_schedule_start": has_schedule_starts(result),
-        "months": build_month_views(result),
-        "weekday_labels": WEEKDAY_LABELS,
+        "show_closed": any(day.kind == DAY_KIND_CLOSED for day in result.days),
+        "months": build_month_views(result, summary["pay"]["months"] if summary["pay"] else None),
+        "weekday_labels": [WEEKDAY_LABELS[index] for index in inputs.working_weekdays],
         "weekday_short": WEEKDAY_SHORT,
         "schedules": [
-            (title, [format_minutes_label(minutes[index]) if minutes.get(index) else "–" for index in range(5)],
+            (title, [format_minutes_label(minutes[index]) if minutes.get(index) else "–" for index in inputs.working_weekdays],
              format_minutes_label(sum(minutes.values())))
             for title, minutes in schedule_sections(result, inputs.schedule)
         ],
@@ -491,7 +641,7 @@ def _snapshot_context(payload: dict, inputs: InternshipRequest, result: Internsh
             "format": "tempo.internship",
             "version": 1,
             "saved": date.today().isoformat(),
-            "plan": {key: payload.get(key) for key in PLAN_KEYS},
+            "plan": {key: payload.get(key) for key in PLAN_KEYS} | inputs.saved_smi(),
             # Lets the planner warn on import if the school calendar has changed since.
             "result": {"end_date": result.end_date.isoformat(), "scheduled_minutes": result.scheduled_minutes},
         },

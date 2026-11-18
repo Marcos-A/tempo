@@ -1,6 +1,7 @@
 """Tests for the internship calendar: day-by-day calculation, overrides and XLSX, HTML and PDF exports."""
 
 import json
+from io import BytesIO
 from datetime import date, datetime, timedelta
 
 import pytest
@@ -15,15 +16,17 @@ from app.main import app
 from app.models import AcademicYear, ExcludedPeriod, RecurringHoliday
 from app.routes.internship import InternshipRequest, _export_filename
 from app.services.internship import (
+    DAY_KIND_CLOSED,
     DAY_KIND_HOLIDAY,
     DAY_KIND_OVERRIDE,
     DAY_KIND_WEEKEND,
     DAY_KIND_WORKING,
+    MODALITY_INTENSIVE,
     InternshipSchedule,
     build_internship_calendar,
     internship_deadline,
 )
-from app.services.internship_export import METADATA_FIELDS, build_internship_workbook
+from app.services.internship_export import METADATA_FIELDS, build_internship_workbook, calendar_grid_end
 from app.services.internship_html import CALENDAR_KIND_LABELS, build_month_views, inline_stylesheet
 
 WEEKDAYS_7H = {0: 420, 1: 420, 2: 420, 3: 420, 4: 420}
@@ -112,6 +115,43 @@ def test_deadline_is_31_july_of_the_school_year():
     assert internship_deadline(date(2027, 7, 31)) == date(2027, 7, 31)
     with pytest.raises(ValueError, match="agost"):
         internship_deadline(date(2027, 8, 2))
+
+
+def test_intensive_deadline_is_31_july_of_the_following_school_year():
+    assert internship_deadline(date(2026, 10, 12), MODALITY_INTENSIVE) == date(2028, 7, 31)
+    assert internship_deadline(date(2027, 3, 1), MODALITY_INTENSIVE) == date(2028, 7, 31)
+    with pytest.raises(ValueError, match="agost"):
+        internship_deadline(date(2027, 8, 2), MODALITY_INTENSIVE)
+
+
+def _intensive(target_minutes, weekday_minutes, start, overrides=None):
+    return build_internship_calendar(start, target_minutes, weekday_minutes, set(), overrides, modality=MODALITY_INTENSIVE)
+
+
+def test_intensive_agreement_skips_august_and_resumes_in_september():
+    """10 h/week from June: 88 h by 31 July, then the rest from 1 September 2027 (a Wednesday)."""
+
+    result = _intensive(200 * 60, {index: 120 for index in range(5)}, date(2027, 6, 1))
+    assert result.is_complete and result.modality == MODALITY_INTENSIVE
+    august = [day for day in result.days if day.date.month == 8]
+    assert len(august) == 31
+    assert all(day.kind == DAY_KIND_CLOSED and day.minutes == 0 for day in august)
+    september_first = next(day for day in result.days if day.date == date(2027, 9, 1))
+    assert (september_first.kind, september_first.cumulative_minutes) == (DAY_KIND_WORKING, 45 * 120)
+    # 112 h left after 1 September at 2 h a day: 56 more weekdays.
+    assert result.end_date == date(2027, 11, 17)
+
+
+def test_intensive_agreement_stops_at_its_deadline_and_ignores_august_overrides():
+    result = _intensive(3000 * 60, {index: 120 for index in range(5)}, date(2026, 10, 12), overrides={date(2027, 8, 2): 300})
+    assert result.end_date == date(2028, 7, 31) and not result.is_complete
+    august_day = next(day for day in result.days if day.date == date(2027, 8, 2))
+    assert (august_day.kind, august_day.minutes) == (DAY_KIND_CLOSED, 0)
+
+
+def test_request_refuses_hours_in_august():
+    with pytest.raises(ValueError, match="agost.*02/08/2027"):
+        InternshipRequest(_payload(modality="intensiva", overrides={"2027-08-02": 120}), [])
 
 
 def test_hours_that_do_not_fit_before_august_stop_on_31_july():
@@ -243,6 +283,29 @@ def test_recurring_holidays_can_be_unticked_or_covered_by_an_added_range():
     days = {day.date: day for day in request.calculate().days}
     assert days[date(2026, 12, 8)].kind == DAY_KIND_WORKING
     assert days[date(2027, 6, 24)].label == "Empresa tancada"
+
+
+def test_saturdays_count_only_when_included():
+    saturday = date(2026, 10, 17)
+    weekdays = {str(index): 420 for index in range(6)}
+    request = InternshipRequest(_payload(target_hours="3000", weekday_minutes=weekdays), [], HOLIDAYS)
+    assert 5 not in request.weekday_minutes
+    assert {day.date: day for day in request.calculate().days}[saturday].minutes == 0
+    # 1 May 2027 is a Saturday: it only becomes a fixed holiday once Saturdays have hours.
+    assert date(2027, 5, 1) not in request.fixed_holidays(date(2027, 7, 31))
+
+    request = InternshipRequest(_payload(target_hours="3000", weekday_minutes=weekdays, include_saturdays=True), [], HOLIDAYS)
+    assert request.weekday_minutes[5] == 420
+    days = {day.date: day for day in request.calculate().days}
+    assert (days[saturday].minutes, days[saturday].kind) == (420, DAY_KIND_WORKING)
+    assert days[date(2027, 5, 1)].kind == DAY_KIND_HOLIDAY
+
+
+def test_request_validates_modality():
+    assert InternshipRequest(_payload(), []).calculate().modality == "general"
+    assert InternshipRequest(_payload(modality="intensiva"), []).calculate().modality == "intensiva"
+    with pytest.raises(ValueError, match="Modalitat"):
+        InternshipRequest(_payload(modality="nocturna"), [])
 
 
 def test_target_accepts_minutes():
@@ -434,6 +497,31 @@ def test_workbook_never_shows_august():
     assert early.cell(row=early_remaining + 2, column=1).value is None
 
 
+def test_intensive_workbook_locks_august_and_adds_september():
+    result = _intensive(80 * 60, {index: 120 for index in range(5)}, date(2027, 6, 1))
+    assert result.end_date == date(2027, 7, 26)
+    assert calendar_grid_end(result) == date(2027, 9, 30)
+    workbook = _export(result)
+    grid = workbook["Calendari"]
+    _find(grid, "Total agost 2027")
+    _find(grid, "Total setembre 2027")
+    _find(grid, "Agost (tancat)")
+    august_dates = [
+        cell for row in grid.iter_rows() for cell in row
+        if isinstance(cell.value, datetime) and cell.value.month == 8
+    ]
+    assert len(august_dates) == 31
+    for cell in august_dates:
+        hours = grid.cell(row=cell.row + 1, column=cell.column)
+        assert hours.value is None and hours.protection.locked
+        assert cell.fill.fgColor.rgb.endswith("D3D6CD")
+    detail_dates = [row[0] for row in workbook["Detall"].iter_rows(min_row=2, values_only=True) if isinstance(row[0], datetime)]
+    assert detail_dates and all(day.month != 8 for day in detail_dates)
+    assert max(detail_dates).date() == date(2027, 9, 30)
+    # A general agreement ending in July still stops on 31 July.
+    assert calendar_grid_end(_calendar(14 * 60, start=date(2027, 7, 5))) == date(2027, 7, 31)
+
+
 def test_workbook_summary_instructions_and_print_area():
     workbook = _export(
         _calendar(14 * 60), metadata={"school_tutor": "Joan Tutor", "school_tutor_email": "tutor@example.com"}
@@ -532,6 +620,13 @@ def test_page_renders_with_nav_and_school_periods(client):
     assert "Planificador curricular" in home.text
 
 
+def test_planner_gets_the_limits_its_warnings_use(client):
+    test_client, _ = client
+    page = test_client.get("/practiques").text
+    assert "const GENERAL_MAX_DAILY_MINUTES = 240;" in page
+    assert "const FIRST_YEAR_MAX_MINUTES = 24000;" in page
+
+
 def test_recurring_holidays_reach_years_without_a_school_calendar(client):
     test_client, Session = client
     with Session() as db:
@@ -557,6 +652,30 @@ def test_calcul_endpoint_returns_days_and_end_date(client):
     assert data["end_date"] == "2026-10-19"
     assert data["days"][1]["kind"] == "holiday"
     assert data["warning"] is None
+
+
+def test_calcul_counts_days_over_4_hours_in_general_only(client):
+    test_client, _ = client
+    payload = _payload(target_hours="40", weekday_minutes={"0": 300, "1": 240}, overrides={"2026-10-14": 270})
+    data = test_client.post("/practiques/calcul", json=payload).json()
+    # Mondays at 5 h and the Wednesday changed by hand; 4 h days are within the limit.
+    mondays = sum(1 for day in data["days"] if day["date"] >= "2026-10-12" and day["minutes"] == 300)
+    assert data["long_days"] == mondays + 1
+    assert test_client.post("/practiques/calcul", json={**payload, "modality": "intensiva"}).json()["long_days"] == 0
+
+
+def test_calcul_explains_missing_hours_for_each_modality(client):
+    test_client, _ = client
+    payload = _payload(start_date="01/06/2027", target_hours="3000", weekday_minutes={"0": 420})
+    general = test_client.post("/practiques/calcul", json=payload).json()
+    assert general["incomplete_message"].startswith("No hi ha prou dies fins al 31/07/2027")
+    assert "nou conveni" in general["incomplete_message"]
+    intensive = test_client.post("/practiques/calcul", json={**payload, "modality": "intensiva"}).json()
+    assert intensive["deadline_display"] == "31/07/2028"
+    assert "conveni intensiu" in intensive["incomplete_message"]
+    assert {day["kind"] for day in intensive["days"] if day["date"].startswith("2027-08")} == {DAY_KIND_CLOSED}
+    complete = test_client.post("/practiques/calcul", json=_payload()).json()
+    assert complete["incomplete_message"] == ""
 
 
 def test_calcul_endpoint_reports_validation_errors_in_catalan(client):
@@ -761,6 +880,19 @@ def kind_classes_in_css():
     return {kind for kind in (f"day-{name}" for name in CALENDAR_KIND_LABELS) if f".{kind} {{" in css}
 
 
+def test_month_views_and_html_export_show_august_closed(client):
+    result = _intensive(200 * 60, {index: 120 for index in range(5)}, date(2027, 6, 1))
+    august = next(month for month in build_month_views(result) if month["title"] == "Agost 2027")
+    assert august["total"] == "Tancat"
+    assert all("day-closed" in cell["classes"] for cell in august["cells"])
+
+    test_client, _ = client
+    payload = _payload(modality="intensiva", start_date="01/06/2027", target_hours="200", weekday_minutes={"0": 120})
+    html = _html_export(test_client, payload).text
+    assert '<li id="legend-closed"><span class="legend-swatch day-closed">' in html
+    assert '<li id="legend-closed" hidden>' in _html_export(test_client, _payload()).text
+
+
 def test_month_views_mark_schedule_changes_and_partial_last_day():
     schedule = InternshipSchedule(WEEKDAYS_7H, [(date(2026, 10, 19), {0: 240, 1: 240, 2: 240, 3: 240, 4: 240})])
     result = _calendar(37 * 60 + 30, weekday_minutes=schedule)
@@ -787,14 +919,34 @@ def test_html_export_groups_header_details_in_columns(client):
         [dt.split("</dt>")[0] for dt in column.split("<dt>")[1:]]
         for column in html.split('<dl class="snapshot-column">')[1:]
     ]
-    columns[-1] = columns[-1][:2]
+    columns[-1] = columns[-1][:3]
     assert columns == [
         ["Estudiant", "Grup"],
         ["Empresa", "Tutor/a de l&#39;empresa", "Correu del tutor/a de l&#39;empresa"],
-        ["Data d&#39;inici", "Hores totals"],
+        ["Modalitat", "Data d&#39;inici", "Hores totals"],
     ]
     # With no student or company details, only the dates remain.
     assert _html_export(test_client, _payload(metadata={})).text.count('<dl class="snapshot-column">') == 1
+
+
+def test_exports_show_modality_and_saturday_schedule(client):
+    test_client, _ = client
+    weekdays = {str(index): 240 for index in range(6)}
+    html = _html_export(test_client, _payload(modality="intensiva", include_saturdays=True, weekday_minutes=weekdays)).text
+    assert "<dt>Modalitat</dt><dd>Intensiva</dd>" in html
+    assert "<th>Dissabte</th>" in html
+    plan = json.loads(html.split('id="tempo-internship-plan">')[1].split("</script>")[0])["plan"]
+    assert (plan["modality"], plan["include_saturdays"]) == ("intensiva", True)
+    assert "<th>Dissabte</th>" not in _html_export(test_client, _payload(weekday_minutes=weekdays)).text
+
+    response = test_client.post(
+        "/practiques/export",
+        data={"payload": json.dumps(_payload(include_saturdays=True, weekday_minutes=weekdays))},
+    )
+    workbook = load_workbook(BytesIO(response.content))
+    assert "Modalitat:" in [cell.value for cell in workbook["Calendari"]["A"]]
+    config = [row[0] for row in workbook["Configuració"].iter_rows(values_only=True)]
+    assert "Dissabte" in config and "Diumenge" not in config
 
 
 def _pdf_export(test_client, payload):
@@ -841,3 +993,81 @@ def test_pdf_export_renders_a_real_pdf(client):
     response = _pdf_export(test_client, _payload())
     assert response.status_code == 200
     assert response.content.startswith(b"%PDF-")
+
+
+def _with_august(target_minutes, start, modality="general", overrides=None):
+    return build_internship_calendar(
+        start, target_minutes, {index: 120 for index in range(5)}, set(), overrides, modality=modality, include_august=True
+    )
+
+
+def test_including_august_moves_the_deadline_to_31_august():
+    assert internship_deadline(date(2026, 10, 12), include_august=True) == date(2027, 8, 31)
+    assert internship_deadline(date(2026, 10, 12), MODALITY_INTENSIVE, True) == date(2028, 8, 31)
+    # August now belongs to the school year that ends with it.
+    assert internship_deadline(date(2027, 8, 2), include_august=True) == date(2027, 8, 31)
+    assert internship_deadline(date(2027, 9, 1), include_august=True) == date(2028, 8, 31)
+
+
+def test_included_august_takes_hours_like_any_other_month():
+    result = _with_august(80 * 60, date(2027, 7, 1), overrides={date(2027, 8, 7): 180})
+    assert result.is_complete and result.end_date.month == 8
+    august = [day for day in result.days if day.date.month == 8]
+    assert {day.kind for day in august} == {DAY_KIND_WORKING, DAY_KIND_WEEKEND, DAY_KIND_OVERRIDE}
+    assert next(day for day in august if day.date == date(2027, 8, 2)).minutes == 120
+    assert next(day for day in august if day.date == date(2027, 8, 7)).minutes == 180
+    # Without the option the same agreement stops at 31 July.
+    closed = build_internship_calendar(date(2027, 7, 1), 80 * 60, {index: 120 for index in range(5)}, set())
+    assert closed.end_date == date(2027, 7, 31) and not closed.is_complete
+
+
+def test_general_agreement_with_august_stops_at_31_august():
+    result = _with_august(3000 * 60, date(2026, 10, 12))
+    assert result.end_date == date(2027, 8, 31) and not result.is_complete
+
+
+def test_request_reads_the_august_option_strictly():
+    payload = _payload(start_date="02/08/2027", overrides={"2027-08-03": 120})
+    with pytest.raises(ValueError, match="Inclou l'agost"):
+        InternshipRequest(_payload(start_date="02/08/2027"), []).calculate()
+    with pytest.raises(ValueError, match="agost.*03/08/2027"):
+        InternshipRequest(payload, [])
+    with pytest.raises(ValueError, match="agost"):
+        InternshipRequest({**payload, "include_august": "true"}, [])
+    result = InternshipRequest({**payload, "include_august": True}, []).calculate()
+    assert result.include_august and result.days[0].kind == DAY_KIND_WORKING
+
+
+def test_calcul_and_exports_with_august_included(client):
+    test_client, _ = client
+    payload = _payload(start_date="01/07/2027", target_hours="150", weekday_minutes={str(index): 240 for index in range(5)}, include_august=True)
+    data = test_client.post("/practiques/calcul", json=payload).json()
+    assert data["ok"] and data["complete"] and data["end_date"].startswith("2027-08")
+    assert DAY_KIND_CLOSED not in {day["kind"] for day in data["days"]}
+
+    tight = test_client.post("/practiques/calcul", json={**payload, "target_hours": "3000"}).json()
+    assert tight["deadline_display"] == "31/08/2027"
+    assert "A l'agost no es poden" not in tight["incomplete_message"]
+
+    html = _html_export(test_client, payload).text
+    assert "Tancat" not in html
+    assert '<li id="legend-closed" hidden>' in html
+    assert json.loads(html.split('id="tempo-internship-plan">')[1].split("</script>")[0])["plan"]["include_august"] is True
+
+    response = test_client.post("/practiques/export", data={"payload": json.dumps(payload)})
+    workbook = load_workbook(BytesIO(response.content))
+    grid = workbook["Calendari"]
+    _find(grid, "Total agost 2027")
+    assert not any(cell.value == "Agost (tancat)" for row in grid.iter_rows() for cell in row)
+    assert "no es poden fer pràctiques" not in grid.cell(row=2, column=10).value
+    assert any(isinstance(row[0].value, datetime) and row[0].value.month == 8 for row in workbook["Detall"].iter_rows(min_row=2))
+
+
+def test_fixed_holidays_in_a_closed_august_are_left_out():
+    holidays = [RecurringHoliday(month=8, day=15, label="Assumpció")]
+    # 15 August 2028 is a Tuesday, inside this intensive agreement.
+    payload = _payload(modality="intensiva", start_date="06/09/2027", target_hours="3000")
+    assert date(2028, 8, 15) not in InternshipRequest(payload, [], holidays).non_working()[0]
+    included = InternshipRequest({**payload, "include_august": True}, [], holidays)
+    assert date(2028, 8, 15) in included.non_working()[0]
+

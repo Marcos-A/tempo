@@ -208,6 +208,26 @@
   break-inside: avoid;
 }
 
+.internship-pdf .internship-pay {
+  margin: 0 0 4mm;
+  padding: 2.5mm 3mm;
+  gap: 1mm;
+}
+
+.internship-pdf .internship-pay-note {
+  font-size: 7pt;
+}
+
+.internship-pdf .internship-pay-notice {
+  margin: 1mm 0 0;
+  font-size: 7pt;
+}
+
+.internship-pdf .month-pay {
+  margin: 1mm 0 0;
+  font-size: 6.5pt;
+}
+
 .internship-pdf .month-card {
   padding: 2.5mm;
   border-color: var(--line);
