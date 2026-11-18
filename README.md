@@ -5,7 +5,7 @@
 </p>
 
 <p align="center">
-  <strong>Planificador curricular compacte per distribuir hores lectives i exportar la planificació en XLSX, amb un planificador d'hores de pràctiques per calcular el calendari de pràctiques dels estudiants.</strong>
+  <strong>Planificador curricular compacte per distribuir hores lectives i exportar la planificació en XLSX, amb un planificador de pràctiques que calcula el calendari de cada estudiant.</strong>
 </p>
 
 ## Índex

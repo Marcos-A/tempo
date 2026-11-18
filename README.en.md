@@ -5,7 +5,7 @@
 </p>
 
 <p align="center">
-  <strong>Compact curriculum planner for distributing teaching hours and exporting the plan as XLSX, with an internship hours planner for working out students' internship calendars.</strong>
+  <strong>Compact curriculum planner for distributing teaching hours and exporting the plan as XLSX, with an internship planner that works out each student's calendar.</strong>
 </p>
 
 ## Contents
