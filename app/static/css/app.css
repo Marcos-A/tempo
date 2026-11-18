@@ -1789,6 +1789,10 @@ select.time-select {
 
 .segmented-option input {
   position: absolute;
+  /* Inputs are full width by default; a hidden one that size made the page scroll sideways. */
+  width: 1px;
+  height: 1px;
+  margin: 0;
   opacity: 0;
   pointer-events: none;
 }
@@ -1827,9 +1831,27 @@ select.time-select {
   text-align: right;
 }
 
-.intensive-pay-note {
-  align-self: center;
-  margin: 0;
+/* The SMI box with its hint beside it; the hint drops below when there is no room. */
+.smi-field {
+  grid-column: span 2;
+}
+
+.smi-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 1.25rem;
+}
+
+.smi-hint {
+  flex: 1 1 16rem;
+  max-width: 26rem;
+}
+
+/* Bold like the fields that sit inside their label. */
+.smi-field input,
+.smi-field .error-text {
+  font-weight: 600;
 }
 
 .smi-form {
@@ -2737,6 +2759,10 @@ kbd {
 @media (max-width: 900px) {
   .internship-basics {
     grid-template-columns: 1fr;
+  }
+
+  .smi-field {
+    grid-column: auto;
   }
 
   .non-working-layout,
