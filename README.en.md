@@ -125,7 +125,8 @@ In the intensive modality, the planner estimates each month's pay from the train
 - **Percentage by grade:** grau mitjà is paid 50 % of the hourly reference for every hour; grau superior 60 % for the first half of the agreement's total hours and 70 % for the second half. A month can hold hours at both percentages. Until a grade is chosen, it follows the training cycle (CFGM or CFGS), or grau mitjà otherwise.
 - **Each month** pays the hours planned in it, hand-changed ones included, at their percentage, rounded to the cent. The total adds up the rounded months, so it matches what each month shows. For example, a 320 h grau superior agreement with 160 h in September and 160 h in October gives 160 × 8,90 € × 60 % ≈ 854,70 € in September and 160 × 8,90 € × 70 % ≈ 997,15 € in October (the calculation uses the unrounded hourly reference, 8,903125 €).
 - **New year:** if the hours reach a later calendar year, the estimate applies the same SMI to every month and a notice says to check it once the new amount is published.
-- **Calendars made in the other form:** if a draft or a saved HTML was made with a monthly SMI and it is now annual (or the other way round), its amount is converted when it is opened (× 14 or ÷ 14, rounded to the cent). Calendars saved before the choice existed count as monthly.
+- **Limits:** the monthly SMI can be at most 10.000,00 € and the annual one 140.000,00 €, so the annual amount typed as the monthly one is refused with a hint.
+- **Calendars made in the other form:** if a draft or a saved HTML was made with a monthly SMI and it is now annual (or the other way round), it opens with the admin's amount, as does a draft whose amount is no longer valid. Only when the admin has not set one is the amount converted (× 14 or ÷ 14, rounded to the cent). Calendars saved before the choice existed count as monthly.
 
 ### Exported XLSX
 

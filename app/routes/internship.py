@@ -60,7 +60,9 @@ from app.services.pay import (
     DEFAULT_SMI_PERIOD,
     GRADE_LABELS,
     SMI_EXAMPLES,
+    MAX_SMI_CENTS,
     SMI_PERIOD_LABELS,
+    SMI_RANGE_ERRORS,
     PayEstimate,
     convert_smi_cents,
     estimate_pay,
@@ -500,6 +502,8 @@ def _render_page(request: Request, db: Session, *, state: dict | None = None, er
             "smi_period": smi_period,
             "smi_label": SMI_PERIOD_LABELS[smi_period],
             "smi_example": SMI_EXAMPLES[smi_period],
+            "smi_max_cents": MAX_SMI_CENTS[smi_period],
+            "smi_range_error": SMI_RANGE_ERRORS[smi_period],
             "school_periods": [
                 {
                     "id": period.id,
