@@ -125,7 +125,8 @@ En la modalitat intensiva, el planificador estima la retribució de cada mes a p
 - **Percentatge segons el grau:** en grau mitjà, el 50 % del preu per hora per a totes les hores; en grau superior, el 60 % per a la primera meitat de les hores totals del conveni i el 70 % per a la segona. Un mes pot tenir hores als dos percentatges. Si no es tria el grau, se segueix el cicle formatiu (CFGM o CFGS) o, si no, el grau mitjà.
 - **Cada mes** cobra les hores planificades en aquell mes, incloses les canviades a mà, al seu percentatge, i s'arrodoneix al cèntim. El total és la suma dels mesos arrodonits, de manera que coincideix amb el que es mostra a cadascun. Per exemple, un conveni de 320 h en grau superior amb 160 h al setembre i 160 h a l'octubre dona 160 × 8,90 € × 60 % ≈ 854,70 € al setembre i 160 × 8,90 € × 70 % ≈ 997,15 € a l'octubre (el càlcul fa servir el preu per hora sense arrodonir, 8,903125 €).
 - **Canvi d'any:** si les hores arriben a un any natural posterior, l'estimació aplica el mateix SMI a tots els mesos i un avís recorda revisar-lo quan es publiqui el nou import.
-- **Calendaris fets amb l'altra forma:** si un esborrany o un HTML desat es va fer amb l'SMI mensual i ara és anual (o al revés), l'import es converteix en obrir-lo (× 14 o ÷ 14, arrodonit al cèntim). Els calendaris desats abans que es pogués triar es consideren mensuals.
+- **Límits:** l'SMI mensual pot ser com a màxim de 10.000,00 € i l'anual de 140.000,00 €, de manera que l'import anual escrit com a mensual es rebutja amb un avís.
+- **Calendaris fets amb l'altra forma:** si un esborrany o un HTML desat es va fer amb l'SMI mensual i ara és anual (o al revés), en obrir-lo agafa l'import de l'administració, igual que un esborrany amb un import que ja no és vàlid. Només si l'administració no n'ha indicat cap, l'import es converteix (× 14 o ÷ 14, arrodonit al cèntim). Els calendaris desats abans que es pogués triar es consideren mensuals.
 
 ### Full XLSX exportat
 

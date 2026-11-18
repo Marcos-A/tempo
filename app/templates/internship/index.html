@@ -399,6 +399,8 @@
   const SMI_PERIOD = {{ smi_period|tojson }};
   const SMI_LABEL = {{ smi_label|tojson }};
   const SMI_EXAMPLE = {{ smi_example|tojson }};
+  const SMI_MAX_CENTS = {{ smi_max_cents }};
+  const SMI_RANGE_ERROR = {{ smi_range_error|tojson }};
   const hasServerError = {{ 'true' if error else 'false' }};
 
   const $ = (id) => document.getElementById(id);
@@ -493,10 +495,7 @@
     merged.include_saturdays = merged.include_saturdays === true;
     merged.include_august = merged.include_august === true;
     if (!Object.hasOwn(GRADES, merged.grade)) merged.grade = "";
-    // A plan saved under the other SMI form (or before there was a choice, so
-    // monthly) has its amount converted, then the SMI field is never left
-    // empty when the admin has set one.
-    merged.smi = convertSmi(String(merged.smi || "").trim(), raw.smi_period || "mensual") || ADMIN_SMI;
+    merged.smi = restoredSmi(String(merged.smi || "").trim(), raw.smi_period || "mensual");
     merged.smi_period = SMI_PERIOD;
     merged.weekday_minutes = { ...base.weekday_minutes, ...(raw.weekday_minutes || {}) };
     merged.schedule_changes = (Array.isArray(raw.schedule_changes) ? raw.schedule_changes : []).map((change) => ({
@@ -542,7 +541,7 @@
       include_august: state.include_august,
       grade: effectiveGrade(),
       // An invalid amount waits in the form, which says what is wrong.
-      smi: parseEuros(state.smi) === null ? "" : state.smi.trim(),
+      smi: validSmiCents(state.smi) === null ? "" : state.smi.trim(),
       smi_period: SMI_PERIOD,
       start_date: state.start_date,
       target_hours: state.target_hours,
@@ -608,7 +607,13 @@
     if (!/^\d+(\.\d{1,2})?$/.test(text)) return null;
     const [whole, decimals = ""] = text.split(".");
     const cents = Number(whole) * 100 + Number(decimals.padEnd(2, "0"));
-    return cents > 0 && cents <= 100000 * 100 ? cents : null;
+    return cents > 0 ? cents : null;
+  }
+
+  // Cents of an SMI within the limits of the admin's form, or null.
+  function validSmiCents(text) {
+    const cents = parseEuros(text);
+    return cents !== null && cents <= SMI_MAX_CENTS ? cents : null;
   }
 
   function formatEuros(cents) {
@@ -616,9 +621,17 @@
     return `${whole},${pad(cents % 100)}`;
   }
 
-  // Same as convert_smi_cents in app/services/pay.py: 14 payments a year.
-  // An amount that isn't valid is left as it is for the form to flag.
-  function convertSmi(text, fromPeriod) {
+  // The SMI a saved draft or plan opens with. The field is never left empty
+  // when the admin has set one, and the admin's amount also replaces:
+  // - an amount saved under the other form (monthly or annual; plans from
+  //   before there was a choice were monthly), since the admin's choice
+  //   applies everywhere and converting a mistyped amount only makes it worse;
+  // - an amount that is no longer valid, so a broken draft mends itself.
+  // Without an admin amount, the other form is converted (× or ÷ 14, as
+  // convert_smi_cents in app/services/pay.py) and a wrong one waits in the
+  // form, which says what is wrong.
+  function restoredSmi(text, fromPeriod) {
+    if (ADMIN_SMI && (fromPeriod !== SMI_PERIOD || validSmiCents(text) === null)) return ADMIN_SMI;
     const cents = parseEuros(text);
     if (fromPeriod === SMI_PERIOD || cents === null) return text;
     return formatEuros(SMI_PERIOD === "anual" ? cents * 14 : Math.round(cents / 14));
@@ -636,7 +649,8 @@
 
   function smiError() {
     if (!state.smi.trim()) return "Indica l'SMI per poder estimar la retribució.";
-    return parseEuros(state.smi) === null ? `Indica l'${SMI_LABEL} en euros, p. ex. ${SMI_EXAMPLE}.` : "";
+    if (parseEuros(state.smi) === null) return `Indica l'${SMI_LABEL} en euros, p. ex. ${SMI_EXAMPLE}.`;
+    return validSmiCents(state.smi) === null ? SMI_RANGE_ERROR : "";
   }
 
   function renderPayInputs() {

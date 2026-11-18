@@ -41,7 +41,14 @@ SMI_EXAMPLES = {SMI_MONTHLY: "1.221,00", SMI_ANNUAL: "17.094,00"}
 # The last amount the admin saved in each form, so switching back brings it
 # back exactly instead of a rounded conversion.
 SMI_AMOUNT_SETTING_KEYS = {period: f"internship_smi_{period}" for period in SMI_PERIOD_LABELS}
-MAX_SMI_CENTS = 100_000 * 100
+# Generous ceilings that still catch an amount typed in the wrong form,
+# such as the annual SMI given as the monthly one. They are 14 times apart, so
+# a valid amount stays valid when it is converted to the other form.
+MAX_SMI_CENTS = {"mensual": 10_000 * 100, "anual": 10_000 * 100 * 14}
+SMI_RANGE_ERRORS = {
+    "mensual": "L'SMI mensual ha de ser superior a zero i com a màxim de 10.000,00 €: indica una de les 14 pagues, no l'import anual.",
+    "anual": "L'SMI anual ha de ser superior a zero i com a màxim de 140.000,00 €.",
+}
 GRADE_LABELS = {"mitja": "Grau mitjà", "superior": "Grau superior"}
 # A grade is always selected; this one applies until the user or the training cycle says otherwise.
 DEFAULT_GRADE = "mitja"
@@ -207,9 +214,13 @@ def parse_euros(raw: str, period: str = SMI_MONTHLY) -> int:
         raise ValueError(f"Indica l'{SMI_PERIOD_LABELS[period]} en euros, p. ex. {SMI_EXAMPLES[period]}.")
     whole, _, decimals = text.partition(".")
     cents = int(whole) * 100 + int(decimals.ljust(2, "0") or 0)
-    if not 0 < cents <= MAX_SMI_CENTS:
-        raise ValueError("L'SMI ha de ser superior a zero i inferior a 100.000 €.")
+    check_smi_range(cents, period)
     return cents
+
+
+def check_smi_range(cents: int, period: str) -> None:
+    if not 0 < cents <= MAX_SMI_CENTS[period]:
+        raise ValueError(SMI_RANGE_ERRORS[period])
 
 
 def format_euros(cents: int) -> str:

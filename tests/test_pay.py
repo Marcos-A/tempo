@@ -313,3 +313,27 @@ def test_the_admin_card_remembers_the_amount_saved_in_each_form(client):  # noqa
         set_smi_cents(db, None)
         assert get_smi_amounts(db) == {"mensual": 121429, "anual": 1700000}
         assert get_smi_period(db) == "mensual"
+
+
+def test_each_smi_form_has_its_own_ceiling():
+    # The annual SMI typed as the monthly one is caught, with a hint.
+    with pytest.raises(ValueError, match="no l'import anual"):
+        parse_euros("17.094,00", "mensual")
+    assert parse_euros("10.000,00", "mensual") == 1_000_000
+    assert parse_euros("140.000,00", "anual") == 14_000_000
+    with pytest.raises(ValueError, match="140.000,00"):
+        parse_euros("140.000,01", "anual")
+    # 239.316,00 is 17.094,00 × 14, the amount a mistyped monthly draft became.
+    with pytest.raises(ValueError, match="SMI anual"):
+        parse_euros("239.316,00", "anual")
+
+
+def test_a_plan_with_the_annual_smi_typed_as_monthly_is_refused(client):  # noqa: F811
+    test_client, Session = client
+    with Session() as db:
+        set_smi_cents(db, 1709400, "anual")
+    page = test_client.get("/practiques").text
+    assert "const SMI_MAX_CENTS = 14000000;" in page and "140.000,00" in page
+    mistyped = {**_intensive_plan(), "smi": "17.094,00", "smi_period": "mensual"}
+    response = test_client.post("/practiques/calcul", json=mistyped)
+    assert response.status_code == 400 and "no l'import anual" in response.json()["error"]

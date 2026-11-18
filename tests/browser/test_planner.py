@@ -328,6 +328,21 @@ def test_an_annual_smi_converts_the_draft_and_the_admins_amount(plan, browser, b
         plan._expect(total).to_have_text(monthly_total)
         plan._expect(plan.page.locator("#summary-pay-note")).to_contain_text("17.094,00 € ÷ 12 mesos")
 
+        # A draft with the annual amount typed as the monthly one, and the one it
+        # became once converted (17.094,00 × 14), both open with the admin's amount.
+        for draft_smi, draft_period in (("17.094,00", "mensual"), ("239.316,00", "anual")):
+            plan.page.evaluate(
+                """([smi, period]) => {
+                    const draft = JSON.parse(localStorage.getItem("tempo.internship.v1"));
+                    localStorage.setItem("tempo.internship.v1", JSON.stringify({ ...draft, smi, smi_period: period }));
+                }""",
+                [draft_smi, draft_period],
+            )
+            plan.open()
+            plan._expect(plan.page.locator("#smi")).to_have_value("17.094,00")
+            plan._expect(plan.page.locator("#smi-error")).to_be_hidden()
+            plan._expect(total).to_have_text(monthly_total)
+
         # An amount that doesn't divide by 14 comes back exactly, not as 17.000,06.
         save_smi("anual", "17.000,00", "17.000,00")
         save_smi("mensual", "", "1.214,29")
@@ -335,6 +350,12 @@ def test_an_annual_smi_converts_the_draft_and_the_admins_amount(plan, browser, b
         # A new amount in one form is converted again, not swapped for the old one.
         save_smi("anual", "17.500,00", "17.500,00")
         save_smi("mensual", "", "1.250,00")
+
+        # Typing the annual amount as a monthly one is flagged, with the hint.
+        plan.open()
+        plan.page.fill("#smi", "17.094,00")
+        plan.page.locator("#smi").blur()
+        plan._expect(plan.page.locator("#smi-error")).to_contain_text("no l'import anual")
     finally:
         save_smi("mensual", "1.221,00", "1.221,00")
         admin.context.close()
